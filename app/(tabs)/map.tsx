@@ -2,8 +2,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 
+import MapView, { Marker } from '@/components/CivicMap';
 import { listReports } from '@/lib/reports';
 import { Report } from '@/lib/types';
 

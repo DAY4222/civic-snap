@@ -17,8 +17,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import MapView, { Region } from 'react-native-maps';
 
+import MapView, { type Region } from '@/components/CivicMap';
 import { ISSUE_CATEGORIES, getCategory, getCategoryByTitle } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
 import { persistReportPhoto } from '@/lib/photos';
