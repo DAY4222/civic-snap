@@ -8,6 +8,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Image,
   Linking,
   Pressable,
@@ -35,6 +37,7 @@ import { Profile } from '@/lib/types';
 type Step = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
 
 const BLOCK_LEVEL_DELTA = 0.0012;
+const RACCOON_SWEEPER = require('../../assets/images/raccoon-sweeper.png');
 
 export default function ReportScreen() {
   const { resumeId } = useLocalSearchParams<{ resumeId?: string }>();
@@ -54,6 +57,7 @@ export default function ReportScreen() {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const sweepProgress = useRef(new Animated.Value(0)).current;
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const category = useMemo(() => getCategory(selectedCategoryId), [selectedCategoryId]);
@@ -82,10 +86,67 @@ export default function ReportScreen() {
       longitudeDelta: BLOCK_LEVEL_DELTA,
     };
   }, [latitude, longitude]);
+  const raccoonSweepStyle = {
+    transform: [
+      {
+        translateX: sweepProgress.interpolate({
+          inputRange: [0, 0.45, 1],
+          outputRange: [0, 4, 0],
+        }),
+      },
+      {
+        rotate: sweepProgress.interpolate({
+          inputRange: [0, 0.45, 1],
+          outputRange: ['-2deg', '3deg', '-2deg'],
+        }),
+      },
+    ],
+  };
+  const leafSweepStyle = {
+    opacity: sweepProgress.interpolate({
+      inputRange: [0, 0.2, 0.45, 0.6, 1],
+      outputRange: [1, 1, 0, 0, 1],
+    }),
+    transform: [
+      {
+        translateX: sweepProgress.interpolate({
+          inputRange: [0, 0.45, 1],
+          outputRange: [0, 18, 0],
+        }),
+      },
+      {
+        translateY: sweepProgress.interpolate({
+          inputRange: [0, 0.45, 1],
+          outputRange: [0, -2, 0],
+        }),
+      },
+      {
+        scale: sweepProgress.interpolate({
+          inputRange: [0, 0.45, 1],
+          outputRange: [1, 0.72, 1],
+        }),
+      },
+    ],
+  };
 
   useEffect(() => {
     loadProfile().then(setProfile).catch(() => setProfile(EMPTY_PROFILE));
   }, []);
+
+  useEffect(() => {
+    const sweepAnimation = Animated.loop(
+      Animated.timing(sweepProgress, {
+        duration: 2600,
+        easing: Easing.inOut(Easing.sin),
+        toValue: 1,
+        useNativeDriver: true,
+      })
+    );
+
+    sweepAnimation.start();
+
+    return () => sweepAnimation.stop();
+  }, [sweepProgress]);
 
   useEffect(() => {
     return () => {
@@ -344,6 +405,18 @@ export default function ReportScreen() {
         <View style={styles.stack}>
           <View>
             <Text style={styles.eyebrow}>Civic Snap</Text>
+            <View style={styles.raccoonStage}>
+              <Animated.Image
+                resizeMode="contain"
+                source={RACCOON_SWEEPER}
+                style={[styles.raccoonSprite, raccoonSweepStyle]}
+              />
+              <Animated.View style={[styles.raccoonLeaves, leafSweepStyle]}>
+                <View style={[styles.raccoonLeaf, styles.raccoonLeafOrange]} />
+                <View style={[styles.raccoonLeaf, styles.raccoonLeafGold]} />
+                <View style={[styles.raccoonLeaf, styles.raccoonLeafRed]} />
+              </Animated.View>
+            </View>
             <Text style={styles.title}>Snap. Pin. Send to 311.</Text>
             <Text style={styles.subtitle}>
               Create a strong report in a few focused steps.
@@ -672,6 +745,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     textTransform: 'uppercase',
+  },
+  raccoonStage: {
+    aspectRatio: 1,
+    marginTop: 12,
+    maxWidth: 92,
+    minWidth: 64,
+    position: 'relative',
+    width: '20%',
+  },
+  raccoonSprite: {
+    height: '100%',
+    width: '100%',
+  },
+  raccoonLeaves: {
+    alignItems: 'flex-end',
+    bottom: 4,
+    flexDirection: 'row',
+    gap: 3,
+    left: '58%',
+    pointerEvents: 'none',
+    position: 'absolute',
+  },
+  raccoonLeaf: {
+    borderRadius: 5,
+    height: 5,
+    transform: [{ rotate: '-18deg' }],
+    width: 8,
+  },
+  raccoonLeafGold: {
+    backgroundColor: '#e0a129',
+  },
+  raccoonLeafOrange: {
+    backgroundColor: '#d56b2d',
+  },
+  raccoonLeafRed: {
+    backgroundColor: '#a9432f',
   },
   title: {
     color: '#1d1d1f',
