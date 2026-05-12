@@ -4,7 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
 import { Link, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -35,14 +36,23 @@ import {
 import { Profile } from '@/lib/types';
 
 type Step = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
+type CategoryReturnStep = 'location' | 'details';
 
 const BLOCK_LEVEL_DELTA = 0.0012;
 const RACCOON_SWEEPER = require('../../assets/images/raccoon-sweeper.png');
+const GENERAL_CATEGORY = {
+  id: 'general',
+  title: 'General 311 report',
+  subjectLabel: 'local issue',
+  observations: [],
+  questions: [],
+};
 
 export default function ReportScreen() {
   const { resumeId } = useLocalSearchParams<{ resumeId?: string }>();
   const [step, setStep] = useState<Step>('start');
-  const [selectedCategoryId, setSelectedCategoryId] = useState(ISSUE_CATEGORIES[0].id);
+  const [categoryReturnStep, setCategoryReturnStep] = useState<CategoryReturnStep>('location');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [address, setAddress] = useState('');
   const [locationNote, setLocationNote] = useState('');
@@ -60,7 +70,10 @@ export default function ReportScreen() {
   const sweepProgress = useRef(new Animated.Value(0)).current;
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const category = useMemo(() => getCategory(selectedCategoryId), [selectedCategoryId]);
+  const category = useMemo(
+    () => (selectedCategoryId ? getCategory(selectedCategoryId) : GENERAL_CATEGORY),
+    [selectedCategoryId]
+  );
   const email = useMemo(
     () =>
       buildEmail({
@@ -129,9 +142,63 @@ export default function ReportScreen() {
     ],
   };
 
-  useEffect(() => {
-    loadProfile().then(setProfile).catch(() => setProfile(EMPTY_PROFILE));
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      loadProfile()
+        .then((nextProfile) => {
+          if (!active) return;
+
+          setProfile((currentProfile) => {
+            if (profilesEqual(currentProfile, nextProfile)) {
+              return currentProfile;
+            }
+
+            if (step === 'preview') {
+              const currentEmail = buildEmail({
+                category,
+                description,
+                answers,
+                address,
+                locationNote,
+                latitude,
+                longitude,
+                photoUri,
+                profile: currentProfile,
+              });
+              const nextEmail = buildEmail({
+                category,
+                description,
+                answers,
+                address,
+                locationNote,
+                latitude,
+                longitude,
+                photoUri,
+                profile: nextProfile,
+              });
+
+              setEmailSubject((currentSubject) =>
+                currentSubject === currentEmail.subject ? nextEmail.subject : currentSubject
+              );
+              setEmailBody((currentBody) =>
+                currentBody === currentEmail.body ? nextEmail.body : currentBody
+              );
+            }
+
+            return nextProfile;
+          });
+        })
+        .catch(() => {
+          if (active) setProfile(EMPTY_PROFILE);
+        });
+
+      return () => {
+        active = false;
+      };
+    }, [address, answers, category, description, latitude, locationNote, longitude, photoUri, step])
+  );
 
   useEffect(() => {
     const sweepAnimation = Animated.loop(
@@ -165,7 +232,7 @@ export default function ReportScreen() {
       const resumedCategory = getCategoryByTitle(report.category);
       setResumedReportId(resumeId);
       setSavedReportId(report.id);
-      setSelectedCategoryId(resumedCategory.id);
+      setSelectedCategoryId(report.category === GENERAL_CATEGORY.title ? null : resumedCategory.id);
       setPhotoUri(report.photoUri);
       setAddress(report.address);
       setLocationNote('');
@@ -182,7 +249,8 @@ export default function ReportScreen() {
 
   function resetReport() {
     setStep('start');
-    setSelectedCategoryId(ISSUE_CATEGORIES[0].id);
+    setCategoryReturnStep('location');
+    setSelectedCategoryId(null);
     setPhotoUri(null);
     setAddress('');
     setLocationNote('');
@@ -198,8 +266,8 @@ export default function ReportScreen() {
   async function takePhoto() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Camera needed', 'You can still create a report by choosing an issue.');
-      setStep('category');
+      Alert.alert('Camera needed', 'You can still create a report without a photo.');
+      setStep('location');
       return;
     }
 
@@ -211,7 +279,7 @@ export default function ReportScreen() {
 
     if (!result.canceled) {
       await storePhoto(result.assets[0].uri);
-      setStep('category');
+      setStep('location');
     }
   }
 
@@ -224,7 +292,7 @@ export default function ReportScreen() {
 
     if (!result.canceled) {
       await storePhoto(result.assets[0].uri);
-      setStep('category');
+      setStep('location');
     }
   }
 
@@ -384,6 +452,30 @@ export default function ReportScreen() {
     Linking.openURL(url);
   }
 
+  function openCategory(returnStep: CategoryReturnStep) {
+    setCategoryReturnStep(returnStep);
+    setStep('category');
+  }
+
+  function chooseCategory(categoryId: string | null) {
+    setSelectedCategoryId(categoryId);
+    setAnswers({});
+    setStep(categoryReturnStep);
+  }
+
+  function backFromCategory() {
+    setStep(categoryReturnStep === 'details' ? 'details' : 'start');
+  }
+
+  function backFromLocation() {
+    if (selectedCategoryId) {
+      openCategory('location');
+      return;
+    }
+
+    setStep('start');
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {savedBannerId ? (
@@ -428,13 +520,16 @@ export default function ReportScreen() {
             <Text style={styles.primaryButtonText}>Take photo</Text>
           </Pressable>
           <View style={styles.buttonRow}>
-            <Pressable style={styles.secondaryButton} onPress={() => setStep('category')}>
+            <Pressable style={styles.secondaryButton} onPress={() => setStep('location')}>
               <Text style={styles.secondaryButtonText}>Report without photo</Text>
             </Pressable>
             <Pressable style={styles.secondaryButton} onPress={choosePhoto}>
               <Text style={styles.secondaryButtonText}>Choose photo</Text>
             </Pressable>
           </View>
+          <Pressable style={styles.secondaryButton} onPress={() => openCategory('location')}>
+            <Text style={styles.secondaryButtonText}>Choose issue type</Text>
+          </Pressable>
           <Notice
             tone="warning"
             text="MVP note: photos are stored locally and are not anonymized yet."
@@ -444,16 +539,18 @@ export default function ReportScreen() {
 
       {step === 'category' ? (
         <View style={styles.stack}>
-          <Header title="Choose issue" onBack={() => setStep('start')} />
+          <Header title="Choose issue" onBack={backFromCategory} />
+          <Pressable
+            style={[styles.card, selectedCategoryId == null && styles.selectedCard]}
+            onPress={() => chooseCategory(null)}>
+            <Text style={styles.cardTitle}>Skip issue type</Text>
+            <Text style={styles.muted}>Continue with a general 311 report.</Text>
+          </Pressable>
           {ISSUE_CATEGORIES.map((item) => (
             <Pressable
               key={item.id}
               style={[styles.card, item.id === selectedCategoryId && styles.selectedCard]}
-              onPress={() => {
-                setSelectedCategoryId(item.id);
-                setAnswers({});
-                setStep('location');
-              }}>
+              onPress={() => chooseCategory(item.id)}>
               <Text style={styles.cardTitle}>{item.title}</Text>
               <Text style={styles.muted}>Use guided questions for this report type.</Text>
             </Pressable>
@@ -463,11 +560,17 @@ export default function ReportScreen() {
 
       {step === 'location' ? (
         <View style={styles.stack}>
-          <Header title="Confirm location" onBack={() => setStep(photoUri ? 'start' : 'category')} />
+          <Header title="Confirm location" onBack={backFromLocation} />
           {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
           <Pressable style={styles.secondaryButton} onPress={useCurrentLocation} disabled={busy}>
             <Text style={styles.secondaryButtonText}>Use current location</Text>
           </Pressable>
+          <Field
+            label="Address or nearest landmark"
+            value={address}
+            onChangeText={setAddress}
+            placeholder="Example: outside library entrance"
+          />
           {pinRegion ? (
             <View style={styles.pinCard}>
               <MapView
@@ -486,7 +589,6 @@ export default function ReportScreen() {
               text="Use current location to place an adjustable pin, or enter the address manually."
             />
           )}
-          <Field label="Address or nearest landmark" value={address} onChangeText={setAddress} />
           <Field
             label="Location note"
             value={locationNote}
@@ -502,7 +604,14 @@ export default function ReportScreen() {
       {step === 'details' ? (
         <View style={styles.stack}>
           <Header title="Add details" onBack={() => setStep('location')} />
-          <Text style={styles.categoryTitle}>{category.title}</Text>
+          <Text style={styles.categoryTitle}>
+            {selectedCategoryId ? category.title : 'General 311 report'}
+          </Text>
+          <Pressable style={styles.secondaryButton} onPress={() => openCategory('details')}>
+            <Text style={styles.secondaryButtonText}>
+              {selectedCategoryId ? 'Change issue type' : 'Choose issue type'}
+            </Text>
+          </Pressable>
           <Field
             label="Short description"
             value={description}
@@ -510,23 +619,27 @@ export default function ReportScreen() {
             placeholder="Example: pothole in the curb lane near the crosswalk"
             multiline
           />
-          <Text style={styles.sectionTitle}>Guided questions</Text>
-          {category.questions.map((question) => (
-            <Field
-              key={question.id}
-              label={question.label}
-              value={answers[question.id] ?? ''}
-              onChangeText={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
-              placeholder={question.placeholder}
-            />
-          ))}
-          <Text style={styles.sectionTitle}>Useful observations</Text>
-          {category.observations.map((observation) => (
-            <View key={observation} style={styles.observationRow}>
-              <FontAwesome name="check-circle" size={16} color="#0a7ea4" />
-              <Text style={styles.observationText}>{observation}</Text>
-            </View>
-          ))}
+          {selectedCategoryId ? (
+            <>
+              <Text style={styles.sectionTitle}>Guided questions</Text>
+              {category.questions.map((question) => (
+                <Field
+                  key={question.id}
+                  label={question.label}
+                  value={answers[question.id] ?? ''}
+                  onChangeText={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
+                  placeholder={question.placeholder}
+                />
+              ))}
+              <Text style={styles.sectionTitle}>Useful observations</Text>
+              {category.observations.map((observation) => (
+                <View key={observation} style={styles.observationRow}>
+                  <FontAwesome name="check-circle" size={16} color="#0a7ea4" />
+                  <Text style={styles.observationText}>{observation}</Text>
+                </View>
+              ))}
+            </>
+          ) : null}
           <Pressable style={styles.primaryButton} onPress={previewEmail} disabled={busy}>
             <Text style={styles.primaryButtonText}>Preview email</Text>
           </Pressable>
@@ -686,6 +799,10 @@ function Notice({ text, tone }: { text: string; tone: 'plain' | 'warning' }) {
 
 function formatAddress(place: Location.LocationGeocodedAddress) {
   return [place.name, place.street, place.city, place.region].filter(Boolean).join(', ');
+}
+
+function profilesEqual(left: Profile, right: Profile) {
+  return left.name === right.name && left.email === right.email && left.phone === right.phone;
 }
 
 const styles = StyleSheet.create({
