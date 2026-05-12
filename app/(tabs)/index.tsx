@@ -1,0 +1,902 @@
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import * as MailComposer from 'expo-mail-composer';
+import { Link, router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import MapView, { Region } from 'react-native-maps';
+
+import { ISSUE_CATEGORIES, getCategory, getCategoryByTitle } from '@/lib/categories';
+import { buildEmail } from '@/lib/email';
+import { persistReportPhoto } from '@/lib/photos';
+import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
+import {
+  createDraftReport,
+  getReport,
+  updateDraftReport,
+  updateReportEmail,
+  updateReportStatus,
+} from '@/lib/reports';
+import { Profile } from '@/lib/types';
+
+type Step = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
+
+const BLOCK_LEVEL_DELTA = 0.0012;
+
+export default function ReportScreen() {
+  const { resumeId } = useLocalSearchParams<{ resumeId?: string }>();
+  const [step, setStep] = useState<Step>('start');
+  const [selectedCategoryId, setSelectedCategoryId] = useState(ISSUE_CATEGORIES[0].id);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [address, setAddress] = useState('');
+  const [locationNote, setLocationNote] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [description, setDescription] = useState('');
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
+  const [savedReportId, setSavedReportId] = useState<string | null>(null);
+  const [savedBannerId, setSavedBannerId] = useState<string | null>(null);
+  const [resumedReportId, setResumedReportId] = useState<string | null>(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const category = useMemo(() => getCategory(selectedCategoryId), [selectedCategoryId]);
+  const email = useMemo(
+    () =>
+      buildEmail({
+        category,
+        description,
+        answers,
+        address,
+        locationNote,
+        latitude,
+        longitude,
+        photoUri,
+        profile,
+      }),
+    [address, answers, category, description, latitude, locationNote, longitude, photoUri, profile]
+  );
+  const pinRegion = useMemo<Region | null>(() => {
+    if (latitude == null || longitude == null) return null;
+
+    return {
+      latitude,
+      longitude,
+      latitudeDelta: BLOCK_LEVEL_DELTA,
+      longitudeDelta: BLOCK_LEVEL_DELTA,
+    };
+  }, [latitude, longitude]);
+
+  useEffect(() => {
+    loadProfile().then(setProfile).catch(() => setProfile(EMPTY_PROFILE));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (reverseGeocodeTimeout.current) {
+        clearTimeout(reverseGeocodeTimeout.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!resumeId || resumeId === resumedReportId) return;
+
+    getReport(resumeId).then((report) => {
+      if (!report) return;
+
+      const resumedCategory = getCategoryByTitle(report.category);
+      setResumedReportId(resumeId);
+      setSavedReportId(report.id);
+      setSelectedCategoryId(resumedCategory.id);
+      setPhotoUri(report.photoUri);
+      setAddress(report.address);
+      setLocationNote('');
+      setLatitude(report.latitude);
+      setLongitude(report.longitude);
+      setDescription(report.description);
+      setAnswers(report.answers);
+      setEmailSubject(report.emailSubject);
+      setEmailBody(report.emailBody);
+      setSavedBannerId(null);
+      setStep('details');
+    });
+  }, [resumeId, resumedReportId]);
+
+  function resetReport() {
+    setStep('start');
+    setSelectedCategoryId(ISSUE_CATEGORIES[0].id);
+    setPhotoUri(null);
+    setAddress('');
+    setLocationNote('');
+    setLatitude(null);
+    setLongitude(null);
+    setDescription('');
+    setAnswers({});
+    setSavedReportId(null);
+    setEmailSubject('');
+    setEmailBody('');
+  }
+
+  async function takePhoto() {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Camera needed', 'You can still create a report by choosing an issue.');
+      setStep('category');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.85,
+      allowsEditing: false,
+      mediaTypes: ['images'],
+    });
+
+    if (!result.canceled) {
+      await storePhoto(result.assets[0].uri);
+      setStep('category');
+    }
+  }
+
+  async function choosePhoto() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      quality: 0.85,
+      allowsEditing: false,
+      mediaTypes: ['images'],
+    });
+
+    if (!result.canceled) {
+      await storePhoto(result.assets[0].uri);
+      setStep('category');
+    }
+  }
+
+  async function storePhoto(uri: string) {
+    setBusy(true);
+    try {
+      const persisted = await persistReportPhoto(uri);
+      setPhotoUri(persisted);
+    } catch {
+      Alert.alert('Photo not saved', 'The report can continue without a saved photo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function useCurrentLocation() {
+    setBusy(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Location skipped', 'Enter the address manually to continue.');
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({});
+      setLatitude(position.coords.latitude);
+      setLongitude(position.coords.longitude);
+
+      const places = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      const place = places[0];
+      if (place) {
+        setAddress(formatAddress(place));
+      }
+    } catch {
+      Alert.alert('Location unavailable', 'Enter the address manually to continue.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function updatePinFromMap(region: Region) {
+    setLatitude(region.latitude);
+    setLongitude(region.longitude);
+
+    if (reverseGeocodeTimeout.current) {
+      clearTimeout(reverseGeocodeTimeout.current);
+    }
+
+    reverseGeocodeTimeout.current = setTimeout(() => {
+      reverseGeocodePin(region.latitude, region.longitude);
+    }, 450);
+  }
+
+  async function reverseGeocodePin(nextLatitude: number, nextLongitude: number) {
+    try {
+      const places = await Location.reverseGeocodeAsync({
+        latitude: nextLatitude,
+        longitude: nextLongitude,
+      });
+      const place = places[0];
+      if (place) {
+        setAddress(formatAddress(place));
+      }
+    } catch {
+      // Keep the user's current editable address if reverse geocoding fails.
+    }
+  }
+
+  async function previewEmail() {
+    if (!description.trim()) {
+      Alert.alert('Add a short description', 'One sentence is enough for the MVP.');
+      return;
+    }
+
+    if (!address.trim()) {
+      Alert.alert('Add a location', 'Enter an address or nearest landmark.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const nextEmail = buildEmail({
+        category,
+        description,
+        answers,
+        address,
+        locationNote,
+        latitude,
+        longitude,
+        photoUri,
+        profile,
+      });
+
+      const draftInput = {
+        category: category.title,
+        description,
+        answers,
+        address,
+        latitude,
+        longitude,
+        photoUri,
+        emailSubject: nextEmail.subject,
+        emailBody: nextEmail.body,
+      };
+
+      const id = savedReportId ?? (await createDraftReport(draftInput));
+      if (savedReportId) {
+        await updateDraftReport(savedReportId, draftInput);
+      }
+      setSavedReportId(id);
+      setEmailSubject(nextEmail.subject);
+      setEmailBody(nextEmail.body);
+      setStep('preview');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openMail() {
+    if (!savedReportId) return;
+
+    await updateReportEmail(savedReportId, emailSubject, emailBody);
+    const available = await MailComposer.isAvailableAsync();
+    if (!available) {
+      setStep('fallback');
+      return;
+    }
+
+    try {
+      await MailComposer.composeAsync({
+        recipients: [email.recipient],
+        subject: emailSubject,
+        body: emailBody,
+        attachments: photoUri ? [photoUri] : [],
+      });
+      await updateReportStatus(savedReportId, 'Mail opened');
+      const id = savedReportId;
+      resetReport();
+      setSavedBannerId(id);
+    } catch {
+      setStep('fallback');
+    }
+  }
+
+  async function copyEmail() {
+    await Clipboard.setStringAsync(`${emailSubject}\n\n${emailBody}`);
+    Alert.alert('Copied', 'Email subject and body copied.');
+  }
+
+  function openMailto() {
+    const url = `mailto:${email.recipient}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(
+      emailBody
+    )}`;
+    Linking.openURL(url);
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      {savedBannerId ? (
+        <View style={styles.banner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle}>Report saved</Text>
+            <Text style={styles.muted}>Mail was opened. Tracking is local.</Text>
+          </View>
+          <Pressable
+            style={styles.bannerButton}
+            onPress={() => router.push({ pathname: '/report/[id]', params: { id: savedBannerId } })}>
+            <Text style={styles.bannerButtonText}>View</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {step !== 'start' ? <Progress currentStep={step} /> : null}
+
+      {step === 'start' ? (
+        <View style={styles.stack}>
+          <View>
+            <Text style={styles.eyebrow}>Civic Snap</Text>
+            <Text style={styles.title}>Snap. Pin. Send to 311.</Text>
+            <Text style={styles.subtitle}>
+              Create a strong report in a few focused steps.
+            </Text>
+          </View>
+          <Notice tone="plain" text="For emergencies or immediate danger, use emergency services instead of this app." />
+          <Pressable style={styles.primaryButton} onPress={takePhoto} disabled={busy}>
+            <FontAwesome name="camera" size={22} color="#fff" />
+            <Text style={styles.primaryButtonText}>Take photo</Text>
+          </Pressable>
+          <View style={styles.buttonRow}>
+            <Pressable style={styles.secondaryButton} onPress={() => setStep('category')}>
+              <Text style={styles.secondaryButtonText}>Report without photo</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={choosePhoto}>
+              <Text style={styles.secondaryButtonText}>Choose photo</Text>
+            </Pressable>
+          </View>
+          <Notice
+            tone="warning"
+            text="MVP note: photos are stored locally and are not anonymized yet."
+          />
+        </View>
+      ) : null}
+
+      {step === 'category' ? (
+        <View style={styles.stack}>
+          <Header title="Choose issue" onBack={() => setStep('start')} />
+          {ISSUE_CATEGORIES.map((item) => (
+            <Pressable
+              key={item.id}
+              style={[styles.card, item.id === selectedCategoryId && styles.selectedCard]}
+              onPress={() => {
+                setSelectedCategoryId(item.id);
+                setAnswers({});
+                setStep('location');
+              }}>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              <Text style={styles.muted}>Use guided questions for this report type.</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      {step === 'location' ? (
+        <View style={styles.stack}>
+          <Header title="Confirm location" onBack={() => setStep(photoUri ? 'start' : 'category')} />
+          {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
+          <Pressable style={styles.secondaryButton} onPress={useCurrentLocation} disabled={busy}>
+            <Text style={styles.secondaryButtonText}>Use current location</Text>
+          </Pressable>
+          {pinRegion ? (
+            <View style={styles.pinCard}>
+              <MapView
+                style={styles.pinMap}
+                region={pinRegion}
+                onRegionChangeComplete={updatePinFromMap}
+              />
+              <View pointerEvents="none" style={styles.centerPin}>
+                <FontAwesome name="map-marker" size={38} color="#d43f2f" />
+              </View>
+              <Text style={styles.mapHelp}>Move the map under the pin. The view is zoomed to about one block.</Text>
+            </View>
+          ) : (
+            <Notice
+              tone="plain"
+              text="Use current location to place an adjustable pin, or enter the address manually."
+            />
+          )}
+          <Field label="Address or nearest landmark" value={address} onChangeText={setAddress} />
+          <Field
+            label="Location note"
+            value={locationNote}
+            onChangeText={setLocationNote}
+            placeholder="Example: south curb, beside the park entrance"
+          />
+          <Pressable style={styles.primaryButton} onPress={() => setStep('details')}>
+            <Text style={styles.primaryButtonText}>Use this spot</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {step === 'details' ? (
+        <View style={styles.stack}>
+          <Header title="Add details" onBack={() => setStep('location')} />
+          <Text style={styles.categoryTitle}>{category.title}</Text>
+          <Field
+            label="Short description"
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Example: pothole in the curb lane near the crosswalk"
+            multiline
+          />
+          <Text style={styles.sectionTitle}>Guided questions</Text>
+          {category.questions.map((question) => (
+            <Field
+              key={question.id}
+              label={question.label}
+              value={answers[question.id] ?? ''}
+              onChangeText={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
+              placeholder={question.placeholder}
+            />
+          ))}
+          <Text style={styles.sectionTitle}>Useful observations</Text>
+          {category.observations.map((observation) => (
+            <View key={observation} style={styles.observationRow}>
+              <FontAwesome name="check-circle" size={16} color="#0a7ea4" />
+              <Text style={styles.observationText}>{observation}</Text>
+            </View>
+          ))}
+          <Pressable style={styles.primaryButton} onPress={previewEmail} disabled={busy}>
+            <Text style={styles.primaryButtonText}>Preview email</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {step === 'preview' ? (
+        <View style={styles.stack}>
+          <Header title="Email preview" onBack={() => setStep('details')} />
+          <Notice
+            tone="plain"
+            text="This draft is saved locally as Draft. You still send it from your own email."
+          />
+          {!profile.name || !profile.email || !profile.phone ? (
+            <View style={styles.warningCard}>
+              <Text style={styles.cardTitle}>Contact info incomplete</Text>
+              <Text style={styles.muted}>You can still open Mail, but 311 reports are stronger with contact info.</Text>
+              <Link href="/settings" asChild>
+                <Pressable style={styles.smallButton}>
+                  <Text style={styles.smallButtonText}>Edit profile</Text>
+                </Pressable>
+              </Link>
+            </View>
+          ) : null}
+          <View style={styles.emailBox}>
+            <Text style={styles.label}>To</Text>
+            <Text style={styles.emailTo}>{email.recipient}</Text>
+            <Field
+              label="Subject"
+              value={emailSubject}
+              onChangeText={setEmailSubject}
+            />
+            <Field
+              label="Body"
+              value={emailBody}
+              onChangeText={setEmailBody}
+              multiline
+            />
+          </View>
+          <Text style={styles.muted}>{photoUri ? 'Photo will be attached.' : 'No photo attached.'}</Text>
+          <Pressable style={styles.primaryButton} onPress={openMail}>
+            <Text style={styles.primaryButtonText}>Open Mail</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {step === 'fallback' ? (
+        <View style={styles.stack}>
+          <Header title="Mail unavailable" onBack={() => setStep('preview')} />
+          <Notice
+            tone="warning"
+            text="The iOS mail composer is unavailable. Copy the draft, then attach the photo manually if needed."
+          />
+          <Pressable style={styles.secondaryButton} onPress={copyEmail}>
+            <Text style={styles.secondaryButtonText}>Copy email text</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={openMailto}>
+            <Text style={styles.secondaryButtonText}>Open mailto link</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {busy ? (
+        <View style={styles.busyOverlay}>
+          <ActivityIndicator />
+        </View>
+      ) : null}
+    </ScrollView>
+  );
+}
+
+function Header({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <View style={styles.headerRow}>
+      <Pressable onPress={onBack} hitSlop={10}>
+        <FontAwesome name="chevron-left" size={18} color="#1d1d1f" />
+      </Pressable>
+      <Text style={styles.headerTitle}>{title}</Text>
+      <View style={{ width: 18 }} />
+    </View>
+  );
+}
+
+function Progress({ currentStep }: { currentStep: Step }) {
+  const steps: { key: Step; label: string }[] = [
+    { key: 'category', label: 'Issue' },
+    { key: 'location', label: 'Pin' },
+    { key: 'details', label: 'Details' },
+    { key: 'preview', label: 'Email' },
+  ];
+  const currentIndex = Math.max(
+    steps.findIndex((step) => step.key === (currentStep === 'fallback' ? 'preview' : currentStep)),
+    0
+  );
+
+  return (
+    <View style={styles.progressCard}>
+      {steps.map((step, index) => {
+        const isActive = index === currentIndex;
+        const isDone = index < currentIndex;
+
+        return (
+          <View key={step.key} style={styles.progressItem}>
+            <View
+              style={[
+                styles.progressDot,
+                (isActive || isDone) && styles.progressDotActive,
+              ]}>
+              <Text style={[styles.progressNumber, (isActive || isDone) && styles.progressNumberActive]}>
+                {index + 1}
+              </Text>
+            </View>
+            <Text style={[styles.progressLabel, isActive && styles.progressLabelActive]}>
+              {step.label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  multiline,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        multiline={multiline}
+        style={[styles.input, multiline && styles.multiline]}
+      />
+    </View>
+  );
+}
+
+function Notice({ text, tone }: { text: string; tone: 'plain' | 'warning' }) {
+  return (
+    <View style={[styles.notice, tone === 'warning' && styles.warningNotice]}>
+      <Text style={styles.noticeText}>{text}</Text>
+    </View>
+  );
+}
+
+function formatAddress(place: Location.LocationGeocodedAddress) {
+  return [place.name, place.street, place.city, place.region].filter(Boolean).join(', ');
+}
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 20,
+    paddingBottom: 48,
+    backgroundColor: '#f5f5f7',
+    flexGrow: 1,
+  },
+  stack: {
+    gap: 16,
+  },
+  progressCard: {
+    backgroundColor: '#fff',
+    borderColor: '#d1d1d6',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    padding: 12,
+  },
+  progressItem: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 6,
+  },
+  progressDot: {
+    alignItems: 'center',
+    backgroundColor: '#f2f2f7',
+    borderRadius: 999,
+    height: 26,
+    justifyContent: 'center',
+    width: 26,
+  },
+  progressDotActive: {
+    backgroundColor: '#0a7ea4',
+  },
+  progressNumber: {
+    color: '#636366',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  progressNumberActive: {
+    color: '#fff',
+  },
+  progressLabel: {
+    color: '#636366',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  progressLabelActive: {
+    color: '#1d1d1f',
+  },
+  eyebrow: {
+    color: '#0a7ea4',
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  title: {
+    color: '#1d1d1f',
+    fontSize: 32,
+    fontWeight: '800',
+    lineHeight: 36,
+    marginTop: 8,
+  },
+  subtitle: {
+    color: '#636366',
+    fontSize: 17,
+    lineHeight: 24,
+    marginTop: 10,
+  },
+  primaryButton: {
+    minHeight: 56,
+    borderRadius: 14,
+    backgroundColor: '#0a7ea4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    borderColor: '#d1d1d6',
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  secondaryButtonText: {
+    color: '#1d1d1f',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderColor: '#d1d1d6',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+  },
+  selectedCard: {
+    borderColor: '#0a7ea4',
+  },
+  cardTitle: {
+    color: '#1d1d1f',
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  muted: {
+    color: '#636366',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  notice: {
+    backgroundColor: '#e9f5f9',
+    borderRadius: 14,
+    padding: 14,
+  },
+  warningNotice: {
+    backgroundColor: '#fff4df',
+  },
+  noticeText: {
+    color: '#2f3a40',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  headerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    color: '#1d1d1f',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  photo: {
+    width: '100%',
+    height: 220,
+    borderRadius: 16,
+    backgroundColor: '#d1d1d6',
+  },
+  pinCard: {
+    backgroundColor: '#fff',
+    borderColor: '#d1d1d6',
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  pinMap: {
+    height: 260,
+    width: '100%',
+  },
+  centerPin: {
+    alignItems: 'center',
+    height: 48,
+    justifyContent: 'center',
+    left: '50%',
+    marginLeft: -24,
+    marginTop: -34,
+    position: 'absolute',
+    top: 130,
+    width: 48,
+  },
+  mapHelp: {
+    color: '#636366',
+    fontSize: 13,
+    lineHeight: 18,
+    padding: 12,
+  },
+  field: {
+    gap: 7,
+  },
+  label: {
+    color: '#636366',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderColor: '#d1d1d6',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    color: '#1d1d1f',
+    fontSize: 16,
+    padding: 14,
+  },
+  multiline: {
+    minHeight: 86,
+    textAlignVertical: 'top',
+  },
+  categoryTitle: {
+    color: '#1d1d1f',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  sectionTitle: {
+    color: '#1d1d1f',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  observationRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  observationText: {
+    color: '#3a3a3c',
+    flex: 1,
+    fontSize: 15,
+  },
+  warningCard: {
+    backgroundColor: '#fff4df',
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
+  },
+  smallButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#1d1d1f',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  smallButtonText: {
+    color: '#fff',
+    fontWeight: '800',
+  },
+  emailBox: {
+    backgroundColor: '#fff',
+    borderColor: '#d1d1d6',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+    padding: 14,
+  },
+  emailTo: {
+    color: '#1d1d1f',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  banner: {
+    alignItems: 'center',
+    backgroundColor: '#e9f5f9',
+    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+    padding: 14,
+  },
+  bannerTitle: {
+    color: '#1d1d1f',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  bannerButton: {
+    backgroundColor: '#0a7ea4',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  bannerButtonText: {
+    color: '#fff',
+    fontWeight: '800',
+  },
+  busyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

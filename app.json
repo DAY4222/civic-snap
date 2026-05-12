@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Civic Snap",
+    "slug": "civic-snap",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "civicsnap",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.civicsnap.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Civic Snap uses the camera so you can attach a photo to your 311 report.",
+        "NSPhotoLibraryUsageDescription": "Civic Snap can select a photo so you can attach it to your 311 report.",
+        "NSLocationWhenInUseUsageDescription": "Civic Snap uses your location to help fill the address for your 311 report."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-image-picker",
+      "expo-location",
+      "expo-mail-composer",
+      "expo-sqlite",
+      "expo-secure-store"
+    ]
+  }
+}
