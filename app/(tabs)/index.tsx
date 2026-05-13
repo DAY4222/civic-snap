@@ -653,10 +653,10 @@ export default function ReportScreen() {
             tone="plain"
             text="This draft is saved locally as Draft. You still send it from your own email."
           />
-          {!profile.name || !profile.email || !profile.phone ? (
+          {!profile.name.trim() || !profile.phone.trim() ? (
             <View style={styles.warningCard}>
-              <Text style={styles.cardTitle}>Contact info incomplete</Text>
-              <Text style={styles.muted}>You can still open Mail, but 311 reports are stronger with contact info.</Text>
+              <Text style={styles.cardTitle}>Add contact info?</Text>
+              <Text style={styles.muted}>311 may use it to follow up. You can still send this report without it.</Text>
               <Link href="/settings" asChild>
                 <Pressable style={styles.smallButton}>
                   <Text style={styles.smallButtonText}>Edit profile</Text>

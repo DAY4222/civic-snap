@@ -20,7 +20,9 @@ export default function SettingsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Profile</Text>
-      <Text style={styles.subtitle}>Optional contact info for stronger 311 emails. Stored on this device.</Text>
+      <Text style={styles.subtitle}>
+        Optional contact info included in 311 email drafts you choose to send. Stored on this device.
+      </Text>
       <Field
         label="Name"
         value={profile.name}

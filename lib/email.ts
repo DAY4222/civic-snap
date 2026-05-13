@@ -5,10 +5,10 @@ const RECIPIENT = '311@toronto.ca';
 export function buildEmail(input: DraftReportInput) {
   const subject = `311 service request: ${input.category.title}`;
   const profileLines = [
-    input.profile.name ? `Name: ${input.profile.name}` : 'Name: not provided',
-    input.profile.email ? `Email: ${input.profile.email}` : 'Email: not provided',
-    input.profile.phone ? `Phone: ${input.profile.phone}` : 'Phone: not provided',
-  ];
+    input.profile.name.trim() ? `Name: ${input.profile.name.trim()}` : null,
+    input.profile.email.trim() ? `Email: ${input.profile.email.trim()}` : null,
+    input.profile.phone.trim() ? `Phone: ${input.profile.phone.trim()}` : null,
+  ].filter((line): line is string => line != null);
 
   const answerLines = input.category.questions
     .map((question) => {
@@ -39,9 +39,9 @@ export function buildEmail(input: DraftReportInput) {
     ...answerLines,
     input.photoUri ? '- Photo attached' : '- No photo attached',
     '',
-    'Contact:',
+    profileLines.length ? 'Contact:' : null,
     ...profileLines,
-    '',
+    profileLines.length ? '' : null,
     'Thank you.',
   ]
     .filter((line): line is string => line != null)
