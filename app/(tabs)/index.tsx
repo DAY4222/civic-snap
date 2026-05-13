@@ -9,8 +9,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
-  Easing,
   Image,
   Linking,
   Pressable,
@@ -39,7 +37,21 @@ type Step = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallbac
 type CategoryReturnStep = 'location' | 'details';
 
 const BLOCK_LEVEL_DELTA = 0.0012;
-const RACCOON_SWEEPER = require('../../assets/images/raccoon-sweeper.png');
+const RACCOON_FRAME_INTERVAL_MS = 67;
+const RACCOON_SWEEPER_FRAMES = [
+  require('../../assets/images/raccoon-sweeper-frames/frame-00.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-01.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-02.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-03.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-04.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-05.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-06.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-07.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-08.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-09.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-10.png'),
+  require('../../assets/images/raccoon-sweeper-frames/frame-11.png'),
+] as const;
 const GENERAL_CATEGORY = {
   id: 'general',
   title: 'General 311 report',
@@ -67,7 +79,7 @@ export default function ReportScreen() {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [busy, setBusy] = useState(false);
-  const sweepProgress = useRef(new Animated.Value(0)).current;
+  const [raccoonFrameIndex, setRaccoonFrameIndex] = useState(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const category = useMemo(
@@ -99,49 +111,6 @@ export default function ReportScreen() {
       longitudeDelta: BLOCK_LEVEL_DELTA,
     };
   }, [latitude, longitude]);
-  const raccoonSweepStyle = {
-    transform: [
-      {
-        translateX: sweepProgress.interpolate({
-          inputRange: [0, 0.45, 1],
-          outputRange: [0, 4, 0],
-        }),
-      },
-      {
-        rotate: sweepProgress.interpolate({
-          inputRange: [0, 0.45, 1],
-          outputRange: ['-2deg', '3deg', '-2deg'],
-        }),
-      },
-    ],
-  };
-  const leafSweepStyle = {
-    opacity: sweepProgress.interpolate({
-      inputRange: [0, 0.2, 0.45, 0.6, 1],
-      outputRange: [1, 1, 0, 0, 1],
-    }),
-    transform: [
-      {
-        translateX: sweepProgress.interpolate({
-          inputRange: [0, 0.45, 1],
-          outputRange: [0, 18, 0],
-        }),
-      },
-      {
-        translateY: sweepProgress.interpolate({
-          inputRange: [0, 0.45, 1],
-          outputRange: [0, -2, 0],
-        }),
-      },
-      {
-        scale: sweepProgress.interpolate({
-          inputRange: [0, 0.45, 1],
-          outputRange: [1, 0.72, 1],
-        }),
-      },
-    ],
-  };
-
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -201,19 +170,14 @@ export default function ReportScreen() {
   );
 
   useEffect(() => {
-    const sweepAnimation = Animated.loop(
-      Animated.timing(sweepProgress, {
-        duration: 2600,
-        easing: Easing.inOut(Easing.sin),
-        toValue: 1,
-        useNativeDriver: true,
-      })
-    );
+    if (step !== 'start') return;
 
-    sweepAnimation.start();
+    const frameTimer = setInterval(() => {
+      setRaccoonFrameIndex((currentFrame) => (currentFrame + 1) % RACCOON_SWEEPER_FRAMES.length);
+    }, RACCOON_FRAME_INTERVAL_MS);
 
-    return () => sweepAnimation.stop();
-  }, [sweepProgress]);
+    return () => clearInterval(frameTimer);
+  }, [step]);
 
   useEffect(() => {
     return () => {
@@ -498,16 +462,11 @@ export default function ReportScreen() {
           <View>
             <Text style={styles.eyebrow}>Civic Snap</Text>
             <View style={styles.raccoonStage}>
-              <Animated.Image
+              <Image
                 resizeMode="contain"
-                source={RACCOON_SWEEPER}
-                style={[styles.raccoonSprite, raccoonSweepStyle]}
+                source={RACCOON_SWEEPER_FRAMES[raccoonFrameIndex]}
+                style={styles.raccoonSprite}
               />
-              <Animated.View style={[styles.raccoonLeaves, leafSweepStyle]}>
-                <View style={[styles.raccoonLeaf, styles.raccoonLeafOrange]} />
-                <View style={[styles.raccoonLeaf, styles.raccoonLeafGold]} />
-                <View style={[styles.raccoonLeaf, styles.raccoonLeafRed]} />
-              </Animated.View>
             </View>
             <Text style={styles.title}>Snap. Pin. Send to 311.</Text>
             <Text style={styles.subtitle}>
@@ -868,36 +827,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     maxWidth: 92,
     minWidth: 64,
+    overflow: 'visible',
     position: 'relative',
     width: '20%',
   },
   raccoonSprite: {
     height: '100%',
     width: '100%',
-  },
-  raccoonLeaves: {
-    alignItems: 'flex-end',
-    bottom: 4,
-    flexDirection: 'row',
-    gap: 3,
-    left: '58%',
-    pointerEvents: 'none',
-    position: 'absolute',
-  },
-  raccoonLeaf: {
-    borderRadius: 5,
-    height: 5,
-    transform: [{ rotate: '-18deg' }],
-    width: 8,
-  },
-  raccoonLeafGold: {
-    backgroundColor: '#e0a129',
-  },
-  raccoonLeafOrange: {
-    backgroundColor: '#d56b2d',
-  },
-  raccoonLeafRed: {
-    backgroundColor: '#a9432f',
   },
   title: {
     color: '#1d1d1f',
