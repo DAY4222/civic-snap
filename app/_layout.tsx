@@ -9,12 +9,10 @@ import 'react-native-reanimated';
 import { hasCompletedOnboarding } from '@/lib/profile';
 
 export {
-  // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
 
@@ -111,7 +109,6 @@ function RootLayoutNav({
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ presentation: 'modal', title: 'Settings' }} />
         <Stack.Screen name="report/[id]" options={{ title: 'Report detail' }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
   );

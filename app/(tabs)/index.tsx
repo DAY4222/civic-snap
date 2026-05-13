@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 
 import MapView, { type Region } from '@/components/CivicMap';
-import { ISSUE_CATEGORIES, getCategory, getCategoryByTitle } from '@/lib/categories';
+import { ISSUE_CATEGORIES, getCategory } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
 import { persistReportPhoto } from '@/lib/photos';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
@@ -229,10 +229,9 @@ export default function ReportScreen() {
     getReport(resumeId).then((report) => {
       if (!report) return;
 
-      const resumedCategory = getCategoryByTitle(report.category);
       setResumedReportId(resumeId);
       setSavedReportId(report.id);
-      setSelectedCategoryId(report.category === GENERAL_CATEGORY.title ? null : resumedCategory.id);
+      setSelectedCategoryId(report.categoryId);
       setPhotoUri(report.photoUri);
       setAddress(report.address);
       setLocationNote('');
@@ -390,6 +389,7 @@ export default function ReportScreen() {
       });
 
       const draftInput = {
+        categoryId: selectedCategoryId,
         category: category.title,
         description,
         answers,

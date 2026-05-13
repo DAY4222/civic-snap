@@ -1,9 +1,11 @@
 import * as SQLite from 'expo-sqlite';
 
+import { findCategoryByTitle } from './categories';
 import { Report, ReportStatus } from './types';
 
 type ReportRow = {
   id: string;
+  category_id: string | null;
   category: string;
   description: string;
   answers_json: string;
@@ -32,6 +34,7 @@ async function getDatabase() {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS reports (
       id TEXT PRIMARY KEY NOT NULL,
+      category_id TEXT,
       category TEXT NOT NULL,
       description TEXT NOT NULL,
       answers_json TEXT NOT NULL,
@@ -47,6 +50,12 @@ async function getDatabase() {
       updated_at TEXT NOT NULL
     );
   `);
+
+  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(reports)');
+  if (!columns.some((column) => column.name === 'category_id')) {
+    await db.execAsync('ALTER TABLE reports ADD COLUMN category_id TEXT;');
+  }
+
   return db;
 }
 
@@ -57,10 +66,11 @@ export async function createDraftReport(input: CreateReportInput) {
 
   await db.runAsync(
     `INSERT INTO reports (
-      id, category, description, answers_json, address, latitude, longitude,
+      id, category_id, category, description, answers_json, address, latitude, longitude,
       photo_uri, email_subject, email_body, status, case_number, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
+    input.categoryId,
     input.category,
     input.description,
     JSON.stringify(input.answers),
@@ -83,6 +93,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
   const db = await getDatabase();
   await db.runAsync(
     `UPDATE reports SET
+      category_id = ?,
       category = ?,
       description = ?,
       answers_json = ?,
@@ -95,6 +106,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       status = ?,
       updated_at = ?
     WHERE id = ?`,
+    input.categoryId,
     input.category,
     input.description,
     JSON.stringify(input.answers),
@@ -159,6 +171,7 @@ export async function updateCaseNumber(id: string, caseNumber: string) {
 function rowToReport(row: ReportRow): Report {
   return {
     id: row.id,
+    categoryId: row.category_id || findCategoryByTitle(row.category)?.id || null,
     category: row.category,
     description: row.description,
     answers: parseAnswers(row.answers_json),

@@ -34,6 +34,7 @@ export type DraftReportInput = {
 
 export type Report = {
   id: string;
+  categoryId: string | null;
   category: string;
   description: string;
   answers: Record<string, string>;
