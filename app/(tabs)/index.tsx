@@ -31,7 +31,8 @@ import {
   updateReportEmail,
   updateReportStatus,
 } from '@/lib/reports';
-import { Profile } from '@/lib/types';
+import { PhotoVisionResult, Profile } from '@/lib/types';
+import { PhotoVisionError, analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
 type Step = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
 type CategoryReturnStep = 'location' | 'details';
@@ -79,8 +80,14 @@ export default function ReportScreen() {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const [photoVisionResult, setPhotoVisionResult] = useState<PhotoVisionResult | null>(null);
+  const [photoVisionPhotoUri, setPhotoVisionPhotoUri] = useState<string | null>(null);
+  const [photoVisionStatus, setPhotoVisionStatus] = useState<
+    'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'rate-limited' | 'payload-too-large'
+  >('idle');
   const [raccoonFrameIndex, setRaccoonFrameIndex] = useState(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const photoLabelsEnabled = canAnalyzePhotoLabels();
 
   const category = useMemo(
     () => (selectedCategoryId ? getCategory(selectedCategoryId) : GENERAL_CATEGORY),
@@ -203,6 +210,9 @@ export default function ReportScreen() {
       setLongitude(report.longitude);
       setDescription(report.description);
       setAnswers(report.answers);
+      setPhotoVisionResult(report.photoVisionResult);
+      setPhotoVisionPhotoUri(report.photoVisionResult ? report.photoUri : null);
+      setPhotoVisionStatus(getPhotoVisionStatus(report.photoVisionResult));
       setEmailSubject(report.emailSubject);
       setEmailBody(report.emailBody);
       setSavedBannerId(null);
@@ -224,6 +234,9 @@ export default function ReportScreen() {
     setSavedReportId(null);
     setEmailSubject('');
     setEmailBody('');
+    setPhotoVisionResult(null);
+    setPhotoVisionPhotoUri(null);
+    setPhotoVisionStatus('idle');
   }
 
   async function takePhoto() {
@@ -264,6 +277,9 @@ export default function ReportScreen() {
     try {
       const persisted = await persistReportPhoto(uri);
       setPhotoUri(persisted);
+      setPhotoVisionResult(null);
+      setPhotoVisionPhotoUri(null);
+      setPhotoVisionStatus('idle');
     } catch {
       Alert.alert('Photo not saved', 'The report can continue without a saved photo.');
     } finally {
@@ -361,6 +377,7 @@ export default function ReportScreen() {
         latitude,
         longitude,
         photoUri,
+        photoVisionResult,
         emailSubject: nextEmail.subject,
         emailBody: nextEmail.body,
       };
@@ -425,6 +442,25 @@ export default function ReportScreen() {
     setSelectedCategoryId(categoryId);
     setAnswers({});
     setStep(categoryReturnStep);
+  }
+
+  async function analyzeCurrentPhoto() {
+    if (!photoUri) return;
+
+    if (photoVisionResult && photoVisionPhotoUri === photoUri) {
+      setPhotoVisionStatus(getPhotoVisionStatus(photoVisionResult));
+      return;
+    }
+
+    setPhotoVisionStatus('loading');
+    try {
+      const result = await analyzePhotoLabels(photoUri);
+      setPhotoVisionResult(result);
+      setPhotoVisionPhotoUri(photoUri);
+      setPhotoVisionStatus(getPhotoVisionStatus(result));
+    } catch (error) {
+      setPhotoVisionStatus(getPhotoVisionErrorStatus(error));
+    }
   }
 
   function backFromCategory() {
@@ -571,6 +607,13 @@ export default function ReportScreen() {
               {selectedCategoryId ? 'Change issue type' : 'Choose issue type'}
             </Text>
           </Pressable>
+          {photoLabelsEnabled && photoUri ? (
+            <PhotoLabelsPanel
+              result={photoVisionResult}
+              status={photoVisionStatus}
+              onAnalyze={analyzeCurrentPhoto}
+            />
+          ) : null}
           <Field
             label="Short description"
             value={description}
@@ -754,6 +797,77 @@ function Notice({ text, tone }: { text: string; tone: 'plain' | 'warning' }) {
       <Text style={styles.noticeText}>{text}</Text>
     </View>
   );
+}
+
+function PhotoLabelsPanel({
+  result,
+  status,
+  onAnalyze,
+}: {
+  result: PhotoVisionResult | null;
+  status: 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'rate-limited' | 'payload-too-large';
+  onAnalyze: () => void;
+}) {
+  const labels = result?.suggestedLabels ?? [];
+
+  return (
+    <View style={styles.photoLabelsCard}>
+      <View style={styles.photoLabelsHeader}>
+        <Text style={styles.sectionTitle}>Photo labels</Text>
+        {status === 'loading' ? <ActivityIndicator /> : null}
+      </View>
+      {labels.length > 0 ? (
+        <View style={styles.labelChipRow}>
+          {labels.map((label) => (
+            <Pressable
+              key={label.id}
+              style={styles.labelChip}
+              onPress={() => showPhotoLabelDetails(label)}>
+              <Text style={styles.labelChipText}>{label.label}</Text>
+              <Text style={styles.labelChipScore}>{Math.round(label.confidence * 100)}%</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {status === 'empty' ? <Text style={styles.muted}>No photo labels found.</Text> : null}
+      {status === 'error' ? <Text style={styles.muted}>Photo labels unavailable. Continue normally.</Text> : null}
+      {status === 'rate-limited' ? (
+        <Text style={styles.muted}>Photo label limit reached for today. Continue normally.</Text>
+      ) : null}
+      {status === 'payload-too-large' ? (
+        <Text style={styles.muted}>Photo labels unavailable for this image. Continue normally.</Text>
+      ) : null}
+      {labels.length === 0 ? (
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={onAnalyze}
+          disabled={status === 'loading'}>
+          <Text style={styles.secondaryButtonText}>Analyze photo</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function showPhotoLabelDetails(label: PhotoVisionResult['suggestedLabels'][number]) {
+  Alert.alert(
+    label.label,
+    `${Math.round(label.confidence * 100)}% confidence\n\n${label.evidence}`
+  );
+}
+
+function getPhotoVisionStatus(result: PhotoVisionResult | null) {
+  if (!result) return 'idle';
+  return result.suggestedLabels.length > 0 ? 'ready' : 'empty';
+}
+
+function getPhotoVisionErrorStatus(error: unknown) {
+  if (error instanceof PhotoVisionError) {
+    if (error.code === 'rate-limited') return 'rate-limited';
+    if (error.code === 'payload-too-large') return 'payload-too-large';
+  }
+
+  return 'error';
 }
 
 function formatAddress(place: Location.LocationGeocodedAddress) {
@@ -1031,6 +1145,45 @@ const styles = StyleSheet.create({
     color: '#1d1d1f',
     fontSize: 16,
     fontWeight: '700',
+  },
+  photoLabelsCard: {
+    backgroundColor: '#fff',
+    borderColor: '#d1d1d6',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+    padding: 14,
+  },
+  photoLabelsHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  labelChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  labelChip: {
+    alignItems: 'center',
+    backgroundColor: '#e9f5f9',
+    borderColor: '#b8dce8',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  labelChipText: {
+    color: '#1d1d1f',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  labelChipScore: {
+    color: '#0a7ea4',
+    fontSize: 12,
+    fontWeight: '800',
   },
   banner: {
     alignItems: 'center',

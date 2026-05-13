@@ -9,6 +9,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "jest --watchAll=false",
+    "supabase:db:push": "npx supabase db push",
+    "supabase:deploy:photo-labels": "npx supabase functions deploy analyze-photo-labels --no-verify-jwt",
     "build:web": "expo export --platform web --output-dir dist",
     "check": "tsc --noEmit && jest --watchAll=false && expo export --platform web --output-dir dist"
   },
