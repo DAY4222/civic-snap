@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
-import { Report, ReportStatus } from './types';
+import { PhotoVisionResult, Report, ReportStatus } from './types';
 
 type ReportRow = {
   id: string;
@@ -11,6 +11,7 @@ type ReportRow = {
   latitude: number | null;
   longitude: number | null;
   photo_uri: string | null;
+  photo_vision_result_json: string | null;
   email_subject: string;
   email_body: string;
   status: ReportStatus;
@@ -39,6 +40,7 @@ async function getDatabase() {
       latitude REAL,
       longitude REAL,
       photo_uri TEXT,
+      photo_vision_result_json TEXT,
       email_subject TEXT NOT NULL,
       email_body TEXT NOT NULL,
       status TEXT NOT NULL,
@@ -47,6 +49,12 @@ async function getDatabase() {
       updated_at TEXT NOT NULL
     );
   `);
+
+  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(reports)');
+  if (!columns.some((column) => column.name === 'photo_vision_result_json')) {
+    await db.execAsync('ALTER TABLE reports ADD COLUMN photo_vision_result_json TEXT;');
+  }
+
   return db;
 }
 
@@ -58,8 +66,9 @@ export async function createDraftReport(input: CreateReportInput) {
   await db.runAsync(
     `INSERT INTO reports (
       id, category, description, answers_json, address, latitude, longitude,
-      photo_uri, email_subject, email_body, status, case_number, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      photo_uri, photo_vision_result_json, email_subject, email_body, status, case_number,
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.category,
     input.description,
@@ -68,6 +77,7 @@ export async function createDraftReport(input: CreateReportInput) {
     input.latitude,
     input.longitude,
     input.photoUri,
+    JSON.stringify(input.photoVisionResult),
     input.emailSubject,
     input.emailBody,
     'Draft',
@@ -90,6 +100,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       latitude = ?,
       longitude = ?,
       photo_uri = ?,
+      photo_vision_result_json = ?,
       email_subject = ?,
       email_body = ?,
       status = ?,
@@ -102,6 +113,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     input.latitude,
     input.longitude,
     input.photoUri,
+    JSON.stringify(input.photoVisionResult),
     input.emailSubject,
     input.emailBody,
     'Draft',
@@ -166,6 +178,7 @@ function rowToReport(row: ReportRow): Report {
     latitude: row.latitude,
     longitude: row.longitude,
     photoUri: row.photo_uri,
+    photoVisionResult: parsePhotoVisionResult(row.photo_vision_result_json),
     emailSubject: row.email_subject,
     emailBody: row.email_body,
     status: row.status,
@@ -180,5 +193,15 @@ function parseAnswers(raw: string) {
     return JSON.parse(raw) as Record<string, string>;
   } catch {
     return {};
+  }
+}
+
+function parsePhotoVisionResult(raw: string | null) {
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as PhotoVisionResult;
+  } catch {
+    return null;
   }
 }

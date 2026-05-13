@@ -7,7 +7,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "supabase:db:push": "npx supabase db push",
+    "supabase:deploy:photo-labels": "npx supabase functions deploy analyze-photo-labels --no-verify-jwt"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

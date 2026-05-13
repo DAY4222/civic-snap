@@ -32,6 +32,37 @@ export type DraftReportInput = {
   profile: Profile;
 };
 
+export type PhotoLabelBoundingBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type PhotoVisionLabel = {
+  id: string;
+  label: string;
+  confidence: number;
+  evidence: string;
+  boundingBox?: PhotoLabelBoundingBox;
+};
+
+export type PhotoVisionResult = {
+  suggestedLabels: PhotoVisionLabel[];
+  provider: 'gemini';
+  model: string;
+  promptVersion: string;
+  taxonomyVersion: string;
+  analyzedAt: string;
+  latencyMs: number;
+  image: {
+    width: number;
+    height: number;
+    bytes: number;
+    mimeType: string;
+  };
+};
+
 export type Report = {
   id: string;
   category: string;
@@ -41,6 +72,7 @@ export type Report = {
   latitude: number | null;
   longitude: number | null;
   photoUri: string | null;
+  photoVisionResult: PhotoVisionResult | null;
   emailSubject: string;
   emailBody: string;
   status: ReportStatus;

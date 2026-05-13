@@ -23,6 +23,12 @@ export default function SettingsScreen() {
       <Text style={styles.subtitle}>
         Optional contact info included in 311 email drafts you choose to send. Stored on this device.
       </Text>
+      <View style={styles.notice}>
+        <Text style={styles.noticeTitle}>Photo analysis</Text>
+        <Text style={styles.noticeText}>
+          When photo labels are enabled, tapping Analyze photo sends a resized copy of the photo to Civic Snap's AI service for label suggestions. Server logs may retain analysis results for 30 days, but photos are not stored there.
+        </Text>
+      </View>
       <Field
         label="Name"
         value={profile.name}
@@ -78,6 +84,22 @@ const styles = StyleSheet.create({
     color: '#636366',
     fontSize: 15,
     lineHeight: 22,
+  },
+  notice: {
+    backgroundColor: '#e9f5f9',
+    borderRadius: 14,
+    gap: 6,
+    padding: 14,
+  },
+  noticeTitle: {
+    color: '#1d1d1f',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  noticeText: {
+    color: '#2f3a40',
+    fontSize: 14,
+    lineHeight: 20,
   },
   field: {
     gap: 7,
