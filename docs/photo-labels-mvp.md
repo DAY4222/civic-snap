@@ -6,19 +6,29 @@ Fresh clones of `main` enable photo labels by default through the tracked `.env`
 
 ```sh
 EXPO_PUBLIC_PHOTO_LABELS_ENABLED=true
-EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL=https://sdlanaillklsdnkzkfri.functions.supabase.co/analyze-photo-labels
+EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL=https://sdlanaillklsdnkzkfri.supabase.co/functions/v1/analyze-photo-labels
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<shared public anon key>
 ```
 
-These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend.
+These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend. For this direct `fetch` integration, use the legacy public `anon` key from Supabase as the bearer token. Do not use the `service_role` key in the app.
+
+To find the `anon` key for another backend:
+
+1. Open the Supabase Dashboard.
+2. Select the project.
+3. Go to Project Settings > API Keys.
+4. Open Legacy API Keys.
+5. Copy the `anon` public key into `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 
 Use `.env.local` only when you need a local override. It is intentionally ignored by Git and can disable the feature or point to another backend:
 
 ```sh
 EXPO_PUBLIC_PHOTO_LABELS_ENABLED=false
 EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-If either value is missing or disabled, the app hides photo analysis and continues with the existing report flow.
+If any value is missing or disabled, the app hides photo analysis and continues with the existing report flow.
 
 ## Supabase setup
 
@@ -36,10 +46,10 @@ npx supabase secrets set MAX_ANALYSES_GLOBAL_PER_DAY=300
 npx supabase secrets set MAX_IMAGE_BASE64_BYTES=2000000
 ```
 
-Deploy the public, rate-limited function:
+Deploy the JWT-verified, rate-limited function:
 
 ```sh
-npx supabase functions deploy analyze-photo-labels --no-verify-jwt
+npx supabase functions deploy analyze-photo-labels
 ```
 
 Do not commit Gemini API keys or Supabase service-role keys. They belong in Supabase Edge Function secrets only.

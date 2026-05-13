@@ -10,6 +10,7 @@ const MAX_ANALYSIS_SIDE = 768;
 const MAX_IMAGE_BASE64_BYTES = 2_000_000;
 const PHOTO_LABELS_ENABLED = process.env.EXPO_PUBLIC_PHOTO_LABELS_ENABLED === 'true';
 const ANALYZE_PHOTO_URL = process.env.EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL ?? '';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export class PhotoVisionError extends Error {
   constructor(
@@ -21,7 +22,7 @@ export class PhotoVisionError extends Error {
 }
 
 export function canAnalyzePhotoLabels() {
-  return PHOTO_LABELS_ENABLED && ANALYZE_PHOTO_URL.length > 0;
+  return PHOTO_LABELS_ENABLED && ANALYZE_PHOTO_URL.length > 0 && SUPABASE_ANON_KEY.length > 0;
 }
 
 export async function analyzePhotoLabels(photoUri: string) {
@@ -45,6 +46,8 @@ export async function analyzePhotoLabels(photoUri: string) {
     response = await fetch(ANALYZE_PHOTO_URL, {
       method: 'POST',
       headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

@@ -1,61 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-type AllowedLabel = {
-  id: string;
-  label: string;
-  description?: string;
-};
-
-type AnalysisRequest = {
-  installId?: string;
-  imageBase64?: string;
-  image?: {
-    bytes?: number;
-    height?: number;
-    width?: number;
-  };
-  mimeType?: string;
-  allowedLabels?: AllowedLabel[];
-  taxonomyVersion?: string;
-};
-
-type GeminiLabel = {
-  id?: string;
-  label?: string;
-  confidence?: number;
-  evidence?: string;
-  boundingBox?: {
-    x?: number;
-    y?: number;
-    width?: number;
-    height?: number;
-  };
-};
-
-type GeminiObservation = {
-  name?: string;
-  confidence?: number;
-  evidence?: string;
-};
-
-type NormalizedGeminiLabel = {
-  id: string;
-  label: string;
-  confidence: number;
-  evidence: string;
-  boundingBox?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-};
-
-type NormalizedGeminiObservation = {
-  name: string;
-  confidence: number;
-  evidence: string;
-};
+import {
+  MAX_EVIDENCE_CHARS,
+  MAX_LABELS,
+  MAX_UNKNOWN_EVIDENCE_CHARS,
+  MAX_UNKNOWN_OBSERVATIONS,
+  MIN_CONFIDENCE,
+  normalizeGeminiResult,
+  readLimitConfigFromEnv,
+  validateRequest,
+  type AllowedLabel,
+  type AnalysisRequest,
+  type LimitConfig,
+  type ValidAnalysisRequest,
+} from './logic.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -66,17 +24,7 @@ const corsHeaders = {
 const MODEL = 'gemini-2.5-flash-lite';
 const PROVIDER = 'gemini';
 const PROMPT_VERSION = 'photo-labels-v1';
-const MIN_CONFIDENCE = 0.7;
-const MAX_LABELS = 5;
-const MAX_UNKNOWN_OBSERVATIONS = 5;
-const MAX_EVIDENCE_CHARS = 240;
-const MAX_UNKNOWN_EVIDENCE_CHARS = 120;
-const MAX_ALLOWED_LABELS = 40;
-const MAX_IMAGE_BASE64_BYTES = Number(Deno.env.get('MAX_IMAGE_BASE64_BYTES') ?? 2_000_000);
-const MAX_ANALYSES_PER_INSTALL_PER_DAY = Number(
-  Deno.env.get('MAX_ANALYSES_PER_INSTALL_PER_DAY') ?? 50
-);
-const MAX_ANALYSES_GLOBAL_PER_DAY = Number(Deno.env.get('MAX_ANALYSES_GLOBAL_PER_DAY') ?? 300);
+const LIMIT_CONFIG = readLimitConfigFromEnv((name) => Deno.env.get(name));
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -93,7 +41,7 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-  if (!apiKey || !supabaseUrl || !serviceRoleKey) {
+  if (!apiKey || !supabaseUrl || !serviceRoleKey || !LIMIT_CONFIG.ok) {
     return jsonResponse({ error: 'server_not_configured' }, 503);
   }
 
@@ -104,14 +52,14 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'invalid_json' }, 400);
   }
 
-  const validation = validateRequest(body);
+  const validation = validateRequest(body, LIMIT_CONFIG.config);
   if (!validation.ok) {
     return jsonResponse({ error: validation.error }, 400);
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const installIdHash = await sha256(validation.installId);
-  const rateLimit = await checkRateLimit(supabase, installIdHash);
+  const rateLimit = await checkRateLimit(supabase, installIdHash, LIMIT_CONFIG.config);
   if (!rateLimit.ok) {
     return jsonResponse({ error: rateLimit.error }, rateLimit.status);
   }
@@ -165,48 +113,11 @@ Deno.serve(async (request) => {
   return jsonResponse(responseBody);
 });
 
-function validateRequest(body: AnalysisRequest) {
-  const installId = typeof body.installId === 'string' ? body.installId.trim() : '';
-  const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
-  const mimeType = typeof body.mimeType === 'string' ? body.mimeType.trim() : '';
-  const taxonomyVersion =
-    typeof body.taxonomyVersion === 'string' ? body.taxonomyVersion.trim() : '';
-
-  if (!installId) return { ok: false as const, error: 'missing_install_id' };
-  if (!imageBase64) return { ok: false as const, error: 'missing_image' };
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
-    return { ok: false as const, error: 'unsupported_mime_type' };
-  }
-
-  const imageBytes = getBase64ByteSize(imageBase64);
-  if (imageBytes > MAX_IMAGE_BASE64_BYTES) {
-    return { ok: false as const, error: 'image_too_large' };
-  }
-
-  const allowedLabels = Array.isArray(body.allowedLabels)
-    ? body.allowedLabels
-        .filter((label) => typeof label.id === 'string' && typeof label.label === 'string')
-        .slice(0, MAX_ALLOWED_LABELS)
-    : [];
-
-  if (allowedLabels.length === 0) {
-    return { ok: false as const, error: 'missing_allowed_labels' };
-  }
-
-  return {
-    ok: true as const,
-    allowedLabels,
-    imageBase64,
-    imageBytes,
-    imageHeight: Number(body.image?.height) || null,
-    imageWidth: Number(body.image?.width) || null,
-    installId,
-    mimeType,
-    taxonomyVersion: taxonomyVersion || 'unknown',
-  };
-}
-
-async function checkRateLimit(supabase: ReturnType<typeof createClient>, installIdHash: string) {
+async function checkRateLimit(
+  supabase: ReturnType<typeof createClient>,
+  installIdHash: string,
+  limits: LimitConfig
+) {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
   const endOfDay = new Date(startOfDay);
@@ -214,13 +125,13 @@ async function checkRateLimit(supabase: ReturnType<typeof createClient>, install
 
   const globalCount = await countRuns(supabase, startOfDay, endOfDay);
   if (!globalCount.ok) return globalCount;
-  if (globalCount.count >= MAX_ANALYSES_GLOBAL_PER_DAY) {
+  if (globalCount.count >= limits.maxAnalysesGlobalPerDay) {
     return { ok: false as const, error: 'global_daily_limit_reached', status: 429 };
   }
 
   const installCount = await countRuns(supabase, startOfDay, endOfDay, installIdHash);
   if (!installCount.ok) return installCount;
-  if (installCount.count >= MAX_ANALYSES_PER_INSTALL_PER_DAY) {
+  if (installCount.count >= limits.maxAnalysesPerInstallPerDay) {
     return { ok: false as const, error: 'install_daily_limit_reached', status: 429 };
   }
 
@@ -251,7 +162,7 @@ async function countRuns(
   return { ok: true as const, count: count ?? 0 };
 }
 
-async function callGemini(apiKey: string, request: ReturnType<typeof validateRequest> & { ok: true }) {
+async function callGemini(apiKey: string, request: ValidAnalysisRequest) {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
     {
@@ -311,86 +222,6 @@ function buildPrompt(allowedLabels: AllowedLabel[]) {
   ].join('\n');
 }
 
-function normalizeGeminiResult(body: unknown, allowedLabels: AllowedLabel[]) {
-  const allowedById = new Map(allowedLabels.map((label) => [label.id, label]));
-  const suggestedLabels = Array.isArray((body as { suggestedLabels?: unknown }).suggestedLabels)
-    ? ((body as { suggestedLabels: GeminiLabel[] }).suggestedLabels ?? [])
-        .map((label) => normalizeLabel(label, allowedById))
-        .filter(isNormalizedGeminiLabel)
-        .filter((label) => label.confidence >= MIN_CONFIDENCE)
-        .sort((left, right) => right.confidence - left.confidence)
-        .slice(0, MAX_LABELS)
-    : [];
-
-  const unknownObservations = Array.isArray(
-    (body as { unknownObservations?: unknown }).unknownObservations
-  )
-    ? ((body as { unknownObservations: GeminiObservation[] }).unknownObservations ?? [])
-        .map(normalizeUnknownObservation)
-        .filter(isNormalizedGeminiObservation)
-        .slice(0, MAX_UNKNOWN_OBSERVATIONS)
-    : [];
-
-  return { suggestedLabels, unknownObservations };
-}
-
-function normalizeLabel(
-  label: GeminiLabel,
-  allowedById: Map<string, AllowedLabel>
-): NormalizedGeminiLabel | null {
-  const id = typeof label.id === 'string' ? label.id : '';
-  const allowedLabel = allowedById.get(id);
-  if (!allowedLabel) return null;
-
-  return {
-    id,
-    label: allowedLabel.label,
-    confidence: clamp(Number(label.confidence) || 0, 0, 1),
-    evidence: truncateText(typeof label.evidence === 'string' ? label.evidence : '', MAX_EVIDENCE_CHARS),
-    boundingBox: normalizeBoundingBox(label.boundingBox),
-  };
-}
-
-function normalizeUnknownObservation(
-  observation: GeminiObservation
-): NormalizedGeminiObservation | null {
-  const name = typeof observation.name === 'string' ? truncateText(observation.name, 80) : '';
-  if (!name) return null;
-
-  return {
-    name,
-    confidence: clamp(Number(observation.confidence) || 0, 0, 1),
-    evidence: truncateText(
-      typeof observation.evidence === 'string' ? observation.evidence : '',
-      MAX_UNKNOWN_EVIDENCE_CHARS
-    ),
-  };
-}
-
-function isNormalizedGeminiLabel(
-  label: NormalizedGeminiLabel | null
-): label is NormalizedGeminiLabel {
-  return label != null;
-}
-
-function isNormalizedGeminiObservation(
-  observation: NormalizedGeminiObservation | null
-): observation is NormalizedGeminiObservation {
-  return observation != null;
-}
-
-function normalizeBoundingBox(box: GeminiLabel['boundingBox']) {
-  if (!box) return undefined;
-
-  const x = clamp(Number(box.x) || 0, 0, 1);
-  const y = clamp(Number(box.y) || 0, 0, 1);
-  const width = clamp(Number(box.width) || 0, 0, 1 - x);
-  const height = clamp(Number(box.height) || 0, 0, 1 - y);
-
-  if (width <= 0 || height <= 0) return undefined;
-  return { x, y, width, height };
-}
-
 async function logAnalysisRun(
   supabase: ReturnType<typeof createClient>,
   input: {
@@ -399,7 +230,7 @@ async function logAnalysisRun(
     errorMessage?: string;
     installIdHash: string;
     latencyMs: number;
-    request: ReturnType<typeof validateRequest> & { ok: true };
+    request: ValidAnalysisRequest;
     status: 'ok' | 'error';
     suggestedLabels: unknown[];
     unknownObservations: unknown[];
@@ -442,15 +273,6 @@ async function sha256(value: string) {
   const data = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest('SHA-256', data);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function getBase64ByteSize(base64: string) {
-  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-  return Math.floor((base64.length * 3) / 4) - padding;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
 }
 
 function truncateText(value: string, maxLength: number) {
