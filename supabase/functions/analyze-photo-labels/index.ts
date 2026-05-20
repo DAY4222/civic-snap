@@ -21,7 +21,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
 };
 
-const MODEL = 'gemini-2.5-flash-lite';
+const MODEL = 'gemini-3.1-flash-lite';
 const PROVIDER = 'gemini';
 const PROMPT_VERSION = 'photo-labels-v1';
 const LIMIT_CONFIG = readLimitConfigFromEnv((name) => Deno.env.get(name));
