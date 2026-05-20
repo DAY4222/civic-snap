@@ -9,7 +9,7 @@ npm install
 cp .env.example .env.local
 ```
 
-The default `.env.example` keeps photo-label analysis disabled. If a Supabase photo-label endpoint is available, set `EXPO_PUBLIC_PHOTO_LABELS_ENABLED=true` and add `EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL`.
+The default `.env.example` configures the shared demo photo-label endpoint. Users still need to enable Photo analysis in Settings before the app sends a resized photo for topic suggestions. For another Supabase endpoint, set `EXPO_PUBLIC_PHOTO_LABELS_ENABLED=true`, `EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL`, and the public `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 
 ## Run
 

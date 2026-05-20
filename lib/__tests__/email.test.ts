@@ -1,6 +1,6 @@
 import { ISSUE_CATEGORIES } from '../categories';
 import { buildEmail } from '../email';
-import type { DraftReportInput, IssueCategory } from '../types';
+import type { DraftReportInput, IssueCategory, PhotoIssueTopicSelection } from '../types';
 
 const baseInput: DraftReportInput = {
   category: ISSUE_CATEGORIES[0],
@@ -19,6 +19,18 @@ const baseInput: DraftReportInput = {
     email: '',
     phone: ' 555-0100 ',
   },
+};
+
+const photoIssueTopic: PhotoIssueTopicSelection = {
+  id: 'topic-pothole',
+  labelId: 'pothole',
+  title: 'Report a pothole',
+  subjectTitle: 'pothole repair',
+  subjectLabel: 'pothole',
+  descriptionPlaceholder: 'Example: pothole in the curb lane',
+  questions: ['How large is it?', 'Which lane is it in?'],
+  confidence: 0.91,
+  evidence: 'visible hole in the road',
 };
 
 describe('buildEmail', () => {
@@ -66,5 +78,34 @@ describe('buildEmail', () => {
     expect(email.body).toContain('GPS: not available');
     expect(email.body).toContain('- No photo attached');
     expect(email.body).not.toContain('Contact:');
+  });
+
+  it('keeps manual issue type as the email subject when photo topic guidance is present', () => {
+    const email = buildEmail({
+      ...baseInput,
+      photoIssueTopic,
+    });
+
+    expect(email.subject).toBe('311 service request: Pothole or road damage');
+    expect(email.body).toContain('Photo suggests: Report a pothole');
+  });
+
+  it('can use a selected photo topic as the formal issue type', () => {
+    const email = buildEmail({
+      ...baseInput,
+      category: {
+        id: photoIssueTopic.id,
+        title: photoIssueTopic.subjectTitle,
+        subjectLabel: photoIssueTopic.subjectLabel,
+        observations: [],
+        questions: [],
+      },
+      answers: {},
+      photoIssueTopic,
+    });
+
+    expect(email.subject).toBe('311 service request: pothole repair');
+    expect(email.body).toContain('I would like to report a pothole.');
+    expect(email.body).toContain('Photo suggests: Report a pothole');
   });
 });

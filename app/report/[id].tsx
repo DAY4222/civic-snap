@@ -52,6 +52,13 @@ export default function ReportDetailScreen() {
           </Pressable>
         ) : null}
       </View>
+      {report.photoIssueTopic ? (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Photo-suggested topic</Text>
+          <Text style={styles.subtitle}>{report.photoIssueTopic.title}</Text>
+          <Text style={styles.matchText}>{Math.round(report.photoIssueTopic.confidence * 100)}% match</Text>
+        </View>
+      ) : null}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Case number</Text>
         <Text style={styles.subtitle}>Add the 311 case number if one is returned by email.</Text>
@@ -129,6 +136,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: '#1d1d1f',
     fontSize: 17,
+    fontWeight: '800',
+  },
+  matchText: {
+    color: '#0a7ea4',
+    fontSize: 14,
     fontWeight: '800',
   },
   input: {

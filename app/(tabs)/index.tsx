@@ -22,6 +22,7 @@ import {
 import MapView, { type Region } from '@/components/CivicMap';
 import { ISSUE_CATEGORIES, getCategory } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
+import { loadPhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
 import { persistReportPhoto } from '@/lib/photos';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
 import {
@@ -31,11 +32,13 @@ import {
   updateReportEmail,
   updateReportStatus,
 } from '@/lib/reports';
-import { PhotoVisionResult, Profile } from '@/lib/types';
+import { IssueCategory, PhotoIssueTopicSelection, PhotoVisionResult, Profile } from '@/lib/types';
 import { PhotoVisionError, analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
+import { getSuggestedIssueTopics } from '@/lib/suggestedTopics';
 
 type Step = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
 type CategoryReturnStep = 'location' | 'details';
+type PhotoVisionStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'rate-limited' | 'payload-too-large';
 
 const BLOCK_LEVEL_DELTA = 0.0012;
 const RACCOON_FRAME_INTERVAL_MS = 67;
@@ -53,7 +56,7 @@ const RACCOON_SWEEPER_FRAMES = [
   require('../../assets/images/raccoon-sweeper-frames/frame-10.png'),
   require('../../assets/images/raccoon-sweeper-frames/frame-11.png'),
 ] as const;
-const GENERAL_CATEGORY = {
+const GENERAL_CATEGORY: IssueCategory = {
   id: 'general',
   title: 'General 311 report',
   subjectLabel: 'local issue',
@@ -66,6 +69,9 @@ export default function ReportScreen() {
   const [step, setStep] = useState<Step>('start');
   const [categoryReturnStep, setCategoryReturnStep] = useState<CategoryReturnStep>('location');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedPhotoIssueTopic, setSelectedPhotoIssueTopic] =
+    useState<PhotoIssueTopicSelection | null>(null);
+  const [issueSearchQuery, setIssueSearchQuery] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [address, setAddress] = useState('');
   const [locationNote, setLocationNote] = useState('');
@@ -79,20 +85,79 @@ export default function ReportScreen() {
   const [resumedReportId, setResumedReportId] = useState<string | null>(null);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
+  const [dismissedContactPrompt, setDismissedContactPrompt] = useState(false);
   const [busy, setBusy] = useState(false);
   const [photoVisionResult, setPhotoVisionResult] = useState<PhotoVisionResult | null>(null);
   const [photoVisionPhotoUri, setPhotoVisionPhotoUri] = useState<string | null>(null);
-  const [photoVisionStatus, setPhotoVisionStatus] = useState<
-    'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'rate-limited' | 'payload-too-large'
-  >('idle');
+  const [photoVisionStatus, setPhotoVisionStatus] = useState<PhotoVisionStatus>('idle');
+  const [photoAnalysisUserEnabled, setPhotoAnalysisUserEnabled] = useState(false);
   const [raccoonFrameIndex, setRaccoonFrameIndex] = useState(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const photoLabelsEnabled = canAnalyzePhotoLabels();
+  const photoLabelsEnabled = canAnalyzePhotoLabels() && photoAnalysisUserEnabled;
 
-  const category = useMemo(
-    () => (selectedCategoryId ? getCategory(selectedCategoryId) : GENERAL_CATEGORY),
+  const manualCategory = useMemo(
+    () => (selectedCategoryId ? getCategory(selectedCategoryId) : null),
     [selectedCategoryId]
   );
+  const photoIssueCategory = useMemo<IssueCategory | null>(
+    () =>
+      selectedPhotoIssueTopic
+        ? {
+            id: selectedPhotoIssueTopic.id,
+            title: selectedPhotoIssueTopic.subjectTitle,
+            subjectLabel: selectedPhotoIssueTopic.subjectLabel,
+            observations: [],
+            questions: [],
+          }
+        : null,
+    [selectedPhotoIssueTopic]
+  );
+  const category = manualCategory ?? photoIssueCategory ?? GENERAL_CATEGORY;
+  const currentIssueTitle = manualCategory?.title ?? selectedPhotoIssueTopic?.title ?? GENERAL_CATEGORY.title;
+  const photoIssueSuggestions = useMemo(
+    () => getSuggestedIssueTopics(photoVisionResult),
+    [photoVisionResult]
+  );
+  const draftSnapshot = useRef({
+    address,
+    answers,
+    category,
+    description,
+    latitude,
+    locationNote,
+    longitude,
+    photoUri,
+    selectedPhotoIssueTopic,
+    step,
+  });
+  draftSnapshot.current = {
+    address,
+    answers,
+    category,
+    description,
+    latitude,
+    locationNote,
+    longitude,
+    photoUri,
+    selectedPhotoIssueTopic,
+    step,
+  };
+  const filteredIssueCategories = useMemo(() => {
+    const query = issueSearchQuery.trim().toLowerCase();
+    if (!query) return ISSUE_CATEGORIES;
+
+    return ISSUE_CATEGORIES.filter((item) =>
+      [item.title, item.subjectLabel, ...item.questions.map((question) => question.label)]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [issueSearchQuery]);
+  const descriptionPlaceholder =
+    selectedPhotoIssueTopic?.descriptionPlaceholder ??
+    (manualCategory
+      ? `Describe the ${manualCategory.subjectLabel}, exact location, and what crews should know.`
+      : 'Example: pothole in the curb lane near the crosswalk');
   const email = useMemo(
     () =>
       buildEmail({
@@ -104,9 +169,21 @@ export default function ReportScreen() {
         latitude,
         longitude,
         photoUri,
+        photoIssueTopic: selectedPhotoIssueTopic,
         profile,
       }),
-    [address, answers, category, description, latitude, locationNote, longitude, photoUri, profile]
+    [
+      address,
+      answers,
+      category,
+      description,
+      latitude,
+      locationNote,
+      longitude,
+      photoUri,
+      profile,
+      selectedPhotoIssueTopic,
+    ]
   );
   const pinRegion = useMemo<Region | null>(() => {
     if (latitude == null || longitude == null) return null;
@@ -131,27 +208,30 @@ export default function ReportScreen() {
               return currentProfile;
             }
 
-            if (step === 'preview') {
+            const currentDraft = draftSnapshot.current;
+            if (currentDraft.step === 'preview') {
               const currentEmail = buildEmail({
-                category,
-                description,
-                answers,
-                address,
-                locationNote,
-                latitude,
-                longitude,
-                photoUri,
+                category: currentDraft.category,
+                description: currentDraft.description,
+                answers: currentDraft.answers,
+                address: currentDraft.address,
+                locationNote: currentDraft.locationNote,
+                latitude: currentDraft.latitude,
+                longitude: currentDraft.longitude,
+                photoUri: currentDraft.photoUri,
+                photoIssueTopic: currentDraft.selectedPhotoIssueTopic,
                 profile: currentProfile,
               });
               const nextEmail = buildEmail({
-                category,
-                description,
-                answers,
-                address,
-                locationNote,
-                latitude,
-                longitude,
-                photoUri,
+                category: currentDraft.category,
+                description: currentDraft.description,
+                answers: currentDraft.answers,
+                address: currentDraft.address,
+                locationNote: currentDraft.locationNote,
+                latitude: currentDraft.latitude,
+                longitude: currentDraft.longitude,
+                photoUri: currentDraft.photoUri,
+                photoIssueTopic: currentDraft.selectedPhotoIssueTopic,
                 profile: nextProfile,
               });
 
@@ -170,10 +250,18 @@ export default function ReportScreen() {
           if (active) setProfile(EMPTY_PROFILE);
         });
 
+      loadPhotoAnalysisEnabled()
+        .then((enabled) => {
+          if (active) setPhotoAnalysisUserEnabled(enabled);
+        })
+        .catch(() => {
+          if (active) setPhotoAnalysisUserEnabled(false);
+        });
+
       return () => {
         active = false;
       };
-    }, [address, answers, category, description, latitude, locationNote, longitude, photoUri, step])
+    }, [])
   );
 
   useEffect(() => {
@@ -213,6 +301,7 @@ export default function ReportScreen() {
       setPhotoVisionResult(report.photoVisionResult);
       setPhotoVisionPhotoUri(report.photoVisionResult ? report.photoUri : null);
       setPhotoVisionStatus(getPhotoVisionStatus(report.photoVisionResult));
+      setSelectedPhotoIssueTopic(report.photoIssueTopic);
       setEmailSubject(report.emailSubject);
       setEmailBody(report.emailBody);
       setSavedBannerId(null);
@@ -220,10 +309,19 @@ export default function ReportScreen() {
     });
   }, [resumeId, resumedReportId]);
 
+  useEffect(() => {
+    if (step !== 'details' || !photoUri || !photoLabelsEnabled) return;
+    if (photoVisionStatus !== 'idle' || photoVisionPhotoUri === photoUri) return;
+
+    analyzeCurrentPhoto();
+  }, [photoLabelsEnabled, photoUri, photoVisionPhotoUri, photoVisionStatus, step]);
+
   function resetReport() {
     setStep('start');
     setCategoryReturnStep('location');
     setSelectedCategoryId(null);
+    setSelectedPhotoIssueTopic(null);
+    setIssueSearchQuery('');
     setPhotoUri(null);
     setAddress('');
     setLocationNote('');
@@ -232,6 +330,7 @@ export default function ReportScreen() {
     setDescription('');
     setAnswers({});
     setSavedReportId(null);
+    setDismissedContactPrompt(false);
     setEmailSubject('');
     setEmailBody('');
     setPhotoVisionResult(null);
@@ -277,6 +376,7 @@ export default function ReportScreen() {
     try {
       const persisted = await persistReportPhoto(uri);
       setPhotoUri(persisted);
+      setSelectedPhotoIssueTopic(null);
       setPhotoVisionResult(null);
       setPhotoVisionPhotoUri(null);
       setPhotoVisionStatus('idle');
@@ -365,6 +465,7 @@ export default function ReportScreen() {
         latitude,
         longitude,
         photoUri,
+        photoIssueTopic: selectedPhotoIssueTopic,
         profile,
       });
 
@@ -378,6 +479,7 @@ export default function ReportScreen() {
         longitude,
         photoUri,
         photoVisionResult,
+        photoIssueTopic: selectedPhotoIssueTopic,
         emailSubject: nextEmail.subject,
         emailBody: nextEmail.body,
       };
@@ -389,6 +491,7 @@ export default function ReportScreen() {
       setSavedReportId(id);
       setEmailSubject(nextEmail.subject);
       setEmailBody(nextEmail.body);
+      setDismissedContactPrompt(false);
       setStep('preview');
     } finally {
       setBusy(false);
@@ -435,13 +538,22 @@ export default function ReportScreen() {
 
   function openCategory(returnStep: CategoryReturnStep) {
     setCategoryReturnStep(returnStep);
+    setIssueSearchQuery('');
     setStep('category');
   }
 
   function chooseCategory(categoryId: string | null) {
     setSelectedCategoryId(categoryId);
+    setSelectedPhotoIssueTopic(null);
     setAnswers({});
+    setIssueSearchQuery('');
     setStep(categoryReturnStep);
+  }
+
+  function togglePhotoIssueTopic(topic: PhotoIssueTopicSelection) {
+    setSelectedCategoryId(null);
+    setAnswers({});
+    setSelectedPhotoIssueTopic((current) => (current?.id === topic.id ? null : topic));
   }
 
   async function analyzeCurrentPhoto() {
@@ -525,31 +637,36 @@ export default function ReportScreen() {
           <Pressable style={styles.secondaryButton} onPress={() => openCategory('location')}>
             <Text style={styles.secondaryButtonText}>Choose issue type</Text>
           </Pressable>
-          <Notice
-            tone="warning"
-            text="MVP note: photos are stored locally and are not anonymized yet."
-          />
         </View>
       ) : null}
 
       {step === 'category' ? (
         <View style={styles.stack}>
-          <Header title="Choose issue" onBack={backFromCategory} />
+          <Header title="Search issue types" onBack={backFromCategory} />
+          <Field
+            label="Search"
+            value={issueSearchQuery}
+            onChangeText={setIssueSearchQuery}
+            placeholder="Example: pothole, graffiti, sidewalk"
+          />
           <Pressable
             style={[styles.card, selectedCategoryId == null && styles.selectedCard]}
             onPress={() => chooseCategory(null)}>
-            <Text style={styles.cardTitle}>Skip issue type</Text>
+            <Text style={styles.cardTitle}>General 311 report</Text>
             <Text style={styles.muted}>Continue with a general 311 report.</Text>
           </Pressable>
-          {ISSUE_CATEGORIES.map((item) => (
+          {filteredIssueCategories.map((item) => (
             <Pressable
               key={item.id}
               style={[styles.card, item.id === selectedCategoryId && styles.selectedCard]}
               onPress={() => chooseCategory(item.id)}>
               <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.muted}>Use guided questions for this report type.</Text>
+              <Text style={styles.muted}>Use these prompts to shape your description.</Text>
             </Pressable>
           ))}
+          {filteredIssueCategories.length === 0 ? (
+            <Text style={styles.muted}>No issue types found. Try a different search term.</Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -599,42 +716,46 @@ export default function ReportScreen() {
       {step === 'details' ? (
         <View style={styles.stack}>
           <Header title="Add details" onBack={() => setStep('location')} />
-          <Text style={styles.categoryTitle}>
-            {selectedCategoryId ? category.title : 'General 311 report'}
-          </Text>
-          <Pressable style={styles.secondaryButton} onPress={() => openCategory('details')}>
-            <Text style={styles.secondaryButtonText}>
-              {selectedCategoryId ? 'Change issue type' : 'Choose issue type'}
-            </Text>
-          </Pressable>
+          <Text style={styles.categoryTitle}>{currentIssueTitle}</Text>
           {photoLabelsEnabled && photoUri ? (
-            <PhotoLabelsPanel
-              result={photoVisionResult}
-              status={photoVisionStatus}
+            <SuggestedTopicsPanel
+              manualCategory={manualCategory}
               onAnalyze={analyzeCurrentPhoto}
+              onOpenIssueSearch={() => openCategory('details')}
+              onToggleTopic={togglePhotoIssueTopic}
+              selectedTopic={selectedPhotoIssueTopic}
+              status={photoVisionStatus}
+              topics={photoIssueSuggestions}
             />
-          ) : null}
+          ) : (
+            <ManualIssuePanel
+              manualCategory={manualCategory}
+              onOpenIssueSearch={() => openCategory('details')}
+            />
+          )}
           <Field
             label="Short description"
             value={description}
             onChangeText={setDescription}
-            placeholder="Example: pothole in the curb lane near the crosswalk"
+            placeholder={descriptionPlaceholder}
             multiline
           />
-          {selectedCategoryId ? (
+          {manualCategory ? (
             <>
               <Text style={styles.sectionTitle}>Guided questions</Text>
-              {category.questions.map((question) => (
+              {manualCategory.questions.map((question) => (
                 <Field
                   key={question.id}
                   label={question.label}
                   value={answers[question.id] ?? ''}
-                  onChangeText={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
+                  onChangeText={(value) =>
+                    setAnswers((current) => ({ ...current, [question.id]: value }))
+                  }
                   placeholder={question.placeholder}
                 />
               ))}
               <Text style={styles.sectionTitle}>Useful observations</Text>
-              {category.observations.map((observation) => (
+              {manualCategory.observations.map((observation) => (
                 <View key={observation} style={styles.observationRow}>
                   <FontAwesome name="check-circle" size={16} color="#0a7ea4" />
                   <Text style={styles.observationText}>{observation}</Text>
@@ -655,9 +776,19 @@ export default function ReportScreen() {
             tone="plain"
             text="This draft is saved locally as Draft. You still send it from your own email."
           />
-          {!profile.name.trim() || !profile.phone.trim() ? (
+          {(!profile.name.trim() || !profile.phone.trim()) && !dismissedContactPrompt ? (
             <View style={styles.warningCard}>
-              <Text style={styles.cardTitle}>Add contact info?</Text>
+              <View style={styles.warningCardHeader}>
+                <Text style={[styles.cardTitle, styles.warningCardTitle]}>Add contact info?</Text>
+                <Pressable
+                  accessibilityLabel="Dismiss contact info prompt"
+                  accessibilityRole="button"
+                  hitSlop={10}
+                  onPress={() => setDismissedContactPrompt(true)}
+                  style={styles.dismissButton}>
+                  <FontAwesome name="times" size={16} color="#3a3a3c" />
+                </Pressable>
+              </View>
               <Text style={styles.muted}>311 may use it to follow up. You can still send this report without it.</Text>
               <Link href="/settings" asChild>
                 <Pressable style={styles.smallButton}>
@@ -667,8 +798,10 @@ export default function ReportScreen() {
             </View>
           ) : null}
           <View style={styles.emailBox}>
-            <Text style={styles.label}>To</Text>
-            <Text style={styles.emailTo}>{email.recipient}</Text>
+            <View style={styles.emailToRow}>
+              <Text style={styles.emailToLabel}>To:</Text>
+              <Text numberOfLines={1} style={styles.emailTo}>{email.recipient}</Text>
+            </View>
             <Field
               label="Subject"
               value={emailSubject}
@@ -739,27 +872,57 @@ function Progress({ currentStep }: { currentStep: Step }) {
 
   return (
     <View style={styles.progressCard}>
-      {steps.map((step, index) => {
-        const isActive = index === currentIndex;
-        const isDone = index < currentIndex;
+      <View style={styles.progressDotsRow}>
+        {steps.map((step, index) => {
+          const isActive = index === currentIndex;
+          const isDone = index < currentIndex;
 
-        return (
-          <View key={step.key} style={styles.progressItem}>
-            <View
-              style={[
-                styles.progressDot,
-                (isActive || isDone) && styles.progressDotActive,
-              ]}>
-              <Text style={[styles.progressNumber, (isActive || isDone) && styles.progressNumberActive]}>
-                {index + 1}
-              </Text>
+          return (
+            <View key={step.key} style={styles.progressDotItem}>
+              {index > 0 ? (
+                <View
+                  style={[
+                    styles.progressConnector,
+                    styles.progressConnectorLeft,
+                    index <= currentIndex && styles.progressConnectorActive,
+                  ]}
+                />
+              ) : null}
+              {index < steps.length - 1 ? (
+                <View
+                  style={[
+                    styles.progressConnector,
+                    styles.progressConnectorRight,
+                    index < currentIndex && styles.progressConnectorActive,
+                  ]}
+                />
+              ) : null}
+              <View
+                style={[
+                  styles.progressDot,
+                  (isActive || isDone) && styles.progressDotActive,
+                ]}>
+                <Text style={[styles.progressNumber, (isActive || isDone) && styles.progressNumberActive]}>
+                  {index + 1}
+                </Text>
+              </View>
             </View>
-            <Text style={[styles.progressLabel, isActive && styles.progressLabelActive]}>
+          );
+        })}
+      </View>
+      <View style={styles.progressLabelRow}>
+        {steps.map((step, index) => {
+          const isActive = index === currentIndex;
+
+          return (
+            <Text
+              key={step.key}
+              style={[styles.progressLabel, isActive && styles.progressLabelActive]}>
               {step.label}
             </Text>
-          </View>
-        );
-      })}
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -799,60 +962,129 @@ function Notice({ text, tone }: { text: string; tone: 'plain' | 'warning' }) {
   );
 }
 
-function PhotoLabelsPanel({
-  result,
-  status,
+function SuggestedTopicsPanel({
+  manualCategory,
   onAnalyze,
+  onOpenIssueSearch,
+  onToggleTopic,
+  selectedTopic,
+  status,
+  topics,
 }: {
-  result: PhotoVisionResult | null;
-  status: 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'rate-limited' | 'payload-too-large';
+  manualCategory: IssueCategory | null;
   onAnalyze: () => void;
+  onOpenIssueSearch: () => void;
+  onToggleTopic: (topic: PhotoIssueTopicSelection) => void;
+  selectedTopic: PhotoIssueTopicSelection | null;
+  status: PhotoVisionStatus;
+  topics: PhotoIssueTopicSelection[];
 }) {
-  const labels = result?.suggestedLabels ?? [];
+  const showQuietFallback =
+    status === 'empty' ||
+    status === 'error' ||
+    status === 'rate-limited' ||
+    status === 'payload-too-large' ||
+    (status === 'ready' && topics.length === 0);
 
   return (
-    <View style={styles.photoLabelsCard}>
-      <View style={styles.photoLabelsHeader}>
-        <Text style={styles.sectionTitle}>Photo labels</Text>
+    <View style={styles.suggestionCard}>
+      <View style={styles.suggestionHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>Suggested topics</Text>
+          <Text style={styles.muted}>Pick one if it matches, or search all issue types.</Text>
+        </View>
         {status === 'loading' ? <ActivityIndicator /> : null}
       </View>
-      {labels.length > 0 ? (
-        <View style={styles.labelChipRow}>
-          {labels.map((label) => (
-            <Pressable
-              key={label.id}
-              style={styles.labelChip}
-              onPress={() => showPhotoLabelDetails(label)}>
-              <Text style={styles.labelChipText}>{label.label}</Text>
-              <Text style={styles.labelChipScore}>{Math.round(label.confidence * 100)}%</Text>
-            </Pressable>
-          ))}
+      {topics.map((topic) => {
+        const selected = selectedTopic?.id === topic.id;
+
+        return (
+          <Pressable
+            key={topic.id}
+            style={[styles.topicCard, selected && styles.topicCardSelected]}
+            onPress={() => onToggleTopic(topic)}>
+            <View style={styles.topicRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.topicTitle}>{topic.title}</Text>
+                <Text style={styles.matchText}>{Math.round(topic.confidence * 100)}% match</Text>
+              </View>
+              <FontAwesome
+                name={selected ? 'check-circle' : 'circle-o'}
+                size={20}
+                color={selected ? '#0a7ea4' : '#8e8e93'}
+              />
+            </View>
+            {selected ? (
+              <View style={styles.topicExpanded}>
+                {topic.evidence ? <Text style={styles.evidenceText}>{topic.evidence}</Text> : null}
+                <PromptGroup title="Try to mention" prompts={topic.questions} />
+              </View>
+            ) : null}
+          </Pressable>
+        );
+      })}
+      {status === 'loading' ? (
+        <Text style={styles.muted}>Looking for likely 311 topics. You can keep writing.</Text>
+      ) : null}
+      {showQuietFallback ? (
+        <View style={styles.quietFallback}>
+          <Text style={[styles.muted, styles.quietFallbackText]}>
+            No suggested topics available. You can still choose an issue type.
+          </Text>
+          <Pressable
+            hitSlop={8}
+            onPress={onAnalyze}
+            style={styles.retryButton}>
+            <Text style={styles.inlineActionText}>Retry</Text>
+          </Pressable>
         </View>
       ) : null}
-      {status === 'empty' ? <Text style={styles.muted}>No photo labels found.</Text> : null}
-      {status === 'error' ? <Text style={styles.muted}>Photo labels unavailable. Continue normally.</Text> : null}
-      {status === 'rate-limited' ? (
-        <Text style={styles.muted}>Photo label limit reached for today. Continue normally.</Text>
-      ) : null}
-      {status === 'payload-too-large' ? (
-        <Text style={styles.muted}>Photo labels unavailable for this image. Continue normally.</Text>
-      ) : null}
-      {labels.length === 0 ? (
-        <Pressable
-          style={styles.secondaryButton}
-          onPress={onAnalyze}
-          disabled={status === 'loading'}>
-          <Text style={styles.secondaryButtonText}>Analyze photo</Text>
-        </Pressable>
-      ) : null}
+      <Pressable style={styles.inlineButton} onPress={onOpenIssueSearch}>
+        <FontAwesome name="search" size={15} color="#1d1d1f" />
+        <Text style={styles.inlineButtonText}>Search all issue types</Text>
+      </Pressable>
     </View>
   );
 }
 
-function showPhotoLabelDetails(label: PhotoVisionResult['suggestedLabels'][number]) {
-  Alert.alert(
-    label.label,
-    `${Math.round(label.confidence * 100)}% confidence\n\n${label.evidence}`
+function ManualIssuePanel({
+  manualCategory,
+  onOpenIssueSearch,
+}: {
+  manualCategory: IssueCategory | null;
+  onOpenIssueSearch: () => void;
+}) {
+  return (
+    <View style={styles.suggestionCard}>
+      <View style={styles.suggestionHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>Issue type</Text>
+          <Text style={styles.muted}>
+            {manualCategory ? manualCategory.title : 'Choose a topic, or keep this as a general report.'}
+          </Text>
+        </View>
+      </View>
+      <Pressable style={styles.inlineButton} onPress={onOpenIssueSearch}>
+        <FontAwesome name="search" size={15} color="#1d1d1f" />
+        <Text style={styles.inlineButtonText}>Search all issue types</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function PromptGroup({ title, prompts }: { title: string; prompts: string[] }) {
+  if (prompts.length === 0) return null;
+
+  return (
+    <View style={styles.promptGroup}>
+      <Text style={styles.promptTitle}>{title}</Text>
+      {prompts.map((prompt) => (
+        <View key={prompt} style={styles.promptRow}>
+          <FontAwesome name="lightbulb-o" size={15} color="#0a7ea4" />
+          <Text style={styles.promptText}>{prompt}</Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -893,15 +1125,39 @@ const styles = StyleSheet.create({
     borderColor: '#d1d1d6',
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 8,
     marginBottom: 16,
     padding: 12,
   },
-  progressItem: {
+  progressDotsRow: {
+    flexDirection: 'row',
+  },
+  progressDotItem: {
     alignItems: 'center',
     flex: 1,
-    gap: 6,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  progressConnector: {
+    backgroundColor: '#e5e5ea',
+    borderRadius: 999,
+    height: 3,
+    position: 'absolute',
+    top: 12,
+  },
+  progressConnectorLeft: {
+    left: 0,
+    right: '50%',
+  },
+  progressConnectorRight: {
+    left: '50%',
+    right: 0,
+  },
+  progressConnectorActive: {
+    backgroundColor: '#0a7ea4',
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
   },
   progressDot: {
     alignItems: 'center',
@@ -924,8 +1180,10 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     color: '#636366',
+    flex: 1,
     fontSize: 12,
     fontWeight: '700',
+    textAlign: 'center',
   },
   progressLabelActive: {
     color: '#1d1d1f',
@@ -1122,6 +1380,25 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
   },
+  warningCardHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  warningCardTitle: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  dismissButton: {
+    alignItems: 'center',
+    borderRadius: 999,
+    height: 28,
+    justifyContent: 'center',
+    marginRight: -4,
+    marginTop: -4,
+    width: 28,
+  },
   smallButton: {
     alignSelf: 'flex-start',
     backgroundColor: '#1d1d1f',
@@ -1141,12 +1418,23 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
   },
+  emailToRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  emailToLabel: {
+    color: '#636366',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   emailTo: {
     color: '#1d1d1f',
+    flex: 1,
     fontSize: 16,
     fontWeight: '700',
   },
-  photoLabelsCard: {
+  suggestionCard: {
     backgroundColor: '#fff',
     borderColor: '#d1d1d6',
     borderRadius: 14,
@@ -1154,35 +1442,100 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
   },
-  photoLabelsHeader: {
+  suggestionHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: 12,
     justifyContent: 'space-between',
   },
-  labelChipRow: {
+  topicCard: {
+    backgroundColor: '#f9fbfc',
+    borderColor: '#d1d1d6',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+    padding: 12,
+  },
+  topicCardSelected: {
+    borderColor: '#0a7ea4',
+  },
+  topicRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    gap: 10,
+  },
+  topicTitle: {
+    color: '#1d1d1f',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  matchText: {
+    color: '#0a7ea4',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  topicExpanded: {
+    gap: 10,
+  },
+  evidenceText: {
+    color: '#3a3a3c',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  promptGroup: {
     gap: 8,
   },
-  labelChip: {
-    alignItems: 'center',
-    backgroundColor: '#e9f5f9',
-    borderColor: '#b8dce8',
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  labelChipText: {
+  promptTitle: {
     color: '#1d1d1f',
     fontSize: 14,
     fontWeight: '800',
   },
-  labelChipScore: {
+  promptRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  promptText: {
+    color: '#3a3a3c',
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  quietFallback: {
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  quietFallbackText: {
+    flexShrink: 1,
+    width: '100%',
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    borderColor: '#b8dce8',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  inlineActionText: {
     color: '#0a7ea4',
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  inlineButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderColor: '#d1d1d6',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  inlineButtonText: {
+    color: '#1d1d1f',
+    fontSize: 14,
     fontWeight: '800',
   },
   banner: {

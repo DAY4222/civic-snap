@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 import { findCategoryByTitle } from './categories';
-import { PhotoVisionResult, Report, ReportStatus } from './types';
+import { PhotoIssueTopicSelection, PhotoVisionResult, Report, ReportStatus } from './types';
 
 type ReportRow = {
   id: string;
@@ -14,6 +14,7 @@ type ReportRow = {
   longitude: number | null;
   photo_uri: string | null;
   photo_vision_result_json: string | null;
+  photo_issue_topic_json: string | null;
   email_subject: string;
   email_body: string;
   status: ReportStatus;
@@ -44,6 +45,7 @@ async function getDatabase() {
       longitude REAL,
       photo_uri TEXT,
       photo_vision_result_json TEXT,
+      photo_issue_topic_json TEXT,
       email_subject TEXT NOT NULL,
       email_body TEXT NOT NULL,
       status TEXT NOT NULL,
@@ -60,6 +62,9 @@ async function getDatabase() {
   if (!columns.some((column) => column.name === 'photo_vision_result_json')) {
     await db.execAsync('ALTER TABLE reports ADD COLUMN photo_vision_result_json TEXT;');
   }
+  if (!columns.some((column) => column.name === 'photo_issue_topic_json')) {
+    await db.execAsync('ALTER TABLE reports ADD COLUMN photo_issue_topic_json TEXT;');
+  }
 
   return db;
 }
@@ -72,9 +77,9 @@ export async function createDraftReport(input: CreateReportInput) {
   await db.runAsync(
     `INSERT INTO reports (
       id, category_id, category, description, answers_json, address, latitude, longitude,
-      photo_uri, photo_vision_result_json, email_subject, email_body, status, case_number,
+      photo_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, status, case_number,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.categoryId,
     input.category,
@@ -85,6 +90,7 @@ export async function createDraftReport(input: CreateReportInput) {
     input.longitude,
     input.photoUri,
     JSON.stringify(input.photoVisionResult),
+    JSON.stringify(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
     'Draft',
@@ -109,6 +115,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       longitude = ?,
       photo_uri = ?,
       photo_vision_result_json = ?,
+      photo_issue_topic_json = ?,
       email_subject = ?,
       email_body = ?,
       status = ?,
@@ -123,6 +130,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     input.longitude,
     input.photoUri,
     JSON.stringify(input.photoVisionResult),
+    JSON.stringify(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
     'Draft',
@@ -189,6 +197,7 @@ function rowToReport(row: ReportRow): Report {
     longitude: row.longitude,
     photoUri: row.photo_uri,
     photoVisionResult: parsePhotoVisionResult(row.photo_vision_result_json),
+    photoIssueTopic: parsePhotoIssueTopic(row.photo_issue_topic_json),
     emailSubject: row.email_subject,
     emailBody: row.email_body,
     status: row.status,
@@ -211,6 +220,16 @@ function parsePhotoVisionResult(raw: string | null) {
 
   try {
     return JSON.parse(raw) as PhotoVisionResult;
+  } catch {
+    return null;
+  }
+}
+
+function parsePhotoIssueTopic(raw: string | null): PhotoIssueTopicSelection | null {
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as PhotoIssueTopicSelection;
   } catch {
     return null;
   }
