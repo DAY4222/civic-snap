@@ -26,6 +26,7 @@ export function buildEmail(input: DraftReportInput) {
     'Hello 311 Toronto,',
     '',
     `I would like to report ${articleFor(input.category.subjectLabel)} ${input.category.subjectLabel}.`,
+    input.photoIssueTopic ? `Photo suggests: ${input.photoIssueTopic.title}` : null,
     '',
     'Location:',
     input.address || 'Address not provided',

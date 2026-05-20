@@ -1,5 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
-
+import { getDeviceItem, setDeviceItem } from './deviceStore';
 import { Profile } from './types';
 
 const PROFILE_KEY = 'civic-snap-profile';
@@ -12,7 +11,7 @@ export const EMPTY_PROFILE: Profile = {
 };
 
 export async function loadProfile(): Promise<Profile> {
-  const raw = await SecureStore.getItemAsync(PROFILE_KEY);
+  const raw = await getDeviceItem(PROFILE_KEY);
   if (!raw) return EMPTY_PROFILE;
 
   try {
@@ -23,13 +22,13 @@ export async function loadProfile(): Promise<Profile> {
 }
 
 export async function saveProfile(profile: Profile) {
-  await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(profile));
+  await setDeviceItem(PROFILE_KEY, JSON.stringify(profile));
 }
 
 export async function hasCompletedOnboarding() {
-  return (await SecureStore.getItemAsync(ONBOARDING_COMPLETE_KEY)) === 'true';
+  return (await getDeviceItem(ONBOARDING_COMPLETE_KEY)) === 'true';
 }
 
 export async function completeOnboarding() {
-  await SecureStore.setItemAsync(ONBOARDING_COMPLETE_KEY, 'true');
+  await setDeviceItem(ONBOARDING_COMPLETE_KEY, 'true');
 }

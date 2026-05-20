@@ -2,7 +2,7 @@
 
 ## Default app env
 
-Fresh clones of `main` enable photo labels by default through the tracked `.env` file:
+Fresh clones of `main` configure photo labels through the tracked `.env` file:
 
 ```sh
 EXPO_PUBLIC_PHOTO_LABELS_ENABLED=true
@@ -10,7 +10,7 @@ EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL=https://sdlanaillklsdnkzkfri.supabase.co/
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<shared public anon key>
 ```
 
-These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend. For this direct `fetch` integration, use the legacy public `anon` key from Supabase as the bearer token. Do not use the `service_role` key in the app.
+These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend. The in-app Photo analysis setting defaults off, so users must opt in before the app sends a resized photo for topic suggestions. For this direct `fetch` integration, use the legacy public `anon` key from Supabase as the bearer token. Do not use the `service_role` key in the app.
 
 To find the `anon` key for another backend:
 

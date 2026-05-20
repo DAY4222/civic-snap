@@ -9,7 +9,7 @@ npm install
 cp .env.example .env.local
 ```
 
-The tracked `.env` and `.env.example` enable photo-label analysis against the shared demo backend. Use `.env.local` for local overrides.
+The tracked `.env` and `.env.example` configure photo-label analysis against the shared demo backend. Users still need to enable Photo analysis in Settings before the app sends a resized photo for topic suggestions. Use `.env.local` for local overrides.
 
 ## Run
 

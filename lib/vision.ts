@@ -1,7 +1,7 @@
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
-import * as SecureStore from 'expo-secure-store';
 import { Image } from 'react-native';
 
+import { getDeviceItem, setDeviceItem } from './deviceStore';
 import { PHOTO_LABELS, PHOTO_LABEL_TAXONOMY_VERSION } from './photoLabels';
 import { PhotoVisionLabel, PhotoVisionResult } from './types';
 
@@ -45,11 +45,7 @@ export async function analyzePhotoLabels(photoUri: string) {
   try {
     response = await fetch(ANALYZE_PHOTO_URL, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        apikey: SUPABASE_ANON_KEY,
-        'Content-Type': 'application/json',
-      },
+      headers: getAnalyzePhotoHeaders(),
       body: JSON.stringify({
         installId,
         imageBase64: analysisImage.base64,
@@ -84,6 +80,19 @@ export async function analyzePhotoLabels(photoUri: string) {
   });
 }
 
+function getAnalyzePhotoHeaders() {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (SUPABASE_ANON_KEY) {
+    headers.apikey = SUPABASE_ANON_KEY;
+    headers.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
+  }
+
+  return headers;
+}
+
 async function createAnalysisImage(photoUri: string) {
   const size = await getImageSize(photoUri).catch(() => null);
   const resize =
@@ -109,13 +118,13 @@ async function getImageSize(uri: string) {
 }
 
 async function getInstallId() {
-  const existing = await SecureStore.getItemAsync(INSTALL_ID_KEY);
+  const existing = await getDeviceItem(INSTALL_ID_KEY);
   if (existing) return existing;
 
   const installId = `${Date.now()}-${Math.random().toString(16).slice(2)}-${Math.random()
     .toString(16)
     .slice(2)}`;
-  await SecureStore.setItemAsync(INSTALL_ID_KEY, installId);
+  await setDeviceItem(INSTALL_ID_KEY, installId);
   return installId;
 }
 

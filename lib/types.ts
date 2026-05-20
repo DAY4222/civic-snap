@@ -20,6 +20,21 @@ export type IssueCategory = {
   questions: CategoryQuestion[];
 };
 
+export type PhotoIssueTopic = {
+  id: string;
+  labelId: string;
+  title: string;
+  subjectTitle: string;
+  subjectLabel: string;
+  descriptionPlaceholder: string;
+  questions: string[];
+};
+
+export type PhotoIssueTopicSelection = PhotoIssueTopic & {
+  confidence: number;
+  evidence: string;
+};
+
 export type DraftReportInput = {
   category: IssueCategory;
   description: string;
@@ -29,6 +44,7 @@ export type DraftReportInput = {
   latitude: number | null;
   longitude: number | null;
   photoUri: string | null;
+  photoIssueTopic?: PhotoIssueTopicSelection | null;
   profile: Profile;
 };
 
@@ -74,6 +90,7 @@ export type Report = {
   longitude: number | null;
   photoUri: string | null;
   photoVisionResult: PhotoVisionResult | null;
+  photoIssueTopic: PhotoIssueTopicSelection | null;
   emailSubject: string;
   emailBody: string;
   status: ReportStatus;
