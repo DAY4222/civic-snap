@@ -1,13 +1,13 @@
 import { ISSUE_CATEGORIES } from '../categories';
 import { buildEmail } from '../email';
-import type { DraftReportInput, IssueCategory, PhotoIssueTopicSelection } from '../types';
+import type { DraftReportInput, IssueCategory, PhotoIssueCandidate } from '../types';
 
 const baseInput: DraftReportInput = {
   category: ISSUE_CATEGORIES[0],
-  description: 'Large pothole beside the crosswalk',
+  description: 'Damaged residential bin lid',
   answers: {
-    size: 'larger than a dinner plate',
-    position: 'curb lane',
+    a0K6g000009yWvaEAE: 'Request Repairs for a Damaged Bin',
+    a0K6g000009yWvfEAE: 'Lid',
   },
   address: '123 Queen St W',
   locationNote: 'north curb',
@@ -21,16 +21,16 @@ const baseInput: DraftReportInput = {
   },
 };
 
-const photoIssueTopic: PhotoIssueTopicSelection = {
-  id: 'topic-pothole',
-  labelId: 'pothole',
-  title: 'Report a pothole',
-  subjectTitle: 'pothole repair',
-  subjectLabel: 'pothole',
-  descriptionPlaceholder: 'Example: pothole in the curb lane',
-  questions: ['How large is it?', 'Which lane is it in?'],
+const photoIssueTopic: PhotoIssueCandidate = {
+  issueId: 'road-pothole-road-damage',
+  title: 'Road Pothole / Road Damage',
   confidence: 0.91,
-  evidence: 'visible hole in the road',
+  confidenceTier: 'strong',
+  supportingLabelIds: ['road-pothole'],
+  evidenceChips: ['Road pothole'],
+  reason: 'The photo shows a road pothole.',
+  suggestedDescription: 'Photo shows a road pothole at this location.',
+  boundingBoxes: [],
 };
 
 describe('buildEmail', () => {
@@ -38,12 +38,16 @@ describe('buildEmail', () => {
     const email = buildEmail(baseInput);
 
     expect(email.recipient).toBe('311@toronto.ca');
-    expect(email.subject).toBe('311 service request: Pothole or road damage');
+    expect(email.subject).toBe('311 service request: Residential Bin Lid Damaged');
     expect(email.body).toContain('Location:\n123 Queen St W');
     expect(email.body).toContain('Location note: north curb');
     expect(email.body).toContain('GPS: 43.653481, -79.383935');
-    expect(email.body).toContain('- Approximate size: larger than a dinner plate');
-    expect(email.body).toContain('- Exact position: curb lane');
+    expect(email.body).toContain('Issue:\nResidential Bin Lid Damaged');
+    expect(email.body).toContain(
+      'Category path: Waste Collection, Bins, Litter and Needle Cleanup > Residential > Collection Bin > Residential Bin Lid Damaged'
+    );
+    expect(email.body).toContain('- What is this request about?: Request Repairs for a Damaged Bin');
+    expect(email.body).toContain('- What part is damaged?: Lid');
     expect(email.body).toContain('- Photo attached');
     expect(email.body).toContain('Name: Ada Lovelace');
     expect(email.body).toContain('Phone: 555-0100');
@@ -55,8 +59,14 @@ describe('buildEmail', () => {
       id: 'general',
       title: 'General 311 report',
       subjectLabel: 'local issue',
+      categoryPath: [],
+      description: '',
+      discoverability: 'not-discoverable',
+      visualCueLabelIds: [],
+      requiredAnyLabelIds: [],
       observations: [],
       questions: [],
+      emailGuidanceChecklist: [],
     };
 
     const email = buildEmail({
@@ -86,26 +96,7 @@ describe('buildEmail', () => {
       photoIssueTopic,
     });
 
-    expect(email.subject).toBe('311 service request: Pothole or road damage');
-    expect(email.body).toContain('Photo suggests: Report a pothole');
-  });
-
-  it('can use a selected photo topic as the formal issue type', () => {
-    const email = buildEmail({
-      ...baseInput,
-      category: {
-        id: photoIssueTopic.id,
-        title: photoIssueTopic.subjectTitle,
-        subjectLabel: photoIssueTopic.subjectLabel,
-        observations: [],
-        questions: [],
-      },
-      answers: {},
-      photoIssueTopic,
-    });
-
-    expect(email.subject).toBe('311 service request: pothole repair');
-    expect(email.body).toContain('I would like to report a pothole.');
-    expect(email.body).toContain('Photo suggests: Report a pothole');
+    expect(email.subject).toBe('311 service request: Residential Bin Lid Damaged');
+    expect(email.body).toContain('Photo evidence: Road pothole');
   });
 });

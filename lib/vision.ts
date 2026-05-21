@@ -3,7 +3,7 @@ import { Image } from 'react-native';
 
 import { getDeviceItem, setDeviceItem } from './deviceStore';
 import { PHOTO_LABELS, PHOTO_LABEL_TAXONOMY_VERSION } from './photoLabels';
-import { PhotoVisionLabel, PhotoVisionResult } from './types';
+import { PhotoIssueCandidate, PhotoVisionLabel, PhotoVisionResult } from './types';
 
 const INSTALL_ID_KEY = 'civic-snap-install-id';
 const MAX_ANALYSIS_SIDE = 768;
@@ -143,6 +143,7 @@ function normalizePhotoVisionResult(
 
   return {
     suggestedLabels,
+    issueCandidates: normalizeIssueCandidates(result.issueCandidates, suggestedLabels),
     provider: 'gemini',
     model: result.model,
     promptVersion: result.promptVersion,
@@ -151,6 +152,54 @@ function normalizePhotoVisionResult(
     latencyMs: result.latencyMs,
     image,
   } satisfies PhotoVisionResult;
+}
+
+function normalizeIssueCandidates(
+  candidates: PhotoVisionResult['issueCandidates'],
+  labels: PhotoVisionLabel[]
+) {
+  if (!Array.isArray(candidates)) return [];
+
+  const labelsById = new Map(labels.map((label) => [label.id, label]));
+
+  return candidates
+    .map((candidate): PhotoIssueCandidate | null => {
+      if (!candidate || typeof candidate.issueId !== 'string' || typeof candidate.title !== 'string') {
+        return null;
+      }
+
+      const supportingLabelIds = Array.isArray(candidate.supportingLabelIds)
+        ? candidate.supportingLabelIds.filter((labelId) => labelsById.has(labelId))
+        : [];
+      const evidenceChips = Array.isArray(candidate.evidenceChips)
+        ? candidate.evidenceChips.filter((chip): chip is string => typeof chip === 'string')
+        : supportingLabelIds
+            .map((labelId) => labelsById.get(labelId)?.label)
+            .filter((chip): chip is string => Boolean(chip));
+
+      return {
+        issueId: candidate.issueId,
+        title: candidate.title,
+        confidence: Number(candidate.confidence) || 0,
+        confidenceTier: normalizeConfidenceTier(candidate.confidenceTier),
+        supportingLabelIds,
+        evidenceChips,
+        reason: typeof candidate.reason === 'string' ? candidate.reason : '',
+        suggestedDescription:
+          typeof candidate.suggestedDescription === 'string' ? candidate.suggestedDescription : '',
+        boundingBoxes: Array.isArray(candidate.boundingBoxes)
+          ? candidate.boundingBoxes.filter((box) => box?.boundingBox && labelsById.has(box.labelId))
+          : [],
+      };
+    })
+    .filter((candidate): candidate is PhotoIssueCandidate => candidate != null)
+    .slice(0, 5);
+}
+
+function normalizeConfidenceTier(value: unknown) {
+  return value === 'strong' || value === 'likely' || value === 'possible'
+    ? value
+    : 'possible';
 }
 
 function normalizeLabel(label: PhotoVisionLabel): PhotoVisionLabel | null {

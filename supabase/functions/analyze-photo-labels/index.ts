@@ -2,10 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 import {
   MAX_EVIDENCE_CHARS,
+  MAX_DESCRIPTION_CHARS,
+  MAX_ISSUE_CANDIDATES,
   MAX_LABELS,
-  MAX_UNKNOWN_EVIDENCE_CHARS,
-  MAX_UNKNOWN_OBSERVATIONS,
   MIN_CONFIDENCE,
+  MAX_REASON_CHARS,
   normalizeGeminiResult,
   readLimitConfigFromEnv,
   validateRequest,
@@ -14,6 +15,7 @@ import {
   type LimitConfig,
   type ValidAnalysisRequest,
 } from './logic.ts';
+import { EDGE_ISSUE_CATALOG, EDGE_ISSUE_CATALOG_VERSION } from './issueCatalog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -23,7 +25,7 @@ const corsHeaders = {
 
 const MODEL = 'gemini-3.1-flash-lite';
 const PROVIDER = 'gemini';
-const PROMPT_VERSION = 'photo-labels-v1';
+const PROMPT_VERSION = 'photo-issue-candidates-v1';
 const LIMIT_CONFIG = readLimitConfigFromEnv((name) => Deno.env.get(name));
 
 Deno.serve(async (request) => {
@@ -77,19 +79,25 @@ Deno.serve(async (request) => {
       request: validation,
       status: 'error',
       suggestedLabels: [],
-      unknownObservations: [],
+      issueCandidates: [],
     });
     return jsonResponse({ error: 'gemini_request_failed' }, 502);
   }
 
-  const safeResult = normalizeGeminiResult(geminiBody, validation.allowedLabels);
+  const safeResult = normalizeGeminiResult(
+    geminiBody,
+    validation.allowedLabels,
+    EDGE_ISSUE_CATALOG
+  );
   const latencyMs = Date.now() - startedAt;
   const responseBody = {
     suggestedLabels: safeResult.suggestedLabels,
+    issueCandidates: safeResult.issueCandidates,
     provider: PROVIDER,
     model: MODEL,
     promptVersion: PROMPT_VERSION,
     taxonomyVersion: validation.taxonomyVersion,
+    issueCatalogVersion: EDGE_ISSUE_CATALOG_VERSION,
     analyzedAt,
     latencyMs,
     image: {
@@ -107,7 +115,10 @@ Deno.serve(async (request) => {
     request: validation,
     status: 'ok',
     suggestedLabels: safeResult.suggestedLabels,
-    unknownObservations: safeResult.unknownObservations,
+    issueCandidates: safeResult.issueCandidates.map((candidate) => ({
+      issueId: candidate.issueId,
+      confidenceTier: candidate.confidenceTier,
+    })),
   });
 
   return jsonResponse(responseBody);
@@ -208,17 +219,35 @@ async function callGemini(apiKey: string, request: ValidAnalysisRequest) {
 }
 
 function buildPrompt(allowedLabels: AllowedLabel[]) {
+  const promptIssues = EDGE_ISSUE_CATALOG.filter(
+    (issue) => issue.discoverability !== 'not-discoverable'
+  ).map((issue) => ({
+    id: issue.id,
+    title: issue.title,
+    discoverability: issue.discoverability,
+    visualCueLabelIds: issue.visualCueLabelIds,
+    requiredAnyLabelIds: issue.requiredAnyLabelIds,
+    forceConfidenceTier: issue.forceConfidenceTier,
+  }));
+
   return [
     'You are analyzing a 311 civic issue photo.',
     'Return JSON only. Do not include markdown.',
+    'Do not use address, GPS, or location-note assumptions; analyze the image only.',
     'Choose suggestedLabels only from the allowedLabels list.',
     `Only include labels with confidence >= ${MIN_CONFIDENCE}. Return at most ${MAX_LABELS} suggestedLabels.`,
+    'Prioritize specific condition labels over generic scene labels. For a visible pothole, crumbling asphalt, exposed gravel, broken pavement, or road-edge collapse, include road-pothole or road-surface-damage.',
+    'If road-pothole or road-surface-damage is visible, include the road-pothole-road-damage issue candidate.',
     'Include a normalized boundingBox if the object is visible. x, y, width, height must be numbers from 0 to 1.',
     `Keep evidence under ${MAX_EVIDENCE_CHARS} characters per label.`,
-    `Return at most ${MAX_UNKNOWN_OBSERVATIONS} unknownObservations for relevant civic objects outside allowedLabels.`,
-    `Keep unknown observation evidence under ${MAX_UNKNOWN_EVIDENCE_CHARS} characters each.`,
-    'Expected shape: {"suggestedLabels":[{"id":"string","confidence":0.7,"evidence":"string","boundingBox":{"x":0,"y":0,"width":0.1,"height":0.1}}],"unknownObservations":[{"name":"string","confidence":0.7,"evidence":"string"}]}',
+    `Return at most ${MAX_ISSUE_CANDIDATES} issueCandidates from the issueCatalog.`,
+    'Suggest only photo or limited-context issues supported by visible labels.',
+    'Missed pickup issues can be possible only because photos cannot prove schedule or timing.',
+    'Do not suggest bin exchange size, additional bin, or wrong delivery unless visible evidence supports that exact issue.',
+    `Keep each reason under ${MAX_REASON_CHARS} characters and each suggestedDescription under ${MAX_DESCRIPTION_CHARS} characters.`,
+    'Expected shape: {"suggestedLabels":[{"id":"string","confidence":0.7,"evidence":"string","boundingBox":{"x":0,"y":0,"width":0.1,"height":0.1}}],"issueCandidates":[{"issueId":"string","confidence":0.7,"supportingLabelIds":["string"],"reason":"short sentence","suggestedDescription":"short insertable sentence"}]}',
     `allowedLabels: ${JSON.stringify(allowedLabels)}`,
+    `issueCatalog: ${JSON.stringify(promptIssues)}`,
   ].join('\n');
 }
 
@@ -233,7 +262,10 @@ async function logAnalysisRun(
     request: ValidAnalysisRequest;
     status: 'ok' | 'error';
     suggestedLabels: unknown[];
-    unknownObservations: unknown[];
+    issueCandidates: {
+      issueId: string;
+      confidenceTier: string;
+    }[];
   }
 ) {
   const { error } = await supabase.from('ai_photo_analysis_runs').insert({
@@ -250,14 +282,27 @@ async function logAnalysisRun(
     prompt_version: PROMPT_VERSION,
     provider: PROVIDER,
     status: input.status,
-    suggested_labels: input.suggestedLabels,
+    suggested_labels: summarizeLabelsForLog(input.suggestedLabels),
+    issue_candidates: input.issueCandidates,
     taxonomy_version: input.request.taxonomyVersion,
-    unknown_observations: input.unknownObservations,
+    unknown_observations: [],
   });
 
   if (error) {
     console.error('Failed to log photo analysis run', error);
   }
+}
+
+function summarizeLabelsForLog(labels: unknown[]) {
+  return labels
+    .map((label) => {
+      if (!label || typeof label !== 'object') return null;
+      const item = label as { id?: unknown; confidence?: unknown };
+      return typeof item.id === 'string'
+        ? { id: item.id, confidence: Number(item.confidence) || 0 }
+        : null;
+    })
+    .filter((label): label is { id: string; confidence: number } => label != null);
 }
 
 function parseJsonText(text: string) {

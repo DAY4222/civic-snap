@@ -21,12 +21,17 @@ export function buildEmail(input: DraftReportInput) {
     input.latitude != null && input.longitude != null
       ? `GPS: ${input.latitude.toFixed(6)}, ${input.longitude.toFixed(6)}`
       : 'GPS: not available';
+  const categoryPath = input.category.categoryPath?.join(' > ') ?? '';
 
   const body = [
     'Hello 311 Toronto,',
     '',
-    `I would like to report ${articleFor(input.category.subjectLabel)} ${input.category.subjectLabel}.`,
-    input.photoIssueTopic ? `Photo suggests: ${input.photoIssueTopic.title}` : null,
+    'Issue:',
+    input.category.title,
+    categoryPath ? `Category path: ${categoryPath}` : null,
+    input.photoIssueTopic?.evidenceChips?.length
+      ? `Photo evidence: ${input.photoIssueTopic.evidenceChips.join(', ')}`
+      : null,
     '',
     'Location:',
     input.address || 'Address not provided',
@@ -53,8 +58,4 @@ export function buildEmail(input: DraftReportInput) {
     subject,
     body,
   };
-}
-
-function articleFor(text: string) {
-  return /^[aeiou]/i.test(text) ? 'an' : 'a';
 }

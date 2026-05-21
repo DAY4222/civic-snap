@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 import { findCategoryByTitle } from './categories';
-import { PhotoIssueTopicSelection, PhotoVisionResult, Report, ReportStatus } from './types';
+import { PhotoIssueCandidate, PhotoVisionResult, Report, ReportStatus } from './types';
 
 type ReportRow = {
   id: string;
@@ -225,11 +225,24 @@ function parsePhotoVisionResult(raw: string | null) {
   }
 }
 
-function parsePhotoIssueTopic(raw: string | null): PhotoIssueTopicSelection | null {
+function parsePhotoIssueTopic(raw: string | null): PhotoIssueCandidate | null {
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as PhotoIssueTopicSelection;
+    const candidate = JSON.parse(raw) as Partial<PhotoIssueCandidate>;
+    if (!candidate.issueId || !candidate.title) return null;
+
+    return {
+      issueId: candidate.issueId,
+      title: candidate.title,
+      confidence: Number(candidate.confidence) || 0,
+      confidenceTier: candidate.confidenceTier ?? 'possible',
+      supportingLabelIds: candidate.supportingLabelIds ?? [],
+      evidenceChips: candidate.evidenceChips ?? [],
+      reason: candidate.reason ?? '',
+      suggestedDescription: candidate.suggestedDescription ?? '',
+      boundingBoxes: candidate.boundingBoxes ?? [],
+    };
   } catch {
     return null;
   }

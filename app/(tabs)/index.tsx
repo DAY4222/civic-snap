@@ -22,6 +22,12 @@ import {
 import MapView, { type Region } from '@/components/CivicMap';
 import { ISSUE_CATEGORIES, getCategory } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
+import {
+  appendSuggestedDescription,
+  getSuggestedAnswerOptions,
+  getSuggestedIssueCandidates,
+  toggleMultiAnswer,
+} from '@/lib/issueSuggestions';
 import { loadPhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
 import { persistReportPhoto } from '@/lib/photos';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
@@ -32,9 +38,14 @@ import {
   updateReportEmail,
   updateReportStatus,
 } from '@/lib/reports';
-import { IssueCategory, PhotoIssueTopicSelection, PhotoVisionResult, Profile } from '@/lib/types';
+import {
+  CategoryQuestion,
+  IssueCategory,
+  PhotoIssueCandidate,
+  PhotoVisionResult,
+  Profile,
+} from '@/lib/types';
 import { PhotoVisionError, analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
-import { getSuggestedIssueTopics } from '@/lib/suggestedTopics';
 
 type Step = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
 type CategoryReturnStep = 'location' | 'details';
@@ -60,8 +71,14 @@ const GENERAL_CATEGORY: IssueCategory = {
   id: 'general',
   title: 'General 311 report',
   subjectLabel: 'local issue',
+  categoryPath: [],
+  description: '',
+  discoverability: 'not-discoverable',
+  visualCueLabelIds: [],
+  requiredAnyLabelIds: [],
   observations: [],
   questions: [],
+  emailGuidanceChecklist: [],
 };
 
 export default function ReportScreen() {
@@ -70,7 +87,7 @@ export default function ReportScreen() {
   const [categoryReturnStep, setCategoryReturnStep] = useState<CategoryReturnStep>('location');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedPhotoIssueTopic, setSelectedPhotoIssueTopic] =
-    useState<PhotoIssueTopicSelection | null>(null);
+    useState<PhotoIssueCandidate | null>(null);
   const [issueSearchQuery, setIssueSearchQuery] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [address, setAddress] = useState('');
@@ -100,22 +117,13 @@ export default function ReportScreen() {
     [selectedCategoryId]
   );
   const photoIssueCategory = useMemo<IssueCategory | null>(
-    () =>
-      selectedPhotoIssueTopic
-        ? {
-            id: selectedPhotoIssueTopic.id,
-            title: selectedPhotoIssueTopic.subjectTitle,
-            subjectLabel: selectedPhotoIssueTopic.subjectLabel,
-            observations: [],
-            questions: [],
-          }
-        : null,
+    () => (selectedPhotoIssueTopic ? getCategory(selectedPhotoIssueTopic.issueId) : null),
     [selectedPhotoIssueTopic]
   );
   const category = manualCategory ?? photoIssueCategory ?? GENERAL_CATEGORY;
   const currentIssueTitle = manualCategory?.title ?? selectedPhotoIssueTopic?.title ?? GENERAL_CATEGORY.title;
   const photoIssueSuggestions = useMemo(
-    () => getSuggestedIssueTopics(photoVisionResult),
+    () => getSuggestedIssueCandidates(photoVisionResult),
     [photoVisionResult]
   );
   const draftSnapshot = useRef({
@@ -154,10 +162,9 @@ export default function ReportScreen() {
     );
   }, [issueSearchQuery]);
   const descriptionPlaceholder =
-    selectedPhotoIssueTopic?.descriptionPlaceholder ??
-    (manualCategory
-      ? `Describe the ${manualCategory.subjectLabel}, exact location, and what crews should know.`
-      : 'Example: pothole in the curb lane near the crosswalk');
+    manualCategory || photoIssueCategory
+      ? `Describe the ${category.subjectLabel}, exact location, and what crews should know.`
+      : 'Example: pothole in the curb lane near the crosswalk';
   const email = useMemo(
     () =>
       buildEmail({
@@ -290,7 +297,7 @@ export default function ReportScreen() {
 
       setResumedReportId(resumeId);
       setSavedReportId(report.id);
-      setSelectedCategoryId(report.categoryId);
+      setSelectedCategoryId(report.photoIssueTopic ? null : report.categoryId);
       setPhotoUri(report.photoUri);
       setAddress(report.address);
       setLocationNote('');
@@ -470,7 +477,7 @@ export default function ReportScreen() {
       });
 
       const draftInput = {
-        categoryId: selectedCategoryId,
+        categoryId: category.id === GENERAL_CATEGORY.id ? null : category.id,
         category: category.title,
         description,
         answers,
@@ -550,10 +557,10 @@ export default function ReportScreen() {
     setStep(categoryReturnStep);
   }
 
-  function togglePhotoIssueTopic(topic: PhotoIssueTopicSelection) {
+  function togglePhotoIssueTopic(topic: PhotoIssueCandidate) {
     setSelectedCategoryId(null);
     setAnswers({});
-    setSelectedPhotoIssueTopic((current) => (current?.id === topic.id ? null : topic));
+    setSelectedPhotoIssueTopic((current) => (current?.issueId === topic.issueId ? null : topic));
   }
 
   async function analyzeCurrentPhoto() {
@@ -661,7 +668,7 @@ export default function ReportScreen() {
               style={[styles.card, item.id === selectedCategoryId && styles.selectedCard]}
               onPress={() => chooseCategory(item.id)}>
               <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.muted}>Use these prompts to shape your description.</Text>
+              <Text style={styles.muted}>{categorySourceMatchText(item)}</Text>
             </Pressable>
           ))}
           {filteredIssueCategories.length === 0 ? (
@@ -721,6 +728,7 @@ export default function ReportScreen() {
             <SuggestedTopicsPanel
               manualCategory={manualCategory}
               onAnalyze={analyzeCurrentPhoto}
+              labels={photoVisionResult?.suggestedLabels ?? []}
               onOpenIssueSearch={() => openCategory('details')}
               onToggleTopic={togglePhotoIssueTopic}
               selectedTopic={selectedPhotoIssueTopic}
@@ -733,6 +741,26 @@ export default function ReportScreen() {
               onOpenIssueSearch={() => openCategory('details')}
             />
           )}
+          {selectedPhotoIssueTopic && photoUri ? (
+            <EvidencePhoto
+              photoUri={photoUri}
+              result={photoVisionResult}
+              selectedCandidate={selectedPhotoIssueTopic}
+            />
+          ) : null}
+          {selectedPhotoIssueTopic?.suggestedDescription ? (
+            <Pressable
+              style={styles.suggestedSentence}
+              onPress={() =>
+                setDescription((current) =>
+                  appendSuggestedDescription(current, selectedPhotoIssueTopic.suggestedDescription)
+                )
+              }>
+              <Text style={styles.promptTitle}>Suggested sentence</Text>
+              <Text style={styles.evidenceText}>{selectedPhotoIssueTopic.suggestedDescription}</Text>
+              <Text style={styles.inlineActionText}>Insert sentence</Text>
+            </Pressable>
+          ) : null}
           <Field
             label="Short description"
             value={description}
@@ -740,22 +768,22 @@ export default function ReportScreen() {
             placeholder={descriptionPlaceholder}
             multiline
           />
-          {manualCategory ? (
+          {category.id !== GENERAL_CATEGORY.id ? (
             <>
-              <Text style={styles.sectionTitle}>Guided questions</Text>
-              {manualCategory.questions.map((question) => (
-                <Field
+              {category.questions.length > 0 ? <Text style={styles.sectionTitle}>Checklist</Text> : null}
+              {category.questions.map((question) => (
+                <QuestionField
                   key={question.id}
-                  label={question.label}
+                  question={question}
                   value={answers[question.id] ?? ''}
                   onChangeText={(value) =>
                     setAnswers((current) => ({ ...current, [question.id]: value }))
                   }
-                  placeholder={question.placeholder}
+                  selectedCandidate={selectedPhotoIssueTopic}
                 />
               ))}
               <Text style={styles.sectionTitle}>Useful observations</Text>
-              {manualCategory.observations.map((observation) => (
+              {category.observations.map((observation) => (
                 <View key={observation} style={styles.observationRow}>
                   <FontAwesome name="check-circle" size={16} color="#0a7ea4" />
                   <Text style={styles.observationText}>{observation}</Text>
@@ -858,6 +886,18 @@ function Header({ title, onBack }: { title: string; onBack: () => void }) {
   );
 }
 
+function categorySourceMatchText(category: IssueCategory) {
+  if (category.sourceMatchStatus === 'unmatched') {
+    return 'No exact Toronto 311 source match; review before sending.';
+  }
+
+  if (category.sourceMatchStatus === 'ambiguous') {
+    return 'Multiple exact Toronto 311 source matches; review before sending.';
+  }
+
+  return 'Use these prompts to shape your description.';
+}
+
 function Progress({ currentStep }: { currentStep: Step }) {
   const steps: { key: Step; label: string }[] = [
     { key: 'category', label: 'Issue' },
@@ -954,6 +994,77 @@ function Field({
   );
 }
 
+function QuestionField({
+  onChangeText,
+  question,
+  selectedCandidate,
+  value,
+}: {
+  onChangeText: (value: string) => void;
+  question: CategoryQuestion;
+  selectedCandidate: PhotoIssueCandidate | null;
+  value: string;
+}) {
+  const suggestions = getSuggestedAnswerOptions(question, selectedCandidate);
+  const selectedValues = value
+    .split(', ')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (question.options.length > 0) {
+    return (
+      <View style={styles.field}>
+        <Text style={styles.label}>{question.label}</Text>
+        <View style={styles.optionWrap}>
+          {question.options.map((option) => {
+            const selected =
+              question.answerType === 'multipicklist'
+                ? selectedValues.includes(option.label)
+                : value === option.label;
+            const suggested = suggestions.some((suggestion) => suggestion.value === option.value);
+
+            return (
+              <Pressable
+                key={option.value}
+                style={[
+                  styles.optionChip,
+                  selected && styles.optionChipSelected,
+                  suggested && !selected && styles.optionChipSuggested,
+                ]}
+                onPress={() =>
+                  onChangeText(
+                    question.answerType === 'multipicklist'
+                      ? toggleMultiAnswer(value, option)
+                      : option.label
+                  )
+                }>
+                <Text style={[styles.optionChipText, selected && styles.optionChipTextSelected]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {suggestions.length > 0 ? (
+          <Text style={styles.suggestionText}>
+            Suggested by photo: {suggestions.map((option) => option.label).join(', ')}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <Field
+      label={question.label}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={question.placeholder}
+      multiline={question.answerType === 'text'}
+    />
+  );
+}
+
 function Notice({ text, tone }: { text: string; tone: 'plain' | 'warning' }) {
   return (
     <View style={[styles.notice, tone === 'warning' && styles.warningNotice]}>
@@ -962,7 +1073,42 @@ function Notice({ text, tone }: { text: string; tone: 'plain' | 'warning' }) {
   );
 }
 
+function EvidencePhoto({
+  photoUri,
+  result,
+  selectedCandidate,
+}: {
+  photoUri: string;
+  result: PhotoVisionResult | null;
+  selectedCandidate: PhotoIssueCandidate;
+}) {
+  const aspectRatio =
+    result?.image.width && result.image.height ? result.image.width / result.image.height : 4 / 3;
+
+  return (
+    <View style={[styles.evidencePhotoFrame, { aspectRatio }]}>
+      <Image source={{ uri: photoUri }} resizeMode="stretch" style={styles.evidencePhoto} />
+      {selectedCandidate.boundingBoxes.map((box) => (
+        <View
+          key={`${box.labelId}-${box.boundingBox.x}-${box.boundingBox.y}`}
+          style={[
+            styles.evidenceBox,
+            {
+              height: `${box.boundingBox.height * 100}%`,
+              left: `${box.boundingBox.x * 100}%`,
+              top: `${box.boundingBox.y * 100}%`,
+              width: `${box.boundingBox.width * 100}%`,
+            },
+          ]}>
+          <Text style={styles.evidenceBoxLabel}>{box.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function SuggestedTopicsPanel({
+  labels,
   manualCategory,
   onAnalyze,
   onOpenIssueSearch,
@@ -971,13 +1117,14 @@ function SuggestedTopicsPanel({
   status,
   topics,
 }: {
+  labels: PhotoVisionResult['suggestedLabels'];
   manualCategory: IssueCategory | null;
   onAnalyze: () => void;
   onOpenIssueSearch: () => void;
-  onToggleTopic: (topic: PhotoIssueTopicSelection) => void;
-  selectedTopic: PhotoIssueTopicSelection | null;
+  onToggleTopic: (topic: PhotoIssueCandidate) => void;
+  selectedTopic: PhotoIssueCandidate | null;
   status: PhotoVisionStatus;
-  topics: PhotoIssueTopicSelection[];
+  topics: PhotoIssueCandidate[];
 }) {
   const showQuietFallback =
     status === 'empty' ||
@@ -990,23 +1137,23 @@ function SuggestedTopicsPanel({
     <View style={styles.suggestionCard}>
       <View style={styles.suggestionHeader}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.sectionTitle}>Suggested topics</Text>
+          <Text style={styles.sectionTitle}>Suggested issues</Text>
           <Text style={styles.muted}>Pick one if it matches, or search all issue types.</Text>
         </View>
         {status === 'loading' ? <ActivityIndicator /> : null}
       </View>
       {topics.map((topic) => {
-        const selected = selectedTopic?.id === topic.id;
+        const selected = selectedTopic?.issueId === topic.issueId;
 
         return (
           <Pressable
-            key={topic.id}
+            key={topic.issueId}
             style={[styles.topicCard, selected && styles.topicCardSelected]}
             onPress={() => onToggleTopic(topic)}>
             <View style={styles.topicRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.topicTitle}>{topic.title}</Text>
-                <Text style={styles.matchText}>{Math.round(topic.confidence * 100)}% match</Text>
+                <Text style={styles.matchText}>{confidenceTierText(topic.confidenceTier)}</Text>
               </View>
               <FontAwesome
                 name={selected ? 'check-circle' : 'circle-o'}
@@ -1014,15 +1161,27 @@ function SuggestedTopicsPanel({
                 color={selected ? '#0a7ea4' : '#8e8e93'}
               />
             </View>
-            {selected ? (
-              <View style={styles.topicExpanded}>
-                {topic.evidence ? <Text style={styles.evidenceText}>{topic.evidence}</Text> : null}
-                <PromptGroup title="Try to mention" prompts={topic.questions} />
-              </View>
-            ) : null}
+            <View style={styles.chipRow}>
+              {topic.evidenceChips.map((chip) => (
+                <Text key={chip} style={styles.evidenceChip}>{chip}</Text>
+              ))}
+            </View>
+            <Text style={styles.evidenceText}>{topic.reason}</Text>
           </Pressable>
         );
       })}
+      {labels.length > 0 ? (
+        <View style={styles.promptGroup}>
+          <Text style={styles.promptTitle}>Detected evidence</Text>
+          <View style={styles.chipRow}>
+            {labels.map((label) => (
+              <Text key={label.id} style={styles.evidenceChip}>
+                {label.label} {Math.round(label.confidence * 100)}%
+              </Text>
+            ))}
+          </View>
+        </View>
+      ) : null}
       {status === 'loading' ? (
         <Text style={styles.muted}>Looking for likely 311 topics. You can keep writing.</Text>
       ) : null}
@@ -1100,6 +1259,12 @@ function getPhotoVisionErrorStatus(error: unknown) {
   }
 
   return 'error';
+}
+
+function confidenceTierText(tier: PhotoIssueCandidate['confidenceTier']) {
+  if (tier === 'strong') return 'Strong match';
+  if (tier === 'likely') return 'Likely match';
+  return 'Possible match';
 }
 
 function formatAddress(place: Location.LocationGeocodedAddress) {
@@ -1481,6 +1646,89 @@ const styles = StyleSheet.create({
     color: '#3a3a3c',
     fontSize: 14,
     lineHeight: 20,
+  },
+  evidencePhotoFrame: {
+    backgroundColor: '#d1d1d6',
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    width: '100%',
+  },
+  evidencePhoto: {
+    height: '100%',
+    width: '100%',
+  },
+  evidenceBox: {
+    borderColor: '#0a7ea4',
+    borderRadius: 6,
+    borderWidth: 2,
+    position: 'absolute',
+  },
+  evidenceBoxLabel: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#0a7ea4',
+    borderBottomRightRadius: 5,
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  suggestedSentence: {
+    backgroundColor: '#f9fbfc',
+    borderColor: '#b8dce8',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    padding: 14,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  evidenceChip: {
+    backgroundColor: '#e9f5f9',
+    borderRadius: 999,
+    color: '#0a5f7a',
+    fontSize: 12,
+    fontWeight: '800',
+    overflow: 'hidden',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  optionWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  optionChip: {
+    backgroundColor: '#fff',
+    borderColor: '#d1d1d6',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  optionChipSelected: {
+    backgroundColor: '#0a7ea4',
+    borderColor: '#0a7ea4',
+  },
+  optionChipSuggested: {
+    borderColor: '#0a7ea4',
+  },
+  optionChipText: {
+    color: '#1d1d1f',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  optionChipTextSelected: {
+    color: '#fff',
+  },
+  suggestionText: {
+    color: '#0a7ea4',
+    fontSize: 13,
+    fontWeight: '700',
   },
   promptGroup: {
     gap: 8,

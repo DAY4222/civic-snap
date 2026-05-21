@@ -6,33 +6,68 @@ export type Profile = {
   phone: string;
 };
 
+export type CategoryQuestionAnswerType =
+  | 'text'
+  | 'date'
+  | 'time'
+  | 'number'
+  | 'picklist'
+  | 'radio'
+  | 'multipicklist';
+
+export type CategoryQuestionOption = {
+  label: string;
+  value: string;
+  isEligibleResponse: boolean | null;
+  suggestedLabelIds: string[];
+};
+
 export type CategoryQuestion = {
   id: string;
   label: string;
   placeholder: string;
+  answerType: CategoryQuestionAnswerType;
+  isRequired: boolean;
+  sectionName: string;
+  options: CategoryQuestionOption[];
 };
+
+export type IssueCategorySourceMatchStatus = 'matched' | 'unmatched' | 'ambiguous';
+export type IssueDiscoverability = 'photo' | 'limited-context' | 'not-discoverable';
+export type PhotoIssueConfidenceTier = 'strong' | 'likely' | 'possible';
 
 export type IssueCategory = {
   id: string;
   title: string;
   subjectLabel: string;
+  categoryPath: string[];
+  description: string;
+  discoverability: IssueDiscoverability;
+  sourceMatchStatus?: IssueCategorySourceMatchStatus;
+  visualCueLabelIds: string[];
+  requiredAnyLabelIds: string[];
+  forceConfidenceTier?: PhotoIssueConfidenceTier;
   observations: string[];
   questions: CategoryQuestion[];
+  emailGuidanceChecklist: CategoryQuestion[];
 };
 
-export type PhotoIssueTopic = {
-  id: string;
+export type PhotoIssueCandidateBoundingBox = {
   labelId: string;
-  title: string;
-  subjectTitle: string;
-  subjectLabel: string;
-  descriptionPlaceholder: string;
-  questions: string[];
+  label: string;
+  boundingBox: PhotoLabelBoundingBox;
 };
 
-export type PhotoIssueTopicSelection = PhotoIssueTopic & {
+export type PhotoIssueCandidate = {
+  issueId: string;
+  title: string;
   confidence: number;
-  evidence: string;
+  confidenceTier: PhotoIssueConfidenceTier;
+  supportingLabelIds: string[];
+  evidenceChips: string[];
+  reason: string;
+  suggestedDescription: string;
+  boundingBoxes: PhotoIssueCandidateBoundingBox[];
 };
 
 export type DraftReportInput = {
@@ -44,7 +79,7 @@ export type DraftReportInput = {
   latitude: number | null;
   longitude: number | null;
   photoUri: string | null;
-  photoIssueTopic?: PhotoIssueTopicSelection | null;
+  photoIssueTopic?: PhotoIssueCandidate | null;
   profile: Profile;
 };
 
@@ -53,6 +88,12 @@ export type PhotoLabelBoundingBox = {
   y: number;
   width: number;
   height: number;
+};
+
+export type PhotoLabelDefinition = {
+  id: string;
+  label: string;
+  description: string;
 };
 
 export type PhotoVisionLabel = {
@@ -65,6 +106,7 @@ export type PhotoVisionLabel = {
 
 export type PhotoVisionResult = {
   suggestedLabels: PhotoVisionLabel[];
+  issueCandidates: PhotoIssueCandidate[];
   provider: 'gemini';
   model: string;
   promptVersion: string;
@@ -90,7 +132,7 @@ export type Report = {
   longitude: number | null;
   photoUri: string | null;
   photoVisionResult: PhotoVisionResult | null;
-  photoIssueTopic: PhotoIssueTopicSelection | null;
+  photoIssueTopic: PhotoIssueCandidate | null;
   emailSubject: string;
   emailBody: string;
   status: ReportStatus;

@@ -54,9 +54,19 @@ export default function ReportDetailScreen() {
       </View>
       {report.photoIssueTopic ? (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Photo-suggested topic</Text>
+          <Text style={styles.sectionTitle}>Selected photo evidence</Text>
           <Text style={styles.subtitle}>{report.photoIssueTopic.title}</Text>
-          <Text style={styles.matchText}>{Math.round(report.photoIssueTopic.confidence * 100)}% match</Text>
+          <Text style={styles.matchText}>{confidenceTierText(report.photoIssueTopic.confidenceTier)}</Text>
+          {report.photoIssueTopic.evidenceChips.length > 0 ? (
+            <View style={styles.chipRow}>
+              {report.photoIssueTopic.evidenceChips.map((chip) => (
+                <Text key={chip} style={styles.evidenceChip}>{chip}</Text>
+              ))}
+            </View>
+          ) : null}
+          {report.photoIssueTopic.reason ? (
+            <Text style={styles.subtitle}>{report.photoIssueTopic.reason}</Text>
+          ) : null}
         </View>
       ) : null}
       <View style={styles.card}>
@@ -143,6 +153,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  evidenceChip: {
+    backgroundColor: '#e9f5f9',
+    borderRadius: 999,
+    color: '#0a5f7a',
+    fontSize: 12,
+    fontWeight: '800',
+    overflow: 'hidden',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
   input: {
     backgroundColor: '#fff',
     borderColor: '#d1d1d6',
@@ -181,3 +206,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+function confidenceTierText(tier: string) {
+  if (tier === 'strong') return 'Strong match';
+  if (tier === 'likely') return 'Likely match';
+  return 'Possible match';
+}

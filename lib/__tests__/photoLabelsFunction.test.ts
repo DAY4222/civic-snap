@@ -1,15 +1,20 @@
 import {
   DEFAULT_LIMIT_CONFIG,
+  hybridRerankIssueCandidates,
   normalizeGeminiResult,
   parsePositiveIntegerEnvValue,
   readLimitConfigFromEnv,
   validateRequest,
   type AnalysisRequest,
 } from '../../supabase/functions/analyze-photo-labels/logic';
+import { EDGE_ISSUE_CATALOG } from '../../supabase/functions/analyze-photo-labels/issueCatalog';
 
 const allowedLabels = [
-  { id: 'pothole', label: 'Pothole' },
-  { id: 'graffiti', label: 'Graffiti' },
+  { id: 'road-pothole', label: 'Road pothole' },
+  { id: 'road-surface-damage', label: 'Road surface damage' },
+  { id: 'roadway', label: 'Roadway' },
+  { id: 'graffiti-private-property', label: 'Graffiti on private property' },
+  { id: 'curbside-garbage', label: 'Curbside garbage' },
 ];
 
 const validRequest: AnalysisRequest = {
@@ -73,14 +78,14 @@ describe('photo label Edge Function logic', () => {
       {
         suggestedLabels: [
           {
-            id: 'graffiti',
+            id: 'graffiti-private-property',
             label: 'model-provided label is ignored',
             confidence: 0.8,
             evidence: '  marker tag on public sign  ',
             boundingBox: { x: 0.9, y: 0.2, width: 0.5, height: 0.3 },
           },
           {
-            id: 'pothole',
+            id: 'road-pothole',
             confidence: 0.95,
             evidence: 'visible road depression',
           },
@@ -90,37 +95,106 @@ describe('photo label Edge Function logic', () => {
             evidence: 'not in taxonomy',
           },
           {
-            id: 'graffiti',
+            id: 'graffiti-private-property',
             confidence: 0.5,
             evidence: 'below threshold',
           },
         ],
-        unknownObservations: [
-          { name: 'traffic cone', confidence: 0.9, evidence: 'near the curb' },
-          { name: '', confidence: 0.9, evidence: 'ignored' },
+        issueCandidates: [
+          {
+            issueId: 'road-pothole-road-damage',
+            confidence: 0.9,
+            supportingLabelIds: ['road-pothole'],
+            reason: 'Visible road surface damage.',
+            suggestedDescription: 'Photo shows a pothole in the road.',
+          },
+          {
+            issueId: 'amplified-or-musical-instrument-noise',
+            confidence: 0.99,
+            supportingLabelIds: ['road-pothole'],
+            reason: 'Noise is not photo-discoverable.',
+          },
         ],
       },
-      allowedLabels
+      allowedLabels,
+      EDGE_ISSUE_CATALOG
     );
 
     expect(result.suggestedLabels).toEqual([
       {
-        id: 'pothole',
-        label: 'Pothole',
+        id: 'road-pothole',
+        label: 'Road pothole',
         confidence: 0.95,
         evidence: 'visible road depression',
         boundingBox: undefined,
       },
       {
-        id: 'graffiti',
-        label: 'Graffiti',
+        id: 'graffiti-private-property',
+        label: 'Graffiti on private property',
         confidence: 0.8,
         evidence: 'marker tag on public sign',
         boundingBox: { x: 0.9, y: 0.2, width: 0.09999999999999998, height: 0.3 },
       },
     ]);
-    expect(result.unknownObservations).toEqual([
-      { name: 'traffic cone', confidence: 0.9, evidence: 'near the curb' },
-    ]);
+    expect(result.issueCandidates[0]).toMatchObject({
+      issueId: 'road-pothole-road-damage',
+      confidenceTier: 'strong',
+      supportingLabelIds: ['road-pothole'],
+    });
+    expect(result.issueCandidates.map((candidate) => candidate.issueId)).not.toContain(
+      'amplified-or-musical-instrument-noise'
+    );
+  });
+
+  it('adds obvious candidates from labels and keeps missed pickup possible', () => {
+    const candidates = hybridRerankIssueCandidates(
+      [
+        {
+          id: 'curbside-garbage',
+          label: 'Curbside garbage',
+          confidence: 0.92,
+          evidence: 'bags at curb',
+        },
+      ],
+      [],
+      EDGE_ISSUE_CATALOG
+    );
+
+    expect(candidates.map((candidate) => candidate.issueId)).toContain(
+      'residential-garbage-day-collection-not-picked-up'
+    );
+    expect(candidates.every((candidate) => candidate.confidenceTier === 'possible')).toBe(true);
+  });
+
+  it('keeps a high-confidence pothole candidate when Gemini returns roadway support only', () => {
+    const result = normalizeGeminiResult(
+      {
+        suggestedLabels: [
+          {
+            id: 'roadway',
+            confidence: 0.91,
+            evidence: 'asphalt road is visible',
+          },
+        ],
+        issueCandidates: [
+          {
+            issueId: 'road-pothole-road-damage',
+            confidence: 0.91,
+            supportingLabelIds: ['roadway'],
+            reason: 'The image shows road pavement damage.',
+            suggestedDescription: 'Photo shows damaged road pavement at this location.',
+          },
+        ],
+      },
+      allowedLabels,
+      EDGE_ISSUE_CATALOG
+    );
+
+    expect(result.issueCandidates[0]).toMatchObject({
+      issueId: 'road-pothole-road-damage',
+      confidenceTier: 'strong',
+      supportingLabelIds: ['roadway', 'road-surface-damage'],
+      evidenceChips: ['Roadway', 'Road surface damage'],
+    });
   });
 });

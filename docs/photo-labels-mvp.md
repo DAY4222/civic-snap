@@ -10,7 +10,7 @@ EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL=https://sdlanaillklsdnkzkfri.supabase.co/
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<shared public anon key>
 ```
 
-These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend. The in-app Photo analysis setting defaults off, so users must opt in before the app sends a resized photo for topic suggestions. For this direct `fetch` integration, use the legacy public `anon` key from Supabase as the bearer token. Do not use the `service_role` key in the app.
+These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend. The in-app Photo analysis setting defaults off, so users must opt in before the app sends a resized photo for labels and issue candidates. For this direct `fetch` integration, use the legacy public `anon` key from Supabase as the bearer token. Do not use the `service_role` key in the app.
 
 To find the `anon` key for another backend:
 
@@ -60,7 +60,7 @@ The public shared backend is protected by per-install and global daily rate limi
 
 Use a Gemini API key from Google AI Studio. Keep Gemini billing disabled for v1 dev testing so quota exhaustion, not surprise spend, is the failure mode.
 
-The Edge Function uses the fixed model `gemini-2.5-flash-lite` and does not enable Gemini tools, grounding, Search, or Maps.
+The Edge Function uses the fixed model `gemini-3.1-flash-lite` and does not enable Gemini tools, grounding, Search, or Maps. It receives only the image plus generated label and issue catalogs; address, GPS, and location notes stay in the app.
 
 ## Retention cleanup
 

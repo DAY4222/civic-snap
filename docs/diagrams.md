@@ -18,10 +18,12 @@ flowchart TD
     MailHandoff["Open Mail"]
     Fallback["Copy text or open mailto fallback"]
     HydrateDraft["Hydrate draft into report state"]
+    IssueCandidates["AI issue candidates\nUser taps final issue"]
   end
 
   subgraph Inputs["Device and app inputs"]
     Categories["lib/categories.ts\nIssue questions and observations"]
+    Catalog["Generated 311 catalog\nLabels, issue rules, checklist questions"]
     Profile["lib/profile.ts\nSecureStore profile"]
     Camera["expo-image-picker\nCamera or photo library"]
     Geo["expo-location\nGPS and reverse geocode"]
@@ -32,6 +34,12 @@ flowchart TD
     PersistPhoto["lib/photos.ts\nResize and save photo"]
     EmailBuilder["lib/email.ts\nBuild recipient, subject, body"]
     ReportStore["lib/reports.ts\nSQLite report API"]
+    Vision["lib/vision.ts\nSupabase photo analysis fetch"]
+  end
+
+  subgraph Backend["Supabase Edge Function"]
+    EdgeFunction["analyze-photo-labels\nGemini labels + hybrid issue rerank"]
+    Gemini["Gemini photo-only analysis"]
   end
 
   subgraph Storage["On-device storage"]
@@ -65,6 +73,12 @@ flowchart TD
   MapAdjust --> Location
   Location --> Details
   Categories --> Details
+  Catalog --> Categories
+  Photo --> Vision
+  Vision --> EdgeFunction
+  EdgeFunction --> Gemini
+  EdgeFunction --> IssueCandidates
+  IssueCandidates --> Details
   Profile --> SecureStore
   SecureStore --> Profile
   Profile --> EmailBuilder
@@ -181,6 +195,6 @@ flowchart LR
 
 ## Current Boundaries
 
-- No backend, auth, cloud sync, server storage, or OpenAI calls are wired into the app.
-- The `supabase/` directory currently contains only local CLI temp metadata and is not referenced by app code.
+- Photo analysis is opt-in and sends a resized photo only to the Supabase Edge Function.
+- Address, GPS, location notes, email text, and full reasoning are not sent to Gemini.
 - Sending is a handoff to the user's mail client. The app records `Mail opened`; it does not confirm receipt by 311.

@@ -11,6 +11,9 @@
     "test": "jest --watchAll=false",
     "supabase:db:push": "npx supabase db push",
     "supabase:deploy:photo-labels": "npx supabase functions deploy analyze-photo-labels",
+    "scrape:toronto311-targets": "node scripts/scrape-toronto-311-target-issues.cjs",
+    "generate:ai-catalogs": "node scripts/generate-ai-issue-catalogs.cjs",
+    "live:ai-photo-check": "node scripts/live-ai-photo-spot-check.cjs",
     "build:web": "expo export --platform web --output-dir dist",
     "check": "tsc --noEmit && jest --watchAll=false && expo export --platform web --output-dir dist"
   },

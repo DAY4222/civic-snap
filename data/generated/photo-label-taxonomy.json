@@ -1,0 +1,410 @@
+{
+  "version": "photo-label-taxonomy-v2",
+  "labels": [
+    {
+      "id": "roadway",
+      "label": "Roadway",
+      "description": "Roadway, traffic lane, curb lane, or road shoulder."
+    },
+    {
+      "id": "sidewalk",
+      "label": "Sidewalk",
+      "description": "Sidewalk or pedestrian walking area."
+    },
+    {
+      "id": "boulevard",
+      "label": "Boulevard",
+      "description": "Boulevard or grass strip between curb and sidewalk."
+    },
+    {
+      "id": "laneway",
+      "label": "Laneway",
+      "description": "Public laneway or service lane."
+    },
+    {
+      "id": "bike-lane",
+      "label": "Bike lane",
+      "description": "Bike lane or cycling facility."
+    },
+    {
+      "id": "intersection",
+      "label": "Intersection",
+      "description": "Street intersection, crosswalk, or corner."
+    },
+    {
+      "id": "bus-stop",
+      "label": "Bus stop",
+      "description": "Transit stop or shelter area."
+    },
+    {
+      "id": "school-zone",
+      "label": "School zone",
+      "description": "School frontage or signed school zone."
+    },
+    {
+      "id": "city-park",
+      "label": "City park",
+      "description": "City park, playground, or park trail."
+    },
+    {
+      "id": "private-property",
+      "label": "Private property",
+      "description": "Private yard, driveway, building, or lot."
+    },
+    {
+      "id": "residential-curb",
+      "label": "Residential curb",
+      "description": "Residential curbside set-out area."
+    },
+    {
+      "id": "road-pothole",
+      "label": "Road pothole",
+      "description": "Visible pothole in the road surface."
+    },
+    {
+      "id": "road-surface-damage",
+      "label": "Road surface damage",
+      "description": "Cracked, broken, uneven, or damaged road surface."
+    },
+    {
+      "id": "road-sinking-or-sinkhole",
+      "label": "Road sinking or sinkhole",
+      "description": "Sunken road surface, sinkhole, or collapse."
+    },
+    {
+      "id": "damaged-concrete-sidewalk",
+      "label": "Damaged concrete sidewalk",
+      "description": "Cracked, broken, raised, or sunken concrete sidewalk."
+    },
+    {
+      "id": "uneven-walkway",
+      "label": "Uneven walkway",
+      "description": "Damaged, uneven, or unsafe walkway."
+    },
+    {
+      "id": "damaged-boulevard-asphalt",
+      "label": "Damaged boulevard asphalt",
+      "description": "Damaged asphalt on a boulevard or driveway apron."
+    },
+    {
+      "id": "catch-basin",
+      "label": "Catch basin",
+      "description": "Catch basin, sewer grate, or storm drain."
+    },
+    {
+      "id": "maintenance-hole-lid",
+      "label": "Maintenance hole lid",
+      "description": "Loose, missing, sunken, or damaged maintenance hole cover."
+    },
+    {
+      "id": "traffic-signal",
+      "label": "Traffic signal",
+      "description": "Traffic signal light, pole, housing, or push button."
+    },
+    {
+      "id": "traffic-sign",
+      "label": "Traffic sign",
+      "description": "Traffic sign or signpost."
+    },
+    {
+      "id": "street-name-sign",
+      "label": "Street name sign",
+      "description": "Street name sign."
+    },
+    {
+      "id": "regulatory-or-warning-sign",
+      "label": "Regulatory or warning sign",
+      "description": "Stop, parking, speed, warning, or regulatory sign."
+    },
+    {
+      "id": "bike-lane-bollard-or-barrier",
+      "label": "Bike lane bollard or barrier",
+      "description": "Bike lane bollard, post, curb, or barrier."
+    },
+    {
+      "id": "residential-collection-bin",
+      "label": "Residential collection bin",
+      "description": "City-issued residential collection bin."
+    },
+    {
+      "id": "garbage-bin",
+      "label": "Garbage bin",
+      "description": "Garbage bin or black/grey waste bin."
+    },
+    {
+      "id": "recycling-bin",
+      "label": "Recycling bin",
+      "description": "Blue recycling bin."
+    },
+    {
+      "id": "organic-bin",
+      "label": "Organic bin",
+      "description": "Green organic waste bin."
+    },
+    {
+      "id": "street-litter-bin",
+      "label": "Street litter bin",
+      "description": "Public street litter bin."
+    },
+    {
+      "id": "bin-lid-damaged",
+      "label": "Bin lid damaged",
+      "description": "Damaged or missing collection-bin lid."
+    },
+    {
+      "id": "bin-body-or-handle-damaged",
+      "label": "Bin body or handle damaged",
+      "description": "Damaged collection-bin body or handle."
+    },
+    {
+      "id": "bin-wheel-damaged",
+      "label": "Bin wheel damaged",
+      "description": "Damaged or missing collection-bin wheel."
+    },
+    {
+      "id": "missing-bin-evidence",
+      "label": "Missing bin evidence",
+      "description": "Visible evidence related to a missing residential bin request."
+    },
+    {
+      "id": "overflowing-street-litter-bin",
+      "label": "Overflowing street litter bin",
+      "description": "Public street litter bin full or overflowing."
+    },
+    {
+      "id": "curbside-garbage",
+      "label": "Curbside garbage",
+      "description": "Garbage set out at the curb."
+    },
+    {
+      "id": "curbside-recycling",
+      "label": "Curbside recycling",
+      "description": "Recycling set out at the curb."
+    },
+    {
+      "id": "curbside-organics",
+      "label": "Curbside organics",
+      "description": "Organic waste set out at the curb."
+    },
+    {
+      "id": "yard-waste",
+      "label": "Yard waste",
+      "description": "Yard waste bags, bundles, or containers."
+    },
+    {
+      "id": "oversized-or-electronic-item",
+      "label": "Oversized or electronic item",
+      "description": "Large item, appliance, furniture, mattress, or electronics set out."
+    },
+    {
+      "id": "household-hazardous-waste",
+      "label": "Household hazardous waste",
+      "description": "Paint, chemicals, batteries, propane, or other hazardous waste."
+    },
+    {
+      "id": "loose-litter",
+      "label": "Loose litter",
+      "description": "Loose scattered litter or small debris."
+    },
+    {
+      "id": "illegal-dumping",
+      "label": "Illegal dumping",
+      "description": "Dumped waste, bags, furniture, or debris not part of normal set-out."
+    },
+    {
+      "id": "construction-debris",
+      "label": "Construction debris",
+      "description": "Construction material, renovation waste, concrete, wood, drywall, or spill."
+    },
+    {
+      "id": "needles-or-syringes",
+      "label": "Needles or syringes",
+      "description": "Needle or syringe visible in the scene."
+    },
+    {
+      "id": "biohazard-human-waste",
+      "label": "Biohazard human waste",
+      "description": "Visible human waste or biohazard cleanup concern."
+    },
+    {
+      "id": "snow-covered-road",
+      "label": "Snow-covered road",
+      "description": "Road that appears snow-covered or uncleared."
+    },
+    {
+      "id": "snow-covered-sidewalk",
+      "label": "Snow-covered sidewalk",
+      "description": "Sidewalk that appears snow-covered or uncleared."
+    },
+    {
+      "id": "icy-sidewalk",
+      "label": "Icy sidewalk",
+      "description": "Sidewalk that appears icy or needs salting."
+    },
+    {
+      "id": "icy-laneway",
+      "label": "Icy laneway",
+      "description": "Laneway that appears icy or needs salting."
+    },
+    {
+      "id": "snowbank-blocking-driveway",
+      "label": "Snowbank blocking driveway",
+      "description": "Plowed snowbank blocking driveway access."
+    },
+    {
+      "id": "snow-blocking-intersection-sightline",
+      "label": "Snow blocking intersection sightline",
+      "description": "Snowbank obstructing intersection visibility or mobility."
+    },
+    {
+      "id": "snow-covered-bus-stop",
+      "label": "Snow-covered bus stop",
+      "description": "Bus stop or shelter area blocked by snow."
+    },
+    {
+      "id": "snow-covered-school-zone",
+      "label": "Snow-covered school zone",
+      "description": "School-zone sidewalk or frontage blocked by snow."
+    },
+    {
+      "id": "snow-covered-bike-lane",
+      "label": "Snow-covered bike lane",
+      "description": "Bike lane blocked by snow or ice."
+    },
+    {
+      "id": "snow-plow-boulevard-damage",
+      "label": "Snow plow boulevard damage",
+      "description": "Boulevard or lawn damage likely caused by plowing."
+    },
+    {
+      "id": "public-tree",
+      "label": "Public tree",
+      "description": "Street tree, park tree, or tree on City property."
+    },
+    {
+      "id": "private-tree",
+      "label": "Private tree",
+      "description": "Tree on private property."
+    },
+    {
+      "id": "fallen-tree-or-large-limb",
+      "label": "Fallen tree or large limb",
+      "description": "Fallen tree or large branch."
+    },
+    {
+      "id": "hanging-or-broken-branch",
+      "label": "Hanging or broken branch",
+      "description": "Broken, hanging, split, or hazardous branch."
+    },
+    {
+      "id": "tree-pruning-needed",
+      "label": "Tree pruning needed",
+      "description": "Visible tree growth or limbs suggesting pruning is needed."
+    },
+    {
+      "id": "tree-removal-or-injury",
+      "label": "Tree removal or injury",
+      "description": "Tree removal, cutting, damage, or injury evidence."
+    },
+    {
+      "id": "tree-roots-trip-hazard",
+      "label": "Tree roots trip hazard",
+      "description": "Tree roots causing sidewalk or walking-surface hazard."
+    },
+    {
+      "id": "long-grass-or-prohibited-plants",
+      "label": "Long grass or prohibited plants",
+      "description": "Long grass, weeds, or prohibited plants on property."
+    },
+    {
+      "id": "private-property-waste",
+      "label": "Private property waste",
+      "description": "Waste, debris, or dumping on private property."
+    },
+    {
+      "id": "private-property-disrepair",
+      "label": "Private property disrepair",
+      "description": "Visible exterior disrepair on private property."
+    },
+    {
+      "id": "graffiti-private-property",
+      "label": "Graffiti on private property",
+      "description": "Graffiti visible on private property."
+    },
+    {
+      "id": "poster-on-public-asset",
+      "label": "Poster on public asset",
+      "description": "Poster, flyer, sticker, or sign attached to public property."
+    },
+    {
+      "id": "unpermitted-sign",
+      "label": "Unpermitted sign",
+      "description": "Temporary, portable, or possibly unpermitted sign."
+    },
+    {
+      "id": "encroachment-on-city-property",
+      "label": "Encroachment on City property",
+      "description": "Object, fence, landscaping, or structure encroaching on City property."
+    },
+    {
+      "id": "illegal-off-street-parking",
+      "label": "Illegal off-street parking",
+      "description": "Vehicle parked on lawn, boulevard, or other off-street area."
+    },
+    {
+      "id": "construction-site",
+      "label": "Construction site",
+      "description": "Construction activity, site, equipment, or hoarding."
+    },
+    {
+      "id": "standing-water-private-property",
+      "label": "Standing water on private property",
+      "description": "Standing water visible on private property."
+    },
+    {
+      "id": "injured-wildlife",
+      "label": "Injured wildlife",
+      "description": "Wildlife that appears injured or distressed."
+    },
+    {
+      "id": "dead-wildlife",
+      "label": "Dead wildlife",
+      "description": "Dead wild animal."
+    },
+    {
+      "id": "dead-domestic-animal",
+      "label": "Dead domestic animal",
+      "description": "Dead domestic animal."
+    },
+    {
+      "id": "stray-dog",
+      "label": "Stray dog",
+      "description": "Dog at large or apparently stray."
+    },
+    {
+      "id": "dog-off-leash",
+      "label": "Dog off leash",
+      "description": "Dog off leash in a park or public space."
+    },
+    {
+      "id": "confined-stray-animal",
+      "label": "Confined stray animal",
+      "description": "Stray animal confined in a yard, room, vehicle, or enclosure."
+    },
+    {
+      "id": "surface-watermain-break",
+      "label": "Surface watermain break",
+      "description": "Water surfacing, flowing, pooling, or spraying from a possible watermain break."
+    },
+    {
+      "id": "water-service-box",
+      "label": "Water service box",
+      "description": "Water service box, curb stop, or related water-service cover."
+    },
+    {
+      "id": "sewer-cleanout",
+      "label": "Sewer cleanout",
+      "description": "Sewer cleanout, basement drain, or visible sewer service access."
+    }
+  ]
+}

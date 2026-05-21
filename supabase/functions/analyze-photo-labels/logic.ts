@@ -4,6 +4,17 @@ export type AllowedLabel = {
   description?: string;
 };
 
+export type EdgeIssueCatalogItem = {
+  id: string;
+  title: string;
+  categoryPath: readonly string[];
+  shortDescription: string;
+  discoverability: 'photo' | 'limited-context' | 'not-discoverable';
+  visualCueLabelIds: readonly string[];
+  requiredAnyLabelIds: readonly string[];
+  forceConfidenceTier?: ConfidenceTier;
+};
+
 export type AnalysisRequest = {
   installId?: string;
   imageBase64?: string;
@@ -30,10 +41,12 @@ type GeminiLabel = {
   };
 };
 
-type GeminiObservation = {
-  name?: string;
+type GeminiIssueCandidate = {
+  issueId?: string;
   confidence?: number;
-  evidence?: string;
+  supportingLabelIds?: string[];
+  reason?: string;
+  suggestedDescription?: string;
 };
 
 type NormalizedGeminiLabel = {
@@ -49,10 +62,27 @@ type NormalizedGeminiLabel = {
   };
 };
 
-type NormalizedGeminiObservation = {
-  name: string;
+export type ConfidenceTier = 'strong' | 'likely' | 'possible';
+
+export type NormalizedIssueCandidate = {
+  issueId: string;
+  title: string;
   confidence: number;
-  evidence: string;
+  confidenceTier: ConfidenceTier;
+  supportingLabelIds: string[];
+  evidenceChips: string[];
+  reason: string;
+  suggestedDescription: string;
+  boundingBoxes: {
+    labelId: string;
+    label: string;
+    boundingBox: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  }[];
 };
 
 export type LimitConfig = {
@@ -67,13 +97,14 @@ export const DEFAULT_LIMIT_CONFIG: LimitConfig = {
   maxImageBase64Bytes: 2_000_000,
 };
 
-export const MIN_CONFIDENCE = 0.7;
-export const MAX_LABELS = 5;
-export const MAX_UNKNOWN_OBSERVATIONS = 5;
+export const MIN_CONFIDENCE = 0.55;
+export const MAX_LABELS = 10;
+export const MAX_ISSUE_CANDIDATES = 5;
 export const MAX_EVIDENCE_CHARS = 240;
-export const MAX_UNKNOWN_EVIDENCE_CHARS = 120;
+export const MAX_REASON_CHARS = 180;
+export const MAX_DESCRIPTION_CHARS = 180;
 
-const MAX_ALLOWED_LABELS = 40;
+const MAX_ALLOWED_LABELS = 100;
 
 export function parsePositiveIntegerEnvValue(raw: string | undefined, fallback: number) {
   const trimmed = raw?.trim();
@@ -163,7 +194,11 @@ export function validateRequest(
 
 export type ValidAnalysisRequest = Extract<ReturnType<typeof validateRequest>, { ok: true }>;
 
-export function normalizeGeminiResult(body: unknown, allowedLabels: AllowedLabel[]) {
+export function normalizeGeminiResult(
+  body: unknown,
+  allowedLabels: AllowedLabel[],
+  issueCatalog: readonly EdgeIssueCatalogItem[] = []
+) {
   const allowedById = new Map(allowedLabels.map((label) => [label.id, label]));
   const suggestedLabels = Array.isArray((body as { suggestedLabels?: unknown }).suggestedLabels)
     ? ((body as { suggestedLabels: GeminiLabel[] }).suggestedLabels ?? [])
@@ -174,16 +209,19 @@ export function normalizeGeminiResult(body: unknown, allowedLabels: AllowedLabel
         .slice(0, MAX_LABELS)
     : [];
 
-  const unknownObservations = Array.isArray(
-    (body as { unknownObservations?: unknown }).unknownObservations
-  )
-    ? ((body as { unknownObservations: GeminiObservation[] }).unknownObservations ?? [])
-        .map(normalizeUnknownObservation)
-        .filter(isNormalizedGeminiObservation)
-        .slice(0, MAX_UNKNOWN_OBSERVATIONS)
+  const modelCandidates = Array.isArray((body as { issueCandidates?: unknown }).issueCandidates)
+    ? ((body as { issueCandidates: GeminiIssueCandidate[] }).issueCandidates ?? [])
+        .map(normalizeModelIssueCandidate)
+        .filter(isModelIssueCandidate)
     : [];
+  const issueCandidates = hybridRerankIssueCandidates(
+    suggestedLabels,
+    modelCandidates,
+    issueCatalog,
+    allowedLabels
+  );
 
-  return { suggestedLabels, unknownObservations };
+  return { suggestedLabels, issueCandidates };
 }
 
 function normalizeLabel(
@@ -203,32 +241,225 @@ function normalizeLabel(
   };
 }
 
-function normalizeUnknownObservation(
-  observation: GeminiObservation
-): NormalizedGeminiObservation | null {
-  const name = typeof observation.name === 'string' ? truncateText(observation.name, 80) : '';
-  if (!name) return null;
-
-  return {
-    name,
-    confidence: clamp(Number(observation.confidence) || 0, 0, 1),
-    evidence: truncateText(
-      typeof observation.evidence === 'string' ? observation.evidence : '',
-      MAX_UNKNOWN_EVIDENCE_CHARS
-    ),
-  };
-}
-
 function isNormalizedGeminiLabel(
   label: NormalizedGeminiLabel | null
 ): label is NormalizedGeminiLabel {
   return label != null;
 }
 
-function isNormalizedGeminiObservation(
-  observation: NormalizedGeminiObservation | null
-): observation is NormalizedGeminiObservation {
-  return observation != null;
+export type ModelIssueCandidate = {
+  issueId: string;
+  confidence: number;
+  supportingLabelIds: string[];
+  reason: string;
+  suggestedDescription: string;
+};
+
+function normalizeModelIssueCandidate(candidate: GeminiIssueCandidate): ModelIssueCandidate | null {
+  const issueId = typeof candidate.issueId === 'string' ? candidate.issueId.trim() : '';
+  if (!issueId) return null;
+
+  const supportingLabelIds = Array.isArray(candidate.supportingLabelIds)
+    ? candidate.supportingLabelIds.filter((labelId): labelId is string => typeof labelId === 'string')
+    : [];
+
+  return {
+    issueId,
+    confidence: clamp(Number(candidate.confidence) || 0, 0, 1),
+    supportingLabelIds,
+    reason: truncateText(typeof candidate.reason === 'string' ? candidate.reason : '', MAX_REASON_CHARS),
+    suggestedDescription: truncateText(
+      typeof candidate.suggestedDescription === 'string' ? candidate.suggestedDescription : '',
+      MAX_DESCRIPTION_CHARS
+    ),
+  };
+}
+
+function isModelIssueCandidate(
+  candidate: ModelIssueCandidate | null
+): candidate is ModelIssueCandidate {
+  return candidate != null;
+}
+
+export function hybridRerankIssueCandidates(
+  suggestedLabels: NormalizedGeminiLabel[],
+  modelCandidates: ModelIssueCandidate[],
+  issueCatalog: readonly EdgeIssueCatalogItem[],
+  allowedLabels: readonly AllowedLabel[] = []
+) {
+  const labelsById = new Map(suggestedLabels.map((label) => [label.id, label]));
+  const allowedLabelsById = new Map(allowedLabels.map((label) => [label.id, label]));
+  const issueById = new Map(issueCatalog.map((issue) => [issue.id, issue]));
+  const candidatesByIssueId = new Map<string, NormalizedIssueCandidate>();
+
+  for (const modelCandidate of modelCandidates) {
+    const issue = issueById.get(modelCandidate.issueId);
+    if (!issue || issue.discoverability === 'not-discoverable') continue;
+
+    const support = bridgeRequiredSupportIfSafe(
+      issue,
+      getSupportedLabelIds(issue, labelsById, modelCandidate.supportingLabelIds),
+      modelCandidate
+    );
+    if (!issueIsSupported(issue, support)) continue;
+
+    const ruleScore = scoreIssue(issue, support);
+    addCandidate(candidatesByIssueId, issue, labelsById, allowedLabelsById, {
+      confidence: Math.max(modelCandidate.confidence, ruleScore),
+      reason: modelCandidate.reason,
+      suggestedDescription: modelCandidate.suggestedDescription,
+      supportingLabelIds: support,
+    });
+  }
+
+  for (const issue of issueCatalog) {
+    if (issue.discoverability === 'not-discoverable') continue;
+
+    const support = getSupportedLabelIds(issue, labelsById);
+    if (!issueIsSupported(issue, support)) continue;
+
+    addCandidate(candidatesByIssueId, issue, labelsById, allowedLabelsById, {
+      confidence: scoreIssue(issue, support),
+      reason: '',
+      suggestedDescription: '',
+      supportingLabelIds: support,
+    });
+  }
+
+  return [...candidatesByIssueId.values()]
+    .sort((left, right) => {
+      const tierDelta = tierRank(right.confidenceTier) - tierRank(left.confidenceTier);
+      return tierDelta || right.confidence - left.confidence;
+    })
+    .slice(0, MAX_ISSUE_CANDIDATES);
+}
+
+function addCandidate(
+  candidatesByIssueId: Map<string, NormalizedIssueCandidate>,
+  issue: EdgeIssueCatalogItem,
+  labelsById: Map<string, NormalizedGeminiLabel>,
+  allowedLabelsById: Map<string, AllowedLabel>,
+  input: {
+    confidence: number;
+    reason: string;
+    suggestedDescription: string;
+    supportingLabelIds: string[];
+  }
+) {
+  const confidence = issue.forceConfidenceTier === 'possible'
+    ? Math.min(input.confidence, 0.69)
+    : input.confidence;
+  const existing = candidatesByIssueId.get(issue.id);
+  if (existing && existing.confidence >= confidence) return;
+
+  const evidenceChips = input.supportingLabelIds
+    .map((labelId) => labelsById.get(labelId)?.label ?? allowedLabelsById.get(labelId)?.label)
+    .filter((label): label is string => Boolean(label));
+
+  const candidate: NormalizedIssueCandidate = {
+    issueId: issue.id,
+    title: issue.title,
+    confidence,
+    confidenceTier: issue.forceConfidenceTier ?? confidenceTierFor(confidence),
+    supportingLabelIds: input.supportingLabelIds,
+    evidenceChips,
+    reason: input.reason || fallbackReason(issue, evidenceChips),
+    suggestedDescription:
+      input.suggestedDescription || fallbackSuggestedDescription(issue, evidenceChips),
+    boundingBoxes: input.supportingLabelIds
+      .map((labelId) => {
+        const label = labelsById.get(labelId);
+        return label?.boundingBox
+          ? { labelId, label: label.label, boundingBox: label.boundingBox }
+          : null;
+      })
+      .filter((box): box is NormalizedIssueCandidate['boundingBoxes'][number] => box != null),
+  };
+
+  candidatesByIssueId.set(issue.id, candidate);
+}
+
+function getSupportedLabelIds(
+  issue: EdgeIssueCatalogItem,
+  labelsById: Map<string, NormalizedGeminiLabel>,
+  modelSupportingLabelIds: string[] = []
+) {
+  const supported = [
+    ...modelSupportingLabelIds.filter((labelId) => labelsById.has(labelId)),
+    ...issue.visualCueLabelIds.filter((labelId) => labelsById.has(labelId)),
+  ];
+
+  return [...new Set(supported)];
+}
+
+function issueIsSupported(
+  issue: EdgeIssueCatalogItem,
+  support: string[]
+) {
+  if (support.length === 0) return false;
+  if (issue.requiredAnyLabelIds.length === 0) return true;
+  return issue.requiredAnyLabelIds.some((labelId) => support.includes(labelId));
+}
+
+function bridgeRequiredSupportIfSafe(
+  issue: EdgeIssueCatalogItem,
+  support: string[],
+  modelCandidate: ModelIssueCandidate
+) {
+  if (issueIsSupported(issue, support)) return support;
+  if (issue.id !== 'road-pothole-road-damage') return support;
+  if (modelCandidate.confidence < 0.82) return support;
+  if (!support.some((labelId) => labelId === 'roadway' || labelId === 'bike-lane')) return support;
+
+  return [...support, 'road-surface-damage'];
+}
+
+function scoreIssue(issue: EdgeIssueCatalogItem, supportingLabelIds: string[]) {
+  const requiredMatches = issue.requiredAnyLabelIds.filter((labelId) =>
+    supportingLabelIds.includes(labelId)
+  ).length;
+  if (issue.requiredAnyLabelIds.length > 0 && requiredMatches === 0) return 0;
+
+  const base = issue.discoverability === 'photo' ? 0.82 : 0.66;
+  const supportBonus = Math.min(supportingLabelIds.length * 0.035, 0.12);
+  const requiredBonus = Math.min(requiredMatches * 0.05, 0.1);
+  return clamp(base + supportBonus + requiredBonus, 0, 0.96);
+}
+
+function confidenceTierFor(confidence: number): ConfidenceTier {
+  if (confidence >= 0.88) return 'strong';
+  if (confidence >= 0.72) return 'likely';
+  return 'possible';
+}
+
+function tierRank(tier: ConfidenceTier) {
+  if (tier === 'strong') return 3;
+  if (tier === 'likely') return 2;
+  return 1;
+}
+
+function fallbackReason(issue: EdgeIssueCatalogItem, evidenceChips: string[]) {
+  if (issue.forceConfidenceTier === 'possible') {
+    return 'The photo shows visible set-out evidence, but pickup timing still needs confirmation.';
+  }
+
+  const evidence = evidenceChips.slice(0, 2).join(' and ').toLowerCase();
+  return evidence
+    ? `The photo shows ${evidence}, which matches this 311 issue.`
+    : 'The visible photo evidence matches this 311 issue.';
+}
+
+function fallbackSuggestedDescription(issue: EdgeIssueCatalogItem, evidenceChips: string[]) {
+  const evidence = evidenceChips.slice(0, 2).join(' and ').toLowerCase();
+  if (issue.forceConfidenceTier === 'possible') {
+    return evidence
+      ? `Photo shows ${evidence} set out at this location; pickup timing still needs confirmation.`
+      : 'Photo shows set-out evidence at this location; pickup timing still needs confirmation.';
+  }
+
+  return evidence
+    ? `Photo shows ${evidence} at this location.`
+    : `Photo shows evidence related to ${issue.title}.`;
 }
 
 function normalizeBoundingBox(box: GeminiLabel['boundingBox']) {
