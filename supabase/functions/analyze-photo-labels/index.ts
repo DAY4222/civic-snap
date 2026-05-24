@@ -198,6 +198,7 @@ async function callGemini(apiKey: string, request: ValidAnalysisRequest) {
           },
         ],
         generation_config: {
+          media_resolution: 'MEDIA_RESOLUTION_HIGH',
           response_mime_type: 'application/json',
           temperature: 0.1,
         },

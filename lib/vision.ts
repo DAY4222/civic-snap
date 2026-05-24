@@ -6,7 +6,7 @@ import { PHOTO_LABELS, PHOTO_LABEL_TAXONOMY_VERSION } from './photoLabels';
 import { PhotoIssueCandidate, PhotoVisionLabel, PhotoVisionResult } from './types';
 
 const INSTALL_ID_KEY = 'civic-snap-install-id';
-const MAX_ANALYSIS_SIDE = 768;
+const MAX_ANALYSIS_SIDE = 1024;
 const MAX_IMAGE_BASE64_BYTES = 2_000_000;
 const PHOTO_LABELS_ENABLED = process.env.EXPO_PUBLIC_PHOTO_LABELS_ENABLED === 'true';
 const ANALYZE_PHOTO_URL = process.env.EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL ?? '';
@@ -97,13 +97,13 @@ async function createAnalysisImage(photoUri: string) {
   const size = await getImageSize(photoUri).catch(() => null);
   const resize =
     size && size.height > size.width
-      ? { height: MAX_ANALYSIS_SIDE }
-      : { width: MAX_ANALYSIS_SIDE };
+      ? { height: Math.min(size.height, MAX_ANALYSIS_SIDE) }
+      : { width: size ? Math.min(size.width, MAX_ANALYSIS_SIDE) : MAX_ANALYSIS_SIDE };
 
   return manipulateAsync(
     photoUri,
     [{ resize }],
-    { base64: true, compress: 0.6, format: SaveFormat.JPEG }
+    { base64: true, compress: 0.72, format: SaveFormat.JPEG }
   );
 }
 
