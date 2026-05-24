@@ -25,7 +25,7 @@ const corsHeaders = {
 
 const MODEL = 'gemini-3.1-flash-lite';
 const PROVIDER = 'gemini';
-const PROMPT_VERSION = 'photo-issue-candidates-v1';
+const PROMPT_VERSION = 'photo-issue-candidates-v2';
 const LIMIT_CONFIG = readLimitConfigFromEnv((name) => Deno.env.get(name));
 
 Deno.serve(async (request) => {
@@ -233,19 +233,26 @@ function buildPrompt(allowedLabels: AllowedLabel[]) {
 
   return [
     'You are analyzing a 311 civic issue photo.',
-    'Return JSON only. Do not include markdown.',
-    'Do not use address, GPS, or location-note assumptions; analyze the image only.',
-    'Choose suggestedLabels only from the allowedLabels list.',
-    `Only include labels with confidence >= ${MIN_CONFIDENCE}. Return at most ${MAX_LABELS} suggestedLabels.`,
-    'Prioritize specific condition labels over generic scene labels. For a visible pothole, crumbling asphalt, exposed gravel, broken pavement, or road-edge collapse, include road-pothole or road-surface-damage.',
-    'If road-pothole or road-surface-damage is visible, include the road-pothole-road-damage issue candidate.',
-    'Include a normalized boundingBox if the object is visible. x, y, width, height must be numbers from 0 to 1.',
+    'Return JSON only. Do not include markdown, comments, or extra keys.',
+    'Analyze only visible image evidence. Do not infer from address, GPS, location notes, season, schedule, jurisdiction, or history.',
+    'If evidence is ambiguous, omit the label or issue instead of guessing.',
+    'Choose suggestedLabels only from allowedLabels. Use label ids exactly as provided.',
+    `Only include suggestedLabels with confidence >= ${MIN_CONFIDENCE}; confidence means visible certainty, not issue severity. Return at most ${MAX_LABELS} suggestedLabels.`,
+    'Prioritize specific condition labels over generic scene labels. Use generic context labels only when they directly support an issue candidate.',
+    'For visible potholes, crumbling asphalt, exposed gravel, broken pavement, uneven pavement, or road-edge collapse, include whichever matching allowed label is present: road-pothole and/or road-surface-damage.',
+    'If road-pothole or road-surface-damage is included, include the road-pothole-road-damage issue candidate.',
+    'Include a tight normalized boundingBox when the visible evidence is localizable; omit boundingBox for whole-image or non-localizable labels. x, y, width, height must be numbers from 0 to 1.',
     `Keep evidence under ${MAX_EVIDENCE_CHARS} characters per label.`,
-    `Return at most ${MAX_ISSUE_CANDIDATES} issueCandidates from the issueCatalog.`,
-    'Suggest only photo or limited-context issues supported by visible labels.',
+    `Return at most ${MAX_ISSUE_CANDIDATES} issueCandidates. Choose issueId only from issueCatalog.`,
+    'Use issueCatalog fields: visualCueLabelIds are supporting cues; if requiredAnyLabelIds is non-empty, include an issue only when at least one required id is in suggestedLabels.',
+    'Every issueCandidate.supportingLabelIds value must refer to an id in suggestedLabels.',
+    'Suggest only photo issues, or limited-context issues when visible labels support them and the reason names the missing context.',
+    'Prefer the most specific supported issue. Do not include multiple candidates for the same visible problem.',
     'Missed pickup issues can be possible only because photos cannot prove schedule or timing.',
     'Do not suggest bin exchange size, additional bin, or wrong delivery unless visible evidence supports that exact issue.',
+    'Each reason should explain visible evidence. Each suggestedDescription should be a neutral insertable sentence with no address, date, or certainty about timing.',
     `Keep each reason under ${MAX_REASON_CHARS} characters and each suggestedDescription under ${MAX_DESCRIPTION_CHARS} characters.`,
+    'If no visible allowed labels are supported, return {"suggestedLabels":[],"issueCandidates":[]}.',
     'Expected shape: {"suggestedLabels":[{"id":"string","confidence":0.7,"evidence":"string","boundingBox":{"x":0,"y":0,"width":0.1,"height":0.1}}],"issueCandidates":[{"issueId":"string","confidence":0.7,"supportingLabelIds":["string"],"reason":"short sentence","suggestedDescription":"short insertable sentence"}]}',
     `allowedLabels: ${JSON.stringify(allowedLabels)}`,
     `issueCatalog: ${JSON.stringify(promptIssues)}`,
