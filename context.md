@@ -26,9 +26,10 @@
 
 ## Photo Analysis Boundary
 
-- Photo analysis is optional and assistive. It runs only when public Expo env config is present and the user enables Photo analysis in Settings.
+- Photo analysis is optional and assistive. It runs only when public Expo env config is present and the user enables Photo analysis in Settings or inline during a report.
+- When enabled, photo analysis starts in the background after a report photo is saved so location confirmation can continue while suggestions load.
 - The app sends a resized photo copy to the shared Supabase Edge Function for Gemini-backed photo labels and top issue candidates.
-- Address, GPS, location notes, profile fields, and email body stay out of Gemini requests.
+- Address, GPS, location notes, user-written descriptions, profile fields, and email body stay out of Gemini requests.
 - Saved report photos stay on-device; only the analysis copy is sent for photo analysis.
 - Public Expo env vars configure the demo backend. Gemini API keys and Supabase service-role keys stay in Edge Function secrets, never in the app.
 - Server-side analysis logs are used for rate limiting and diagnostics; retention policy is still an open operations decision.

@@ -82,8 +82,8 @@ export type ReportWizardAction =
   | { type: 'setIssueSearchQuery'; issueSearchQuery: string }
   | { type: 'setLocationNote'; locationNote: string }
   | { type: 'setPhotoAnalysisUserEnabled'; enabled: boolean }
-  | { type: 'setPhotoVisionError'; error: unknown }
-  | { type: 'setPhotoVisionLoading' }
+  | { type: 'setPhotoVisionError'; photoUri: string; error: unknown }
+  | { type: 'setPhotoVisionLoading'; photoUri: string }
   | { type: 'setPhotoVisionResult'; photoUri: string; result: PhotoVisionResult }
   | { type: 'setPinLocation'; latitude: number; longitude: number }
   | { type: 'setStep'; step: ReportWizardStep }
@@ -227,10 +227,21 @@ export function reportWizardReducer(
     case 'setPhotoAnalysisUserEnabled':
       return { ...state, photoAnalysisUserEnabled: action.enabled };
     case 'setPhotoVisionError':
-      return { ...state, photoVisionStatus: getPhotoVisionErrorStatus(action.error) };
+      if (action.photoUri !== state.photoUri) return state;
+      return {
+        ...state,
+        photoVisionPhotoUri: action.photoUri,
+        photoVisionStatus: getPhotoVisionErrorStatus(action.error),
+      };
     case 'setPhotoVisionLoading':
-      return { ...state, photoVisionStatus: 'loading' };
+      if (action.photoUri !== state.photoUri) return state;
+      return {
+        ...state,
+        photoVisionPhotoUri: action.photoUri,
+        photoVisionStatus: 'loading',
+      };
     case 'setPhotoVisionResult':
+      if (action.photoUri !== state.photoUri) return state;
       return {
         ...state,
         photoVisionPhotoUri: action.photoUri,
@@ -274,6 +285,18 @@ export function getPhotoVisionErrorStatus(error: unknown): PhotoVisionStatus {
   }
 
   return 'error';
+}
+
+export function shouldStartPhotoAnalysis(
+  state: Pick<ReportWizardState, 'photoUri' | 'photoVisionPhotoUri' | 'photoVisionStatus'>,
+  photoLabelsEnabled: boolean
+) {
+  return Boolean(
+    photoLabelsEnabled &&
+      state.photoUri &&
+      state.photoVisionStatus === 'idle' &&
+      state.photoVisionPhotoUri !== state.photoUri
+  );
 }
 
 export function getWizardCategory(state: ReportWizardState) {

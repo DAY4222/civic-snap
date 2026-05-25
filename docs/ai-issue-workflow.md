@@ -2,9 +2,11 @@
 
 ## Flow
 
-`photo -> visual labels + AI issue candidates -> hybrid rerank -> user-selected issue -> catalog checklist -> email draft`
+`photo saved -> background visual labels + AI issue candidates -> hybrid rerank -> user-selected issue -> catalog checklist -> email draft`
 
-Gemini only receives the resized photo, the label taxonomy, and the compact issue catalog. The app does not send address, GPS, or location notes to Gemini.
+Gemini only receives the resized photo, the label taxonomy, and the compact issue catalog. The app does not send address, GPS, location notes, profile fields, user-written descriptions, or email text to Gemini.
+
+When photo analysis is enabled, the app starts it after the photo is saved and lets the user continue confirming location while suggestions load.
 
 ## Taxonomy Axes
 

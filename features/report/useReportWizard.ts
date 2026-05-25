@@ -12,7 +12,7 @@ import {
   appendSuggestedDescription,
   getSuggestedIssueCandidates,
 } from '@/lib/issueSuggestions';
-import { loadPhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
+import { loadPhotoAnalysisEnabled, savePhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
 import { persistReportPhoto } from '@/lib/photos';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
 import {
@@ -34,6 +34,7 @@ import {
   getWizardCategory,
   profilesEqual,
   reportWizardReducer,
+  shouldStartPhotoAnalysis,
 } from './reportWizardState';
 
 const BLOCK_LEVEL_DELTA = 0.0012;
@@ -66,7 +67,8 @@ export function useReportWizard(resumeId?: string) {
     () => getWizardCategory(state),
     [state.selectedCategoryId, state.selectedPhotoIssueTopic]
   );
-  const photoLabelsEnabled = canAnalyzePhotoLabels() && state.photoAnalysisUserEnabled;
+  const photoAnalysisAvailable = canAnalyzePhotoLabels();
+  const photoLabelsEnabled = photoAnalysisAvailable && state.photoAnalysisUserEnabled;
   const currentIssueTitle =
     manualCategory?.title ?? state.selectedPhotoIssueTopic?.title ?? GENERAL_CATEGORY.title;
   const photoIssueSuggestions = useMemo(
@@ -226,29 +228,24 @@ export function useReportWizard(resumeId?: string) {
   }, [resumeId, state.resumedReportId]);
 
   const analyzeCurrentPhoto = useCallback(async () => {
-    if (!state.photoUri) return;
+    const photoUri = state.photoUri;
+    if (!photoUri) return;
 
-    if (state.photoVisionResult && state.photoVisionPhotoUri === state.photoUri) {
-      dispatch({
-        type: 'setPhotoVisionResult',
-        photoUri: state.photoUri,
-        result: state.photoVisionResult,
-      });
+    if (state.photoVisionResult && state.photoVisionPhotoUri === photoUri) {
       return;
     }
 
-    dispatch({ type: 'setPhotoVisionLoading' });
+    dispatch({ type: 'setPhotoVisionLoading', photoUri });
     try {
-      const result = await analyzePhotoLabels(state.photoUri);
-      dispatch({ type: 'setPhotoVisionResult', photoUri: state.photoUri, result });
+      const result = await analyzePhotoLabels(photoUri);
+      dispatch({ type: 'setPhotoVisionResult', photoUri, result });
     } catch (error) {
-      dispatch({ type: 'setPhotoVisionError', error });
+      dispatch({ type: 'setPhotoVisionError', photoUri, error });
     }
   }, [state.photoUri, state.photoVisionPhotoUri, state.photoVisionResult]);
 
   useEffect(() => {
-    if (state.step !== 'details' || !state.photoUri || !photoLabelsEnabled) return;
-    if (state.photoVisionStatus !== 'idle' || state.photoVisionPhotoUri === state.photoUri) return;
+    if (!shouldStartPhotoAnalysis(state, photoLabelsEnabled)) return;
 
     void analyzeCurrentPhoto();
   }, [
@@ -257,8 +254,18 @@ export function useReportWizard(resumeId?: string) {
     state.photoUri,
     state.photoVisionPhotoUri,
     state.photoVisionStatus,
-    state.step,
   ]);
+
+  async function enablePhotoAnalysisForCurrentReport() {
+    if (!photoAnalysisAvailable) return;
+
+    try {
+      await savePhotoAnalysisEnabled(true);
+      dispatch({ type: 'setPhotoAnalysisUserEnabled', enabled: true });
+    } catch {
+      Alert.alert('Photo analysis not enabled', 'Try again from Settings.');
+    }
+  }
 
   async function storePhoto(uri: string) {
     dispatch({ type: 'setBusy', busy: true });
@@ -504,6 +511,7 @@ export function useReportWizard(resumeId?: string) {
       confirmExitToStart,
       copyEmail,
       dismissContactPrompt: () => dispatch({ type: 'dismissContactPrompt' }),
+      enablePhotoAnalysisForCurrentReport,
       insertSuggestedDescription,
       openCategory,
       openMail,
@@ -533,6 +541,7 @@ export function useReportWizard(resumeId?: string) {
     email,
     filteredIssueCategories,
     manualCategory,
+    photoAnalysisAvailable,
     photoIssueSuggestions,
     photoLabelsEnabled,
     pinRegion,

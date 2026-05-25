@@ -114,11 +114,15 @@ export function ReportWizard() {
             onAddressChange={actions.setAddress}
             onBack={actions.backFromLocation}
             onContinue={() => actions.setStep('details')}
+            onEnablePhotoAnalysis={actions.enablePhotoAnalysisForCurrentReport}
             onExitToStart={actions.confirmExitToStart}
             onLocationNoteChange={actions.setLocationNote}
             onUseCurrentLocation={actions.useCurrentLocation}
             onUpdatePin={actions.updatePinFromMap}
+            photoAnalysisAvailable={wizard.photoAnalysisAvailable}
+            photoAnalysisEnabled={wizard.photoLabelsEnabled}
             photoUri={state.photoUri}
+            photoVisionStatus={state.photoVisionStatus}
             pinRegion={wizard.pinRegion}
           />
         ) : null}
@@ -298,11 +302,15 @@ function LocationStep({
   onAddressChange,
   onBack,
   onContinue,
+  onEnablePhotoAnalysis,
   onExitToStart,
   onLocationNoteChange,
   onUpdatePin,
   onUseCurrentLocation,
+  photoAnalysisAvailable,
+  photoAnalysisEnabled,
   photoUri,
+  photoVisionStatus,
   pinRegion,
 }: {
   address: string;
@@ -311,17 +319,28 @@ function LocationStep({
   onAddressChange: (value: string) => void;
   onBack: () => void;
   onContinue: () => void;
+  onEnablePhotoAnalysis: () => void;
   onExitToStart: () => void;
   onLocationNoteChange: (value: string) => void;
   onUpdatePin: (region: Region) => void;
   onUseCurrentLocation: () => void;
+  photoAnalysisAvailable: boolean;
+  photoAnalysisEnabled: boolean;
   photoUri: string | null;
+  photoVisionStatus: PhotoVisionStatus;
   pinRegion: Region | null;
 }) {
   return (
     <View style={styles.stack}>
       <Header title="Confirm location" onBack={onBack} onExitToStart={onExitToStart} />
       {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
+      {photoUri && photoAnalysisAvailable ? (
+        <PhotoAnalysisLocationStatus
+          enabled={photoAnalysisEnabled}
+          onEnable={onEnablePhotoAnalysis}
+          status={photoVisionStatus}
+        />
+      ) : null}
       <Button
         disabled={busy}
         loading={busy}
@@ -354,6 +373,56 @@ function LocationStep({
       />
       <Button onPress={onContinue} title="Use this spot" />
     </View>
+  );
+}
+
+function PhotoAnalysisLocationStatus({
+  enabled,
+  onEnable,
+  status,
+}: {
+  enabled: boolean;
+  onEnable: () => void;
+  status: PhotoVisionStatus;
+}) {
+  if (!enabled) {
+    return (
+      <Card style={styles.analysisCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>Photo analysis</Text>
+          <Text style={styles.muted}>
+            Send a resized photo copy to suggest issue types. Address and notes stay on this device.
+          </Text>
+        </View>
+        <Button
+          onPress={onEnable}
+          style={styles.smallButton}
+          textStyle={styles.smallButtonText}
+          title="Enable"
+          variant="secondary"
+        />
+      </Card>
+    );
+  }
+
+  return (
+    <Card style={styles.analysisCard}>
+      <View style={styles.analysisStatusRow}>
+        {status === 'loading' ? (
+          <ActivityIndicator />
+        ) : (
+          <FontAwesome
+            color={photoAnalysisStatusColor(status)}
+            name={photoAnalysisStatusIcon(status)}
+            size={18}
+          />
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>Photo analysis</Text>
+          <Text style={styles.muted}>{photoAnalysisLocationText(status)}</Text>
+        </View>
+      </View>
+    </Card>
   );
 }
 
@@ -791,8 +860,8 @@ function SuggestedTopicsPanel({
     <Card style={styles.suggestionCard}>
       <View style={styles.suggestionHeader}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.sectionTitle}>Suggested issues</Text>
-          <Text style={styles.muted}>Pick one if it matches, or search all issue types.</Text>
+          <Text style={styles.sectionTitle}>Photo suggestions</Text>
+          <Text style={styles.muted}>Choose one if it fits, or search manually.</Text>
         </View>
         {status === 'loading' ? <ActivityIndicator /> : null}
       </View>
@@ -829,24 +898,24 @@ function SuggestedTopicsPanel({
           <Text style={styles.promptTitle}>Detected evidence</Text>
           <View style={styles.chipRow}>
             {labels.map((label) => (
-              <Text key={label.id} style={styles.evidenceChip}>
-                {label.label} {Math.round(label.confidence * 100)}%
-              </Text>
+              <Text key={label.id} style={styles.evidenceChip}>{label.label}</Text>
             ))}
           </View>
         </View>
       ) : null}
       {status === 'loading' ? (
-        <Text style={styles.muted}>Looking for likely 311 topics. You can keep writing.</Text>
+        <Text style={styles.muted}>Checking the photo for likely 311 topics. You can keep writing.</Text>
       ) : null}
       {showQuietFallback ? (
         <View style={styles.quietFallback}>
           <Text style={[styles.muted, styles.quietFallbackText]}>
-            No suggested topics available. You can still choose an issue type.
+            {photoSuggestionFallbackText(status)}
           </Text>
-          <Pressable hitSlop={8} onPress={onAnalyze} style={styles.retryButton}>
-            <Text style={styles.inlineActionText}>Retry</Text>
-          </Pressable>
+          {status === 'error' ? (
+            <Pressable hitSlop={8} onPress={onAnalyze} style={styles.retryButton}>
+              <Text style={styles.inlineActionText}>Retry</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
       <Pressable style={styles.inlineButton} onPress={onOpenIssueSearch}>
@@ -888,7 +957,64 @@ function confidenceTierText(tier: PhotoIssueCandidate['confidenceTier']) {
   return 'Possible match';
 }
 
+function photoAnalysisLocationText(status: PhotoVisionStatus) {
+  if (status === 'loading') return 'Looking for issue suggestions while you confirm the location.';
+  if (status === 'ready') return 'Suggestions will be ready on the next step.';
+  if (status === 'empty') return 'No photo suggestions found. You can still continue.';
+  if (status === 'rate-limited') return 'Daily photo analysis limit reached. You can still continue.';
+  if (status === 'payload-too-large') return 'This photo is too large for analysis. You can still continue.';
+  if (status === 'error') return 'Photo suggestions are unavailable. You can still continue.';
+  return 'Photo analysis will run in the background.';
+}
+
+function photoAnalysisStatusIcon(status: PhotoVisionStatus) {
+  if (status === 'ready') return 'check-circle';
+  if (status === 'empty') return 'search';
+  if (status === 'error' || status === 'rate-limited' || status === 'payload-too-large') {
+    return 'info-circle';
+  }
+
+  return 'image';
+}
+
+function photoAnalysisStatusColor(status: PhotoVisionStatus) {
+  if (status === 'ready') return colors.primary;
+  if (status === 'error' || status === 'rate-limited' || status === 'payload-too-large') {
+    return colors.mutedStrong;
+  }
+
+  return colors.muted;
+}
+
+function photoSuggestionFallbackText(status: PhotoVisionStatus) {
+  if (status === 'rate-limited') {
+    return 'Daily photo analysis limit reached. Search all issue types to continue.';
+  }
+
+  if (status === 'payload-too-large') {
+    return 'This photo is too large for analysis. Search all issue types to continue.';
+  }
+
+  if (status === 'error') {
+    return 'Photo suggestions are unavailable. Search all issue types to continue.';
+  }
+
+  return 'No suggested topics available. Search all issue types to continue.';
+}
+
 const styles = StyleSheet.create({
+  analysisCard: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    padding: 14,
+  },
+  analysisStatusRow: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 12,
+  },
   banner: {
     alignItems: 'center',
     backgroundColor: colors.infoBackground,

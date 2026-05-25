@@ -2,8 +2,9 @@ import {
   createInitialReportWizardState,
   getPhotoVisionStatus,
   reportWizardReducer,
+  shouldStartPhotoAnalysis,
 } from '../reportWizardState';
-import type { PhotoIssueCandidate, Report } from '@/lib/types';
+import type { PhotoIssueCandidate, PhotoVisionResult, Report } from '@/lib/types';
 
 const topic: PhotoIssueCandidate = {
   issueId: 'road-pothole-road-damage',
@@ -35,6 +36,25 @@ const report: Report = {
   caseNumber: '',
   createdAt: '2026-05-20T00:00:00.000Z',
   updatedAt: '2026-05-20T00:00:00.000Z',
+};
+
+const photoVisionResult: PhotoVisionResult = {
+  suggestedLabels: [
+    {
+      id: 'road-pothole',
+      label: 'Road pothole',
+      confidence: 0.9,
+      evidence: 'visible road pothole',
+    },
+  ],
+  issueCandidates: [topic],
+  provider: 'gemini',
+  model: 'model',
+  promptVersion: 'prompt',
+  taxonomyVersion: 'taxonomy',
+  analyzedAt: '2026-05-20T00:00:00.000Z',
+  latencyMs: 10,
+  image: { bytes: 10, height: 100, mimeType: 'image/jpeg', width: 100 },
 };
 
 describe('report wizard reducer', () => {
@@ -158,20 +178,86 @@ describe('report wizard reducer', () => {
     expect(state.profile.name).toBe('Ada');
   });
 
+  it('preserves active report progress when enabling photo analysis', () => {
+    let state = createInitialReportWizardState();
+    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///photo.jpg' });
+    state = reportWizardReducer(state, { type: 'setStep', step: 'location' });
+    state = reportWizardReducer(state, { type: 'setAddress', address: '123 Queen St W' });
+    state = reportWizardReducer(state, { type: 'setLocationNote', locationNote: 'south curb' });
+
+    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
+
+    expect(state.photoAnalysisUserEnabled).toBe(true);
+    expect(state.photoUri).toBe('file:///photo.jpg');
+    expect(state.step).toBe('location');
+    expect(state.address).toBe('123 Queen St W');
+    expect(state.locationNote).toBe('south curb');
+  });
+
+  it('ignores stale photo analysis updates from previous photos', () => {
+    let state = createInitialReportWizardState();
+    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///first.jpg' });
+    state = reportWizardReducer(state, {
+      type: 'setPhotoVisionLoading',
+      photoUri: 'file:///first.jpg',
+    });
+    expect(state.photoVisionStatus).toBe('loading');
+    expect(state.photoVisionPhotoUri).toBe('file:///first.jpg');
+
+    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///second.jpg' });
+    state = reportWizardReducer(state, {
+      type: 'setPhotoVisionResult',
+      photoUri: 'file:///first.jpg',
+      result: photoVisionResult,
+    });
+    expect(state.photoVisionStatus).toBe('idle');
+    expect(state.photoVisionResult).toBeNull();
+
+    state = reportWizardReducer(state, {
+      type: 'setPhotoVisionLoading',
+      photoUri: 'file:///second.jpg',
+    });
+    state = reportWizardReducer(state, {
+      type: 'setPhotoVisionError',
+      photoUri: 'file:///first.jpg',
+      error: new Error('late failure'),
+    });
+    expect(state.photoVisionStatus).toBe('loading');
+    expect(state.photoVisionPhotoUri).toBe('file:///second.jpg');
+
+    state = reportWizardReducer(state, {
+      type: 'setPhotoVisionError',
+      photoUri: 'file:///second.jpg',
+      error: new Error('current failure'),
+    });
+    expect(state.photoVisionStatus).toBe('error');
+    expect(state.photoVisionPhotoUri).toBe('file:///second.jpg');
+  });
+
+  it('decides when background photo analysis should start', () => {
+    let state = createInitialReportWizardState();
+    expect(shouldStartPhotoAnalysis(state, true)).toBe(false);
+
+    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///photo.jpg' });
+    expect(shouldStartPhotoAnalysis(state, false)).toBe(false);
+    expect(shouldStartPhotoAnalysis(state, true)).toBe(true);
+
+    state = reportWizardReducer(state, {
+      type: 'setPhotoVisionLoading',
+      photoUri: 'file:///photo.jpg',
+    });
+    expect(shouldStartPhotoAnalysis(state, true)).toBe(false);
+
+    state = reportWizardReducer(state, {
+      type: 'setPhotoVisionResult',
+      photoUri: 'file:///photo.jpg',
+      result: photoVisionResult,
+    });
+    expect(shouldStartPhotoAnalysis(state, true)).toBe(false);
+  });
+
   it('classifies photo vision status from normalized results', () => {
     expect(getPhotoVisionStatus(null)).toBe('idle');
-    expect(
-      getPhotoVisionStatus({
-        suggestedLabels: [],
-        issueCandidates: [],
-        provider: 'gemini',
-        model: 'model',
-        promptVersion: 'prompt',
-        taxonomyVersion: 'taxonomy',
-        analyzedAt: '2026-05-20T00:00:00.000Z',
-        latencyMs: 10,
-        image: { bytes: 10, height: 100, mimeType: 'image/jpeg', width: 100 },
-      })
-    ).toBe('empty');
+    expect(getPhotoVisionStatus({ ...photoVisionResult, suggestedLabels: [] })).toBe('empty');
   });
 });
