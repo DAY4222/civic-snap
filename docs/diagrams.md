@@ -1,6 +1,6 @@
 # Current App Diagrams
 
-These diagrams describe the app as implemented now. The current MVP is local-first: report history, profile data, and photos stay on the device until the user chooses to hand an email draft to Mail.
+These diagrams describe the app as implemented now. The current MVP is local-first for saved reports, profile data, saved report photos, and Mail handoff. If photo analysis is configured and the user opts in, the app can also send a resized analysis copy of the current report photo to the Supabase Edge Function before Mail handoff.
 
 ## Data Flow
 
@@ -13,6 +13,8 @@ flowchart TD
     Category["Choose issue type"]
     Photo["Take or choose photo"]
     Location["Confirm location"]
+    InlineOptIn["Inline Photo analysis enable"]
+    PhotoSuggestions["Photo suggestions panel"]
     Details["Add description and guided answers"]
     Preview["Preview and edit email"]
     MailHandoff["Open Mail"]
@@ -24,7 +26,8 @@ flowchart TD
   subgraph Inputs["Device and app inputs"]
     Categories["lib/categories.ts\nIssue questions and observations"]
     Catalog["Generated 311 catalog\nLabels, issue rules, checklist questions"]
-    Profile["lib/profile.ts\nSecureStore profile"]
+    Profile["lib/profile.ts\nProfile and onboarding helpers"]
+    Settings["app/settings.tsx\nPhoto analysis opt-in"]
     Camera["expo-image-picker\nCamera or photo library"]
     Geo["expo-location\nGPS and reverse geocode"]
     MapAdjust["components/CivicMap\nMove map under center pin"]
@@ -32,20 +35,27 @@ flowchart TD
 
   subgraph Processing["Local processing"]
     PersistPhoto["lib/photos.ts\nResize and save photo"]
+    WizardState["features/report/reportWizardState.ts\nPure report state"]
+    WizardEffects["features/report/useReportWizard.ts\nAsync report side effects"]
+    PhotoSetting["lib/photoAnalysisSettings.ts\nLoad and save opt-in"]
+    DeviceStore["lib/deviceStore.ts\nSecureStore or web localStorage adapter"]
     EmailBuilder["lib/email.ts\nBuild recipient, subject, body"]
     ReportStore["lib/reports.ts\nSQLite report API"]
-    Vision["lib/vision.ts\nSupabase photo analysis fetch"]
+    Vision["lib/vision.ts\nResize analysis copy and fetch labels"]
+    Contract["lib/photoAnalysisContract.ts\nNormalize analysis response"]
+    IssueSuggestions["lib/issueSuggestions.ts\nExpose candidates and answer hints"]
   end
 
   subgraph Backend["Supabase Edge Function"]
     EdgeFunction["analyze-photo-labels\nGemini labels + hybrid issue rerank"]
     Gemini["Gemini photo-only analysis"]
+    AnalysisRuns["ai_photo_analysis_runs\nRate-limit and diagnostic summaries"]
   end
 
   subgraph Storage["On-device storage"]
     FileStorage["FileSystem documentDirectory\nreports/*.jpg"]
-    SQLite["SQLite civic-snap.db\nreports table with category_id"]
-    SecureStore["SecureStore\nprofile and onboarding keys"]
+    SQLite["SQLite civic-snap.db\nreports with category_id,\nphoto_vision_result_json,\nphoto_issue_topic_json"]
+    DeviceStorage["SecureStore or localStorage\nprofile, onboarding,\nphoto-analysis setting, install id"]
   end
 
   subgraph Review["History, map, and detail views"]
@@ -67,20 +77,35 @@ flowchart TD
   Photo --> PersistPhoto
   PersistPhoto --> FileStorage
   FileStorage --> Photo
+  PersistPhoto --> WizardState
   Category --> Categories
   Category --> Location
   Geo --> Location
   MapAdjust --> Location
+  Location --> InlineOptIn
+  InlineOptIn --> PhotoSetting
+  Settings --> PhotoSetting
+  PhotoSetting <--> DeviceStore
+  DeviceStore <--> DeviceStorage
+  WizardState --> WizardEffects
+  PhotoSetting --> WizardEffects
+  WizardEffects --> Vision
   Location --> Details
   Categories --> Details
   Catalog --> Categories
-  Photo --> Vision
+  Catalog --> Vision
   Vision --> EdgeFunction
   EdgeFunction --> Gemini
+  EdgeFunction --> AnalysisRuns
+  EdgeFunction --> Contract
+  Contract --> WizardState
+  WizardState --> IssueSuggestions
+  IssueSuggestions --> PhotoSuggestions
   EdgeFunction --> IssueCandidates
-  IssueCandidates --> Details
-  Profile --> SecureStore
-  SecureStore --> Profile
+  IssueCandidates --> PhotoSuggestions
+  PhotoSuggestions --> Details
+  Profile --> DeviceStore
+  DeviceStore --> Profile
   Profile --> EmailBuilder
   Details --> EmailBuilder
   EmailBuilder --> Preview
@@ -128,6 +153,12 @@ flowchart LR
     CivicMapWeb["components/CivicMap.web.tsx\nWeb fallback map preview"]
   end
 
+  subgraph ReportFeature["Report feature"]
+    ReportWizard["features/report/ReportWizard.tsx\nWizard UI and step rendering"]
+    ReportHook["features/report/useReportWizard.ts\nAsync side effects and derived data"]
+    ReportState["features/report/reportWizardState.ts\nReducer and pure state helpers"]
+  end
+
   subgraph Domain["Domain and data helpers"]
     Types["lib/types.ts"]
     Categories["lib/categories.ts"]
@@ -135,6 +166,18 @@ flowchart LR
     Photos["lib/photos.ts"]
     Profile["lib/profile.ts"]
     Reports["lib/reports.ts"]
+    ReportPersistence["lib/reportPersistence.ts"]
+    VisionHelper["lib/vision.ts"]
+    PhotoSettings["lib/photoAnalysisSettings.ts"]
+    PhotoContract["lib/photoAnalysisContract.ts"]
+    IssueSuggestionsHelper["lib/issueSuggestions.ts"]
+    DeviceStoreHelper["lib/deviceStore.ts"]
+  end
+
+  subgraph AnalysisBackend["Photo analysis backend"]
+    EdgeFunctionArch["supabase/functions/analyze-photo-labels"]
+    GeminiArch["Gemini generateContent"]
+    AnalysisRunsArch["public.ai_photo_analysis_runs"]
   end
 
   subgraph ExpoServices["Expo and native services"]
@@ -144,14 +187,14 @@ flowchart LR
     ClipboardLinking["expo-clipboard and Linking"]
     FileImage["expo-file-system and expo-image-manipulator"]
     SQLiteService["expo-sqlite"]
-    SecureStoreService["expo-secure-store"]
+    DeviceKeyValue["expo-secure-store or web localStorage"]
     NativeMaps["react-native-maps"]
   end
 
   subgraph Stores["Local stores"]
     PhotoFiles["Photo files\nDocument directory"]
     ReportDb["Report history\nSQLite civic-snap.db"]
-    ProfileStore["Profile and onboarding\nSecureStore"]
+    DeviceStoreData["Profile, onboarding,\nphoto-analysis setting,\ninstall id"]
   end
 
   ExpoRouter --> RootLayout --> Stack --> Tabs
@@ -163,13 +206,20 @@ flowchart LR
   Tabs --> MapScreen
   ExpoRouter --> NotFound
 
-  Report --> Categories
-  Report --> Email
-  Report --> Photos
-  Report --> Profile
-  Report --> Reports
+  Report --> ReportWizard
+  ReportWizard --> ReportHook
+  ReportHook --> ReportState
+  ReportHook --> Categories
+  ReportHook --> Email
+  ReportHook --> Photos
+  ReportHook --> Profile
+  ReportHook --> Reports
+  ReportHook --> VisionHelper
+  ReportHook --> PhotoSettings
+  ReportHook --> IssueSuggestionsHelper
   History --> Reports
   MapScreen --> Reports
+  Settings --> PhotoSettings
   Settings --> Profile
   Onboarding --> Profile
   ReportDetail --> Reports
@@ -178,23 +228,35 @@ flowchart LR
   Report --> CivicMapWeb
   MapScreen --> CivicMapNative
   MapScreen --> CivicMapWeb
+  ReportState --> Categories
+  ReportState --> Types
   Categories --> Types
   Email --> Types
   Profile --> Types
   Reports --> Types
+  Reports --> ReportPersistence
+  ReportPersistence --> PhotoContract
+  VisionHelper --> PhotoContract
+  VisionHelper --> DeviceStoreHelper
+  PhotoSettings --> DeviceStoreHelper
+  Profile --> DeviceStoreHelper
+  IssueSuggestionsHelper --> Types
 
   Photos --> FileImage --> PhotoFiles
   Reports --> SQLiteService --> ReportDb
-  Profile --> SecureStoreService --> ProfileStore
+  DeviceStoreHelper --> DeviceKeyValue --> DeviceStoreData
   Report --> ImagePicker
   Report --> Location
   Report --> MailComposer
   Report --> ClipboardLinking
   CivicMapNative --> NativeMaps
+  VisionHelper --> EdgeFunctionArch --> GeminiArch
+  EdgeFunctionArch --> AnalysisRunsArch
 ```
 
 ## Current Boundaries
 
-- Photo analysis is opt-in and sends a resized photo only to the Supabase Edge Function.
-- Address, GPS, location notes, email text, and full reasoning are not sent to Gemini.
+- Photo analysis is opt-in and sends a resized analysis copy of the report photo only to the Supabase Edge Function.
+- Saved report photos, report history, profile data, and email drafts stay on device unless the user hands the draft to Mail.
+- Address, GPS, location notes, user-written descriptions, profile fields, email text, and full reasoning are not sent to Gemini.
 - Sending is a handoff to the user's mail client. The app records `Mail opened`; it does not confirm receipt by 311.

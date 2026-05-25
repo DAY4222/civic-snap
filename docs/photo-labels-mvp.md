@@ -12,6 +12,10 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=<shared public anon key>
 
 These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend. Photo analysis defaults off, so users must opt in from Settings or from the report flow before the app sends a resized photo for labels and issue candidates. Once enabled, analysis starts in the background after a report photo is saved. For this direct `fetch` integration, use the legacy public `anon` key from Supabase as the bearer token. Do not use the `service_role` key in the app.
 
+The app request includes a per-install ID, a resized JPEG analysis copy, image metadata, the allowed photo-label taxonomy, and the taxonomy version. It does not include address, GPS, location notes, user-written descriptions, profile fields, or email text.
+
+The function response is normalized in the app before use. It can include visible photo labels and up to three issue candidates. Local drafts can persist the normalized analysis result in `photo_vision_result_json` and the user-selected photo issue in `photo_issue_topic_json`.
+
 To find the `anon` key for another backend:
 
 1. Open the Supabase Dashboard.
@@ -34,7 +38,7 @@ If any value is missing or disabled, the app hides photo analysis and continues 
 
 The shared demo backend uses Supabase project `sdlanaillklsdnkzkfri`.
 
-For a new backend, create a Supabase project, then apply the migration in `supabase/migrations`.
+For a new backend, create a Supabase project, then apply the migrations in `supabase/migrations`.
 
 Set Edge Function secrets:
 
@@ -54,7 +58,7 @@ npx supabase functions deploy analyze-photo-labels
 
 Do not commit Gemini API keys or Supabase service-role keys. They belong in Supabase Edge Function secrets only.
 
-The public shared backend is protected by per-install and global daily rate limits.
+The public shared backend is protected by per-install and global daily rate limits. Server-side analysis logs keep the hashed install ID, image metadata, summarized labels, issue candidate IDs and confidence tiers, status, latency, and error summaries for rate limiting and diagnostics. They do not store the full user report context.
 
 ## Gemini setup
 
