@@ -15,6 +15,11 @@
 - Make email preview editable before Mail handoff; user edits are saved back into the local draft.
 - Keep draft reports resumable from History and report detail.
 - Use a fixed center pin for report location adjustment; users move the map under the pin for better mobile precision.
+- Keep route files thin when a flow grows: report creation lives in `features/report/` with a reducer for pure draft state and a hook for async device/app side effects.
+- Share only small, repeated UI primitives in `components/ui/`; avoid a broad design system until the prototype stabilizes.
+- Evolve local SQLite with explicit `PRAGMA user_version` migrations and preserve existing drafts/reports during prototype schema changes.
+- Keep app and Edge Function photo-analysis contracts deploy-safe in their own runtimes, with contract tests proving response compatibility.
+- Verify refactors with typecheck, Jest, web export, and an iOS Expo Go/simulator smoke pass for native-only behavior.
 
 ## MVP Placeholders
 
