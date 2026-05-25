@@ -1,9 +1,13 @@
+import 'react-native-gesture-handler';
+
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, router, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { hasCompletedOnboarding } from '@/lib/profile';
@@ -103,13 +107,17 @@ function RootLayoutNav({
   }, [pathname, setShowOnboarding, showOnboarding]);
 
   return (
-    <ThemeProvider value={DefaultTheme}>
-      <Stack initialRouteName={showOnboarding ? 'onboarding' : '(tabs)'}>
-        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ presentation: 'modal', title: 'Settings' }} />
-        <Stack.Screen name="report/[id]" options={{ title: 'Report detail' }} />
-      </Stack>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetModalProvider>
+        <ThemeProvider value={DefaultTheme}>
+          <Stack initialRouteName={showOnboarding ? 'onboarding' : '(tabs)'}>
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="settings" options={{ presentation: 'modal', title: 'Settings' }} />
+            <Stack.Screen name="report/[id]" options={{ title: 'Report detail' }} />
+          </Stack>
+        </ThemeProvider>
+      </BottomSheetModalProvider>
+    </GestureHandlerRootView>
   );
 }
