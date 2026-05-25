@@ -111,6 +111,7 @@ export type PhotoVisionResult = {
   model: string;
   promptVersion: string;
   taxonomyVersion: string;
+  issueCatalogVersion?: string;
   analyzedAt: string;
   latencyMs: number;
   image: {

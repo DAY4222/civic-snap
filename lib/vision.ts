@@ -2,8 +2,8 @@ import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { Image } from 'react-native';
 
 import { getDeviceItem, setDeviceItem } from './deviceStore';
+import { normalizePhotoVisionResponse } from './photoAnalysisContract';
 import { PHOTO_LABELS, PHOTO_LABEL_TAXONOMY_VERSION } from './photoLabels';
-import { PhotoIssueCandidate, PhotoVisionLabel, PhotoVisionResult } from './types';
 
 const INSTALL_ID_KEY = 'civic-snap-install-id';
 const MAX_ANALYSIS_SIDE = 1024;
@@ -71,8 +71,8 @@ export async function analyzePhotoLabels(photoUri: string) {
     throw new PhotoVisionError('Photo labels are unavailable.', 'server');
   }
 
-  const result = (await response.json()) as PhotoVisionResult;
-  return normalizePhotoVisionResult(result, {
+  const result = await response.json();
+  return normalizePhotoVisionResponse(result, {
     bytes: imageBytes,
     height: analysisImage.height,
     mimeType: 'image/jpeg',
@@ -131,96 +131,4 @@ async function getInstallId() {
 function getBase64ByteSize(base64: string) {
   const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
   return Math.floor((base64.length * 3) / 4) - padding;
-}
-
-function normalizePhotoVisionResult(
-  result: PhotoVisionResult,
-  image: PhotoVisionResult['image']
-) {
-  const suggestedLabels = Array.isArray(result.suggestedLabels)
-    ? result.suggestedLabels.map(normalizeLabel).filter(isPhotoVisionLabel)
-    : [];
-
-  return {
-    suggestedLabels,
-    issueCandidates: normalizeIssueCandidates(result.issueCandidates, suggestedLabels),
-    provider: 'gemini',
-    model: result.model,
-    promptVersion: result.promptVersion,
-    taxonomyVersion: result.taxonomyVersion,
-    analyzedAt: result.analyzedAt,
-    latencyMs: result.latencyMs,
-    image,
-  } satisfies PhotoVisionResult;
-}
-
-function normalizeIssueCandidates(
-  candidates: PhotoVisionResult['issueCandidates'],
-  labels: PhotoVisionLabel[]
-) {
-  if (!Array.isArray(candidates)) return [];
-
-  const labelsById = new Map(labels.map((label) => [label.id, label]));
-
-  return candidates
-    .map((candidate): PhotoIssueCandidate | null => {
-      if (!candidate || typeof candidate.issueId !== 'string' || typeof candidate.title !== 'string') {
-        return null;
-      }
-
-      const supportingLabelIds = Array.isArray(candidate.supportingLabelIds)
-        ? candidate.supportingLabelIds.filter((labelId) => labelsById.has(labelId))
-        : [];
-      const evidenceChips = Array.isArray(candidate.evidenceChips)
-        ? candidate.evidenceChips.filter((chip): chip is string => typeof chip === 'string')
-        : supportingLabelIds
-            .map((labelId) => labelsById.get(labelId)?.label)
-            .filter((chip): chip is string => Boolean(chip));
-
-      return {
-        issueId: candidate.issueId,
-        title: candidate.title,
-        confidence: Number(candidate.confidence) || 0,
-        confidenceTier: normalizeConfidenceTier(candidate.confidenceTier),
-        supportingLabelIds,
-        evidenceChips,
-        reason: typeof candidate.reason === 'string' ? candidate.reason : '',
-        suggestedDescription:
-          typeof candidate.suggestedDescription === 'string' ? candidate.suggestedDescription : '',
-        boundingBoxes: Array.isArray(candidate.boundingBoxes)
-          ? candidate.boundingBoxes.filter((box) => box?.boundingBox && labelsById.has(box.labelId))
-          : [],
-      };
-    })
-    .filter((candidate): candidate is PhotoIssueCandidate => candidate != null)
-    .slice(0, 5);
-}
-
-function normalizeConfidenceTier(value: unknown) {
-  return value === 'strong' || value === 'likely' || value === 'possible'
-    ? value
-    : 'possible';
-}
-
-function normalizeLabel(label: PhotoVisionLabel): PhotoVisionLabel | null {
-  if (!label || typeof label.id !== 'string' || typeof label.label !== 'string') {
-    return null;
-  }
-
-  const normalized: PhotoVisionLabel = {
-    id: label.id,
-    label: label.label,
-    confidence: Number(label.confidence) || 0,
-    evidence: typeof label.evidence === 'string' ? label.evidence : '',
-  };
-
-  if (label.boundingBox) {
-    normalized.boundingBox = label.boundingBox;
-  }
-
-  return normalized;
-}
-
-function isPhotoVisionLabel(label: PhotoVisionLabel | null): label is PhotoVisionLabel {
-  return label != null;
 }
