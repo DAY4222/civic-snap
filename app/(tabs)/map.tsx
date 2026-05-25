@@ -1,27 +1,13 @@
-import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import MapView, { Marker } from '@/components/CivicMap';
 import { colors } from '@/components/ui';
-import { listReports } from '@/lib/reports';
-import { Report } from '@/lib/types';
+import { useReportsOnFocus } from '@/lib/useReportsOnFocus';
 
 export default function MapScreen() {
-  const [reports, setReports] = useState<Report[]>([]);
-
-  useFocusEffect(
-    useCallback(() => {
-      let mounted = true;
-      listReports().then((rows) => {
-        if (mounted) setReports(rows);
-      });
-      return () => {
-        mounted = false;
-      };
-    }, [])
-  );
+  const { error, reports } = useReportsOnFocus();
 
   const pinnedReports = reports.filter(
     (report) => report.latitude != null && report.longitude != null
@@ -53,7 +39,9 @@ export default function MapScreen() {
       <View style={styles.panel}>
         <Text style={styles.title}>Private map</Text>
         <Text style={styles.subtitle}>
-          Showing {pinnedReports.length} report pin{pinnedReports.length === 1 ? '' : 's'} with GPS coordinates.
+          {error
+            ? 'Report pins could not be loaded.'
+            : `Showing ${pinnedReports.length} report pin${pinnedReports.length === 1 ? '' : 's'} with GPS coordinates.`}
         </Text>
       </View>
     </View>

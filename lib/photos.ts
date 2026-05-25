@@ -12,7 +12,28 @@ export async function persistReportPhoto(uri: string) {
     { compress: 0.78, format: SaveFormat.JPEG }
   );
 
-  const destination = `${PHOTO_DIR}report-${Date.now()}.jpg`;
+  const stamp = Date.now();
+  const destination = `${PHOTO_DIR}report-${stamp}.jpg`;
+  const thumbnailDestination = `${PHOTO_DIR}report-${stamp}-thumb.jpg`;
+  const thumbnail = await manipulateAsync(
+    manipulated.uri,
+    [{ resize: { width: 240 } }],
+    { compress: 0.72, format: SaveFormat.JPEG }
+  );
+
   await FileSystem.copyAsync({ from: manipulated.uri, to: destination });
-  return destination;
+  await FileSystem.copyAsync({ from: thumbnail.uri, to: thumbnailDestination });
+
+  return {
+    photoUri: destination,
+    thumbnailUri: thumbnailDestination,
+  };
+}
+
+export async function deleteReportPhotos(uris: (string | null | undefined)[]) {
+  const uniqueUris = [...new Set(uris.filter((uri): uri is string => Boolean(uri)))];
+
+  await Promise.all(
+    uniqueUris.map((uri) => FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => undefined))
+  );
 }

@@ -1,7 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
-import * as MailComposer from 'expo-mail-composer';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, Linking } from 'react-native';
@@ -13,15 +11,8 @@ import {
   getSuggestedIssueCandidates,
 } from '@/lib/issueSuggestions';
 import { loadPhotoAnalysisEnabled, savePhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
-import { persistReportPhoto } from '@/lib/photos';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
-import {
-  createDraftReport,
-  getReport,
-  updateDraftReport,
-  updateReportEmail,
-  updateReportStatus,
-} from '@/lib/reports';
+import { getReport } from '@/lib/reports';
 import { PhotoIssueCandidate } from '@/lib/types';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
@@ -36,24 +27,17 @@ import {
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from './reportWizardState';
+import {
+  getCurrentLocationReportData,
+  openSavedReportMail,
+  persistWizardPhoto,
+  reverseGeocodeReportAddress,
+  saveReportDraft,
+} from './reportWizardServices';
+import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
 
 const BLOCK_LEVEL_DELTA = 0.0012;
 const RACCOON_FRAME_INTERVAL_MS = 67;
-
-export const RACCOON_SWEEPER_FRAMES = [
-  require('../../assets/images/raccoon-sweeper-frames/frame-00.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-01.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-02.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-03.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-04.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-05.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-06.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-07.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-08.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-09.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-10.png'),
-  require('../../assets/images/raccoon-sweeper-frames/frame-11.png'),
-] as const;
 
 export function useReportWizard(resumeId?: string) {
   const [state, dispatch] = useReducer(
@@ -62,6 +46,9 @@ export function useReportWizard(resumeId?: string) {
     createInitialReportWizardState
   );
   const [raccoonFrameIndex, setRaccoonFrameIndex] = useState(0);
+  const addressEditVersion = useRef(0);
+  const photoAnalysisAbortController = useRef<AbortController | null>(null);
+  const reverseGeocodeRequestId = useRef(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { category, manualCategory, photoIssueCategory } = useMemo(
     () => getWizardCategory(state),
@@ -216,6 +203,7 @@ export function useReportWizard(resumeId?: string) {
       if (reverseGeocodeTimeout.current) {
         clearTimeout(reverseGeocodeTimeout.current);
       }
+      photoAnalysisAbortController.current?.abort();
     };
   }, []);
 
@@ -235,12 +223,22 @@ export function useReportWizard(resumeId?: string) {
       return;
     }
 
+    photoAnalysisAbortController.current?.abort();
+    const controller = new AbortController();
+    photoAnalysisAbortController.current = controller;
+
     dispatch({ type: 'setPhotoVisionLoading', photoUri });
     try {
-      const result = await analyzePhotoLabels(photoUri);
+      const result = await analyzePhotoLabels(photoUri, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       dispatch({ type: 'setPhotoVisionResult', photoUri, result });
     } catch (error) {
+      if (controller.signal.aborted) return;
       dispatch({ type: 'setPhotoVisionError', photoUri, error });
+    } finally {
+      if (photoAnalysisAbortController.current === controller) {
+        photoAnalysisAbortController.current = null;
+      }
     }
   }, [state.photoUri, state.photoVisionPhotoUri, state.photoVisionResult]);
 
@@ -270,8 +268,12 @@ export function useReportWizard(resumeId?: string) {
   async function storePhoto(uri: string) {
     dispatch({ type: 'setBusy', busy: true });
     try {
-      const persisted = await persistReportPhoto(uri);
-      dispatch({ type: 'photoStored', photoUri: persisted });
+      const persisted = await persistWizardPhoto(uri);
+      dispatch({
+        type: 'photoStored',
+        photoUri: persisted.photoUri,
+        thumbnailUri: persisted.thumbnailUri,
+      });
     } catch {
       Alert.alert('Photo not saved', 'The report can continue without a saved photo.');
     } finally {
@@ -282,8 +284,10 @@ export function useReportWizard(resumeId?: string) {
   async function takePhoto() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Camera needed', 'You can still create a report without a photo.');
-      dispatch({ type: 'setStep', step: 'location' });
+      Alert.alert('Camera needed', 'You can still create a report without a photo.', [
+        { text: 'Continue without photo', onPress: () => dispatch({ type: 'setStep', step: 'location' }) },
+        { text: 'Open Settings', onPress: openAppSettings },
+      ]);
       return;
     }
 
@@ -314,27 +318,30 @@ export function useReportWizard(resumeId?: string) {
 
   async function useCurrentLocation() {
     dispatch({ type: 'setBusy', busy: true });
+    const requestId = ++reverseGeocodeRequestId.current;
+    const startingAddressEditVersion = addressEditVersion.current;
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Location skipped', 'Enter the address manually to continue.');
+      const result = await getCurrentLocationReportData();
+      if (result.status === 'denied') {
+        Alert.alert('Location skipped', 'Enter the address manually to continue.', [
+          { text: 'Enter manually', style: 'cancel' },
+          { text: 'Open Settings', onPress: openAppSettings },
+        ]);
         return;
       }
 
-      const position = await Location.getCurrentPositionAsync({});
       dispatch({
         type: 'setPinLocation',
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
+        latitude: result.latitude,
+        longitude: result.longitude,
       });
 
-      const places = await Location.reverseGeocodeAsync({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
-      const place = places[0];
-      if (place) {
-        dispatch({ type: 'setResolvedAddress', address: formatAddress(place) });
+      if (
+        result.address &&
+        requestId === reverseGeocodeRequestId.current &&
+        startingAddressEditVersion === addressEditVersion.current
+      ) {
+        dispatch({ type: 'setResolvedAddress', address: result.address });
       }
     } catch {
       Alert.alert('Location unavailable', 'Enter the address manually to continue.');
@@ -345,28 +352,36 @@ export function useReportWizard(resumeId?: string) {
 
   function updatePinFromMap(region: Region) {
     dispatch({ type: 'setPinLocation', latitude: region.latitude, longitude: region.longitude });
+    const requestId = ++reverseGeocodeRequestId.current;
+    const startingAddressEditVersion = addressEditVersion.current;
 
     if (reverseGeocodeTimeout.current) {
       clearTimeout(reverseGeocodeTimeout.current);
     }
 
     reverseGeocodeTimeout.current = setTimeout(() => {
-      void reverseGeocodePin(region.latitude, region.longitude);
+      void reverseGeocodePin(
+        region.latitude,
+        region.longitude,
+        requestId,
+        startingAddressEditVersion
+      );
     }, 450);
   }
 
-  async function reverseGeocodePin(nextLatitude: number, nextLongitude: number) {
-    try {
-      const places = await Location.reverseGeocodeAsync({
-        latitude: nextLatitude,
-        longitude: nextLongitude,
-      });
-      const place = places[0];
-      if (place) {
-        dispatch({ type: 'setResolvedAddress', address: formatAddress(place) });
-      }
-    } catch {
-      // Keep the user's current editable address if reverse geocoding fails.
+  async function reverseGeocodePin(
+    nextLatitude: number,
+    nextLongitude: number,
+    requestId: number,
+    startingAddressEditVersion: number
+  ) {
+    const address = await reverseGeocodeReportAddress(nextLatitude, nextLongitude);
+    if (
+      address &&
+      requestId === reverseGeocodeRequestId.current &&
+      startingAddressEditVersion === addressEditVersion.current
+    ) {
+      dispatch({ type: 'setResolvedAddress', address });
     }
   }
 
@@ -383,44 +398,19 @@ export function useReportWizard(resumeId?: string) {
 
     dispatch({ type: 'setBusy', busy: true });
     try {
-      const nextEmail = buildEmail({
+      const { email: nextEmail, id } = await saveReportDraft({
         category,
-        description: state.description,
-        answers: state.answers,
-        address: state.address,
-        locationNote: state.locationNote,
-        latitude: state.latitude,
-        longitude: state.longitude,
-        photoUri: state.photoUri,
-        photoIssueTopic: state.selectedPhotoIssueTopic,
-        profile: state.profile,
+        savedReportId: state.savedReportId,
+        state,
       });
-
-      const draftInput = {
-        categoryId: category.id === GENERAL_CATEGORY.id ? null : category.id,
-        category: category.title,
-        description: state.description,
-        answers: state.answers,
-        address: state.address,
-        latitude: state.latitude,
-        longitude: state.longitude,
-        photoUri: state.photoUri,
-        photoVisionResult: state.photoVisionResult,
-        photoIssueTopic: state.selectedPhotoIssueTopic,
-        emailSubject: nextEmail.subject,
-        emailBody: nextEmail.body,
-      };
-
-      const id = state.savedReportId ?? (await createDraftReport(draftInput));
-      if (state.savedReportId) {
-        await updateDraftReport(state.savedReportId, draftInput);
-      }
       dispatch({
         type: 'previewReady',
         emailBody: nextEmail.body,
         emailSubject: nextEmail.subject,
         savedReportId: id,
       });
+    } catch {
+      Alert.alert('Draft not saved', 'Try again. Your current report is still on this screen.');
     } finally {
       dispatch({ type: 'setBusy', busy: false });
     }
@@ -429,24 +419,26 @@ export function useReportWizard(resumeId?: string) {
   async function openMail() {
     if (!state.savedReportId) return;
 
-    await updateReportEmail(state.savedReportId, state.emailSubject, state.emailBody);
-    const available = await MailComposer.isAvailableAsync();
-    if (!available) {
-      dispatch({ type: 'setStep', step: 'fallback' });
-      return;
-    }
-
+    dispatch({ type: 'setBusy', busy: true });
     try {
-      await MailComposer.composeAsync({
-        recipients: [email.recipient],
-        subject: state.emailSubject,
-        body: state.emailBody,
-        attachments: state.photoUri ? [state.photoUri] : [],
+      const result = await openSavedReportMail({
+        emailBody: state.emailBody,
+        emailRecipient: email.recipient,
+        emailSubject: state.emailSubject,
+        photoUri: state.photoUri,
+        reportId: state.savedReportId,
       });
-      await updateReportStatus(state.savedReportId, 'Mail opened');
+      if (result === 'fallback') {
+        dispatch({ type: 'setStep', step: 'fallback' });
+        return;
+      }
+
       dispatch({ type: 'resetReport', savedBannerId: state.savedReportId });
     } catch {
       dispatch({ type: 'setStep', step: 'fallback' });
+      Alert.alert('Mail not opened', 'Use the fallback options to copy the draft or open a mailto link.');
+    } finally {
+      dispatch({ type: 'setBusy', busy: false });
     }
   }
 
@@ -518,7 +510,10 @@ export function useReportWizard(resumeId?: string) {
       openMailto,
       previewEmail,
       reportWithoutPhoto: () => dispatch({ type: 'setStep', step: 'location' }),
-      setAddress: (address: string) => dispatch({ type: 'setAddress', address }),
+      setAddress: (address: string) => {
+        addressEditVersion.current += 1;
+        dispatch({ type: 'setAddress', address });
+      },
       setAnswer: (questionId: string, value: string) =>
         dispatch({ type: 'setAnswer', questionId, value }),
       setDescription: (description: string) => dispatch({ type: 'setDescription', description }),
@@ -550,6 +545,6 @@ export function useReportWizard(resumeId?: string) {
   };
 }
 
-function formatAddress(place: Location.LocationGeocodedAddress) {
-  return [place.name, place.street, place.city, place.region].filter(Boolean).join(', ');
+function openAppSettings() {
+  Linking.openSettings().catch(() => undefined);
 }

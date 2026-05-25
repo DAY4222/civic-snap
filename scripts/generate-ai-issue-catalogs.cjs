@@ -6,6 +6,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const SOURCE_JSON = path.join(ROOT, 'data/toronto-311-target-issues.json');
 const APP_CATALOG_TS = path.join(ROOT, 'lib/generated/issueCatalog.ts');
+const CATEGORY_TITLE_IDS_TS = path.join(ROOT, 'lib/generated/categoryTitleIds.ts');
 const EDGE_CATALOG_TS = path.join(ROOT, 'supabase/functions/analyze-photo-labels/issueCatalog.ts');
 const PHOTO_LABELS_JSON = path.join(ROOT, 'data/generated/photo-label-taxonomy.json');
 const EDGE_CATALOG_JSON = path.join(ROOT, 'data/generated/edge-issue-catalog.json');
@@ -343,6 +344,7 @@ function main() {
   }));
 
   writeTs(APP_CATALOG_TS, buildAppCatalogTs(appIssues));
+  writeTs(CATEGORY_TITLE_IDS_TS, buildCategoryTitleIdsTs(appIssues));
   writeTs(EDGE_CATALOG_TS, buildEdgeCatalogTs(edgeIssues));
   writeJson(PHOTO_LABELS_JSON, {
     version: PHOTO_LABEL_TAXONOMY_VERSION,
@@ -354,6 +356,7 @@ function main() {
   });
 
   console.log(`Generated ${path.relative(ROOT, APP_CATALOG_TS)}`);
+  console.log(`Generated ${path.relative(ROOT, CATEGORY_TITLE_IDS_TS)}`);
   console.log(`Generated ${path.relative(ROOT, EDGE_CATALOG_TS)}`);
   console.log(`Generated ${path.relative(ROOT, PHOTO_LABELS_JSON)}`);
   console.log(`Generated ${path.relative(ROOT, EDGE_CATALOG_JSON)}`);
@@ -536,6 +539,13 @@ export const EDGE_ISSUE_CATALOG_VERSION = ${JSON.stringify(ISSUE_CATALOG_VERSION
 export const EDGE_ISSUE_CATALOG = ${json(issues)} as const;
 
 export type EdgeIssueCatalogItem = (typeof EDGE_ISSUE_CATALOG)[number];
+`;
+}
+
+function buildCategoryTitleIdsTs(issues) {
+  const titleIds = Object.fromEntries(issues.map((issue) => [issue.title, issue.id]));
+  return `${generatedHeader()}
+export const CATEGORY_TITLE_IDS: Record<string, string> = ${json(titleIds)};
 `;
 }
 

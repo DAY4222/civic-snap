@@ -14,23 +14,34 @@ import { colors, spacing } from './theme';
 type ScreenProps = {
   children: ReactNode;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  scroll?: boolean;
   stickyFooter?: ReactNode;
 };
 
-export function Screen({ children, contentContainerStyle, stickyFooter }: ScreenProps) {
+export function Screen({
+  children,
+  contentContainerStyle,
+  scroll = true,
+  stickyFooter,
+}: ScreenProps) {
+  const contentStyle = [
+    styles.content,
+    !scroll ? styles.staticContent : null,
+    stickyFooter ? styles.contentWithFooter : null,
+    contentContainerStyle,
+  ];
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.select({ ios: 'padding', default: undefined })}
       style={styles.root}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          stickyFooter ? styles.contentWithFooter : null,
-          contentContainerStyle,
-        ]}
-        keyboardShouldPersistTaps="handled">
-        {children}
-      </ScrollView>
+      {scroll ? (
+        <ScrollView contentContainerStyle={contentStyle} keyboardShouldPersistTaps="handled">
+          {children}
+        </ScrollView>
+      ) : (
+        <View style={contentStyle}>{children}</View>
+      )}
       {stickyFooter ? <View style={styles.footer}>{stickyFooter}</View> : null}
     </KeyboardAvoidingView>
   );
@@ -45,6 +56,9 @@ const styles = StyleSheet.create({
   },
   contentWithFooter: {
     paddingBottom: 136,
+  },
+  staticContent: {
+    flex: 1,
   },
   footer: {
     backgroundColor: colors.card,

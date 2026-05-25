@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
+import { deleteReportPhotos } from './photos';
 import {
   CREATE_REPORTS_TABLE_SQL,
   REPORTS_SCHEMA_VERSION,
@@ -51,9 +52,9 @@ export async function createDraftReport(input: CreateReportInput) {
   await db.runAsync(
     `INSERT INTO reports (
       id, category_id, category, description, answers_json, address, latitude, longitude,
-      photo_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, status, case_number,
+      photo_uri, thumbnail_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, status, case_number,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.categoryId,
     input.category,
@@ -63,6 +64,7 @@ export async function createDraftReport(input: CreateReportInput) {
     input.latitude,
     input.longitude,
     input.photoUri,
+    input.thumbnailUri,
     serializeNullableJson(input.photoVisionResult),
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
@@ -88,6 +90,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       latitude = ?,
       longitude = ?,
       photo_uri = ?,
+      thumbnail_uri = ?,
       photo_vision_result_json = ?,
       photo_issue_topic_json = ?,
       email_subject = ?,
@@ -103,6 +106,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     input.latitude,
     input.longitude,
     input.photoUri,
+    input.thumbnailUri,
     serializeNullableJson(input.photoVisionResult),
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
@@ -155,4 +159,12 @@ export async function updateCaseNumber(id: string, caseNumber: string) {
     new Date().toISOString(),
     id
   );
+}
+
+export async function deleteReport(id: string) {
+  const report = await getReport(id);
+  const db = await getDatabase();
+
+  await db.runAsync('DELETE FROM reports WHERE id = ?', id);
+  await deleteReportPhotos([report?.photoUri, report?.thumbnailUri]);
 }

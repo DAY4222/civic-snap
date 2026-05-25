@@ -17,6 +17,7 @@ const baseRow: ReportRow = {
   latitude: 43.65,
   longitude: -79.38,
   photo_uri: null,
+  thumbnail_uri: null,
   photo_vision_result_json: null,
   photo_issue_topic_json: null,
   email_subject: 'Subject',
@@ -30,6 +31,7 @@ const baseRow: ReportRow = {
 describe('report persistence helpers', () => {
   it('plans only missing prototype column backfills', () => {
     expect(getMissingReportColumnMigrations(['id', 'category_id'])).toEqual([
+      'ALTER TABLE reports ADD COLUMN thumbnail_uri TEXT;',
       'ALTER TABLE reports ADD COLUMN photo_vision_result_json TEXT;',
       'ALTER TABLE reports ADD COLUMN photo_issue_topic_json TEXT;',
     ]);

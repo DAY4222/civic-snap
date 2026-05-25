@@ -1,30 +1,106 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, Field, Screen, colors } from '@/components/ui';
-import { getReport, updateCaseNumber } from '@/lib/reports';
+import { deleteReport, getReport, updateCaseNumber } from '@/lib/reports';
 import { Report } from '@/lib/types';
 
 export default function ReportDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<Report | null>(null);
+  const [saving, setSaving] = useState(false);
   const [caseNumber, setCaseNumber] = useState('');
 
   useEffect(() => {
-    if (!id) return;
-    getReport(id).then((row) => {
-      setReport(row);
-      setCaseNumber(row?.caseNumber ?? '');
-    });
+    let mounted = true;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+
+    setError(false);
+    setLoading(true);
+    getReport(id)
+      .then((row) => {
+        if (!mounted) return;
+        setReport(row);
+        setCaseNumber(row?.caseNumber ?? '');
+      })
+      .catch(() => {
+        if (mounted) setError(true);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [id]);
 
   async function saveCaseNumber() {
+    if (!id || saving) return;
+    setSaving(true);
+    setError(false);
+    try {
+      await updateCaseNumber(id, caseNumber.trim());
+      const refreshed = await getReport(id);
+      setReport(refreshed);
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function confirmDelete() {
+    if (!id || saving) return;
+
+    Alert.alert('Delete local report?', 'This removes the draft, tracking details, and saved photo from this device.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void removeReport();
+        },
+      },
+    ]);
+  }
+
+  async function removeReport() {
     if (!id) return;
-    await updateCaseNumber(id, caseNumber.trim());
-    const refreshed = await getReport(id);
-    setReport(refreshed);
+
+    setSaving(true);
+    setError(false);
+    try {
+      await deleteReport(id);
+      router.back();
+    } catch {
+      setError(true);
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
+        <Text style={styles.subtitle}>Loading report...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.subtitle}>Report could not be loaded.</Text>
+      </View>
+    );
   }
 
   if (!report) {
@@ -79,13 +155,21 @@ export default function ReportDetailScreen() {
           placeholder="Example: SR-2026-000123"
           value={caseNumber}
         />
-        <Button onPress={saveCaseNumber} title="Save case number" />
+        <Button disabled={saving} loading={saving} onPress={saveCaseNumber} title="Save case number" />
       </Card>
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Email draft</Text>
         <Text style={styles.emailText}>Subject: {report.emailSubject}</Text>
         <Text style={styles.emailText}>{'\n'}{report.emailBody}</Text>
       </Card>
+      <Button
+        disabled={saving}
+        onPress={confirmDelete}
+        style={styles.deleteButton}
+        textStyle={styles.deleteButtonText}
+        title="Delete local report"
+        variant="secondary"
+      />
     </Screen>
   );
 }
@@ -164,6 +248,12 @@ const styles = StyleSheet.create({
     fontFamily: 'SpaceMono',
     fontSize: 12,
     lineHeight: 18,
+  },
+  deleteButton: {
+    borderColor: colors.danger,
+  },
+  deleteButtonText: {
+    color: colors.danger,
   },
 });
 

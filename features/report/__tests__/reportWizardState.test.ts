@@ -24,6 +24,7 @@ const report: Report = {
   latitude: 43.65,
   longitude: -79.38,
   photoUri: 'file:///photo.jpg',
+  thumbnailUri: 'file:///photo-thumb.jpg',
   photoVisionResult: null,
   photoIssueTopic: null,
   emailSubject: '311 service request: Road Pothole / Road Damage',

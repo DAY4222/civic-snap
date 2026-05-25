@@ -14,6 +14,8 @@ import { colors, radius } from './theme';
 type ButtonVariant = 'primary' | 'secondary' | 'dark' | 'plain';
 
 type ButtonProps = {
+  accessibilityHint?: string;
+  accessibilityLabel?: string;
   disabled?: boolean;
   icon?: ReactNode;
   loading?: boolean;
@@ -25,6 +27,8 @@ type ButtonProps = {
 };
 
 export function Button({
+  accessibilityHint,
+  accessibilityLabel,
   disabled,
   icon,
   loading,
@@ -39,6 +43,8 @@ export function Button({
 
   return (
     <Pressable
+      accessibilityHint={accessibilityHint}
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityRole="button"
       disabled={isDisabled}
       onPress={onPress}

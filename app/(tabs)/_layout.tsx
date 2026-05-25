@@ -26,7 +26,11 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="camera" color={color} />,
           headerRight: () => (
             <Link href="/settings" asChild>
-              <Pressable hitSlop={12} style={{ paddingHorizontal: 16 }}>
+              <Pressable
+                accessibilityLabel="Open Settings"
+                accessibilityRole="button"
+                hitSlop={12}
+                style={{ paddingHorizontal: 16 }}>
                 <FontAwesome name="gear" size={22} color="#1d1d1f" />
               </Pressable>
             </Link>

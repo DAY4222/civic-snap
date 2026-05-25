@@ -1,4 +1,4 @@
-import { findCategoryByTitle } from './categories';
+import { CATEGORY_TITLE_IDS } from './generated/categoryTitleIds';
 import { parseStoredPhotoVisionResult } from './photoAnalysisContract';
 import { PhotoIssueCandidate, Report, ReportStatus } from './types';
 
@@ -12,6 +12,7 @@ export type ReportRow = {
   latitude: number | null;
   longitude: number | null;
   photo_uri: string | null;
+  thumbnail_uri: string | null;
   photo_vision_result_json: string | null;
   photo_issue_topic_json: string | null;
   email_subject: string;
@@ -40,6 +41,7 @@ export const CREATE_REPORTS_TABLE_SQL = `
     latitude REAL,
     longitude REAL,
     photo_uri TEXT,
+    thumbnail_uri TEXT,
     photo_vision_result_json TEXT,
     photo_issue_topic_json TEXT,
     email_subject TEXT NOT NULL,
@@ -53,6 +55,10 @@ export const CREATE_REPORTS_TABLE_SQL = `
 
 const COLUMN_BACKFILLS = [
   { name: 'category_id', sql: 'ALTER TABLE reports ADD COLUMN category_id TEXT;' },
+  {
+    name: 'thumbnail_uri',
+    sql: 'ALTER TABLE reports ADD COLUMN thumbnail_uri TEXT;',
+  },
   {
     name: 'photo_vision_result_json',
     sql: 'ALTER TABLE reports ADD COLUMN photo_vision_result_json TEXT;',
@@ -86,7 +92,7 @@ export function serializeNullableJson(value: unknown) {
 export function rowToReport(row: ReportRow): Report {
   return {
     id: stringValue(row.id),
-    categoryId: row.category_id || findCategoryByTitle(row.category)?.id || null,
+    categoryId: row.category_id || CATEGORY_TITLE_IDS[row.category] || null,
     category: stringValue(row.category),
     description: stringValue(row.description),
     answers: parseAnswers(row.answers_json),
@@ -94,6 +100,7 @@ export function rowToReport(row: ReportRow): Report {
     latitude: nullableNumber(row.latitude),
     longitude: nullableNumber(row.longitude),
     photoUri: row.photo_uri || null,
+    thumbnailUri: row.thumbnail_uri || row.photo_uri || null,
     photoVisionResult: parsePhotoVisionResult(row.photo_vision_result_json),
     photoIssueTopic: parsePhotoIssueTopic(row.photo_issue_topic_json),
     emailSubject: stringValue(row.email_subject),

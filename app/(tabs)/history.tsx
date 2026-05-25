@@ -1,27 +1,14 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Image, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import { Card, colors } from '@/components/ui';
-import { listReports } from '@/lib/reports';
+import { useReportsOnFocus } from '@/lib/useReportsOnFocus';
 import { Report } from '@/lib/types';
 
 export default function HistoryScreen() {
-  const [reports, setReports] = useState<Report[]>([]);
-
-  useFocusEffect(
-    useCallback(() => {
-      let mounted = true;
-      listReports().then((rows) => {
-        if (mounted) setReports(rows);
-      });
-      return () => {
-        mounted = false;
-      };
-    }, [])
-  );
+  const { error, reports } = useReportsOnFocus();
 
   const sections = useMemo(() => {
     const drafts = reports.filter((report) => report.status === 'Draft');
@@ -50,6 +37,7 @@ export default function HistoryScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Private history</Text>
           <Text style={styles.subtitle}>Drafts can be resumed. Sent handoffs stay available for tracking.</Text>
+          {error ? <Text style={styles.errorText}>History could not be loaded.</Text> : null}
         </View>
       }
       ListEmptyComponent={
@@ -63,10 +51,13 @@ export default function HistoryScreen() {
         <Text style={styles.sectionTitle}>{section.title}</Text>
       )}
       renderItem={({ item }) => (
-        <Pressable onPress={() => openReport(item)}>
+        <Pressable
+          accessibilityLabel={`${item.status === 'Draft' ? 'Resume draft' : 'Open report'}: ${item.category}`}
+          accessibilityRole="button"
+          onPress={() => openReport(item)}>
           <Card style={styles.card}>
             {item.photoUri ? (
-              <Image source={{ uri: item.photoUri }} style={styles.thumbnail} />
+              <Image source={{ uri: item.thumbnailUri ?? item.photoUri }} style={styles.thumbnail} />
             ) : (
               <View style={styles.iconBox}>
                 <FontAwesome name="file-text-o" size={20} color={colors.primary} />
@@ -153,5 +144,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 18,
     fontWeight: '800',
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 8,
   },
 });

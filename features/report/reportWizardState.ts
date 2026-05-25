@@ -49,6 +49,7 @@ export type ReportWizardState = {
   locationNote: string;
   longitude: number | null;
   photoAnalysisUserEnabled: boolean;
+  thumbnailUri: string | null;
   photoUri: string | null;
   photoVisionPhotoUri: string | null;
   photoVisionResult: PhotoVisionResult | null;
@@ -68,7 +69,7 @@ export type ReportWizardAction =
   | { type: 'chooseCategory'; categoryId: string | null }
   | { type: 'dismissContactPrompt' }
   | { type: 'openCategory'; returnStep: CategoryReturnStep }
-  | { type: 'photoStored'; photoUri: string }
+  | { type: 'photoStored'; photoUri: string; thumbnailUri?: string | null }
   | { type: 'previewReady'; emailBody: string; emailSubject: string; savedReportId: string }
   | { type: 'profileLoaded'; profile: Profile; emailBody?: string; emailSubject?: string }
   | { type: 'resetReport'; savedBannerId?: string | null }
@@ -105,6 +106,7 @@ export function createInitialReportWizardState(): ReportWizardState {
     locationNote: '',
     longitude: null,
     photoAnalysisUserEnabled: false,
+    thumbnailUri: null,
     photoUri: null,
     photoVisionPhotoUri: null,
     photoVisionResult: null,
@@ -153,6 +155,7 @@ export function reportWizardReducer(
       return {
         ...state,
         photoUri: action.photoUri,
+        thumbnailUri: action.thumbnailUri ?? action.photoUri,
         photoVisionPhotoUri: null,
         photoVisionResult: null,
         photoVisionStatus: 'idle',
@@ -195,6 +198,7 @@ export function reportWizardReducer(
         locationNote: '',
         longitude: action.report.longitude,
         photoUri: action.report.photoUri,
+        thumbnailUri: action.report.thumbnailUri,
         photoVisionPhotoUri: action.report.photoVisionResult ? action.report.photoUri : null,
         photoVisionResult: action.report.photoVisionResult,
         photoVisionStatus: getPhotoVisionStatus(action.report.photoVisionResult),

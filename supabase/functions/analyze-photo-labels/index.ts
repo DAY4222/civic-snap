@@ -26,6 +26,7 @@ const corsHeaders = {
 const MODEL = 'gemini-3.1-flash-lite';
 const PROVIDER = 'gemini';
 const PROMPT_VERSION = 'photo-issue-candidates-v2';
+const GEMINI_TIMEOUT_MS = 20_000;
 const LIMIT_CONFIG = readLimitConfigFromEnv((name) => Deno.env.get(name));
 
 Deno.serve(async (request) => {
@@ -174,49 +175,62 @@ async function countRuns(
 }
 
 async function callGemini(apiKey: string, request: ValidAnalysisRequest) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                inline_data: {
-                  data: request.imageBase64,
-                  mime_type: request.mimeType,
-                },
-              },
-              {
-                text: buildPrompt(request.allowedLabels),
-              },
-            ],
-          },
-        ],
-        generation_config: {
-          media_resolution: 'MEDIA_RESOLUTION_HIGH',
-          response_mime_type: 'application/json',
-          temperature: 0.1,
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      }),
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  inline_data: {
+                    data: request.imageBase64,
+                    mime_type: request.mimeType,
+                  },
+                },
+                {
+                  text: buildPrompt(request.allowedLabels),
+                },
+              ],
+            },
+          ],
+          generation_config: {
+            media_resolution: 'MEDIA_RESOLUTION_HIGH',
+            response_mime_type: 'application/json',
+            temperature: 0.1,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini returned ${response.status}`);
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(`Gemini returned ${response.status}`);
+    const geminiResponse = await response.json();
+    const text = geminiResponse?.candidates?.[0]?.content?.parts
+      ?.map((part: { text?: string }) => part.text)
+      .filter(Boolean)
+      .join('\n');
+
+    return parseJsonText(text ?? '');
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('Gemini request timed out');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const geminiResponse = await response.json();
-  const text = geminiResponse?.candidates?.[0]?.content?.parts
-    ?.map((part: { text?: string }) => part.text)
-    .filter(Boolean)
-    .join('\n');
-
-  return parseJsonText(text ?? '');
 }
 
 function buildPrompt(allowedLabels: AllowedLabel[]) {

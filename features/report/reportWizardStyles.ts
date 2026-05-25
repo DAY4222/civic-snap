@@ -1,0 +1,477 @@
+import { StyleSheet } from 'react-native';
+
+import { colors, radius } from '@/components/ui';
+
+export const styles = StyleSheet.create({
+  analysisCard: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    padding: 14,
+  },
+  analysisStatusRow: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  banner: {
+    alignItems: 'center',
+    backgroundColor: colors.infoBackground,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+    padding: 14,
+  },
+  bannerButton: {
+    borderRadius: radius.sm,
+    minHeight: 40,
+    paddingHorizontal: 14,
+  },
+  bannerButtonText: {
+    fontSize: 14,
+  },
+  bannerTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  busyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(245,245,247,0.35)',
+    justifyContent: 'center',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cardTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  categoryTitle: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  categoryList: {
+    flex: 1,
+  },
+  categoryListContent: {
+    gap: 12,
+    paddingBottom: 48,
+  },
+  centerPin: {
+    alignItems: 'center',
+    height: 48,
+    justifyContent: 'center',
+    left: '50%',
+    marginLeft: -24,
+    marginTop: -34,
+    position: 'absolute',
+    top: 130,
+    width: 48,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  dismissButton: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    height: 28,
+    justifyContent: 'center',
+    marginRight: -4,
+    marginTop: -4,
+    width: 28,
+  },
+  emailBox: {
+    gap: 12,
+    padding: 14,
+  },
+  emailTo: {
+    color: colors.text,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emailToLabel: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  emailToRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  evidenceBox: {
+    borderColor: colors.primary,
+    borderRadius: 6,
+    borderWidth: 2,
+    position: 'absolute',
+  },
+  evidenceBoxLabel: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    borderBottomRightRadius: 5,
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  evidenceChip: {
+    backgroundColor: colors.infoBackground,
+    borderRadius: radius.pill,
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '800',
+    overflow: 'hidden',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  evidencePhoto: {
+    height: '100%',
+    width: '100%',
+  },
+  evidencePhotoFrame: {
+    backgroundColor: colors.border,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    position: 'relative',
+    width: '100%',
+  },
+  evidenceText: {
+    color: colors.mutedStrong,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  eyebrow: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  field: {
+    gap: 7,
+  },
+  headerIconButton: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  headerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  inlineActionText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  inlineButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  inlineButtonText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  label: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  mapHelp: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    padding: 12,
+  },
+  matchText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  muted: {
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  observationRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  observationText: {
+    color: colors.mutedStrong,
+    flex: 1,
+    fontSize: 15,
+  },
+  optionChip: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  optionChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  optionChipSuggested: {
+    borderColor: colors.primary,
+  },
+  optionChipText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  optionChipTextSelected: {
+    color: '#fff',
+  },
+  optionWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  photo: {
+    backgroundColor: colors.border,
+    borderRadius: radius.xl,
+    height: 220,
+    width: '100%',
+  },
+  pinCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  pinMap: {
+    height: 260,
+    width: '100%',
+  },
+  progressCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    marginBottom: 16,
+    padding: 12,
+  },
+  progressConnector: {
+    backgroundColor: '#e5e5ea',
+    borderRadius: radius.pill,
+    height: 3,
+    position: 'absolute',
+    top: 12,
+  },
+  progressConnectorActive: {
+    backgroundColor: colors.primary,
+  },
+  progressConnectorLeft: {
+    left: 0,
+    right: '50%',
+  },
+  progressConnectorRight: {
+    left: '50%',
+    right: 0,
+  },
+  progressDot: {
+    alignItems: 'center',
+    backgroundColor: '#f2f2f7',
+    borderRadius: radius.pill,
+    height: 26,
+    justifyContent: 'center',
+    width: 26,
+  },
+  progressDotActive: {
+    backgroundColor: colors.primary,
+  },
+  progressDotItem: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  progressDotsRow: {
+    flexDirection: 'row',
+  },
+  progressLabel: {
+    color: colors.muted,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  progressLabelActive: {
+    color: colors.text,
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+  },
+  progressNumber: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  progressNumberActive: {
+    color: '#fff',
+  },
+  promptGroup: {
+    gap: 8,
+  },
+  promptTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  quietFallback: {
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  quietFallbackText: {
+    flexShrink: 1,
+    width: '100%',
+  },
+  raccoonSprite: {
+    height: '100%',
+    width: '100%',
+  },
+  raccoonStage: {
+    aspectRatio: 1,
+    marginTop: 12,
+    maxWidth: 92,
+    minWidth: 64,
+    overflow: 'visible',
+    position: 'relative',
+    width: '20%',
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    borderColor: colors.borderStrong,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  root: {
+    flex: 1,
+  },
+  rowButton: {
+    flex: 1,
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  smallButton: {
+    alignSelf: 'flex-start',
+    borderRadius: radius.sm,
+    minHeight: 38,
+    paddingHorizontal: 12,
+  },
+  smallButtonText: {
+    fontSize: 14,
+  },
+  stack: {
+    gap: 16,
+  },
+  subtitle: {
+    color: colors.muted,
+    fontSize: 17,
+    lineHeight: 24,
+    marginTop: 10,
+  },
+  suggestionCard: {
+    gap: 12,
+    padding: 14,
+  },
+  suggestionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  suggestionText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  suggestedSentence: {
+    backgroundColor: colors.selectedBackground,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    padding: 14,
+  },
+  title: {
+    color: colors.text,
+    fontSize: 32,
+    fontWeight: '800',
+    lineHeight: 36,
+    marginTop: 8,
+  },
+  topicCard: {
+    backgroundColor: colors.selectedBackground,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+    padding: 12,
+  },
+  topicCardSelected: {
+    borderColor: colors.primary,
+  },
+  topicRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  topicTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  warningCard: {
+    gap: 10,
+    padding: 14,
+  },
+  warningCardHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  warningCardTitle: {
+    flex: 1,
+    marginBottom: 0,
+  },
+});

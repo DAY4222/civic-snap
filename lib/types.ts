@@ -135,6 +135,7 @@ export type Report = {
   latitude: number | null;
   longitude: number | null;
   photoUri: string | null;
+  thumbnailUri: string | null;
   photoVisionResult: PhotoVisionResult | null;
   photoIssueTopic: PhotoIssueCandidate | null;
   emailSubject: string;
