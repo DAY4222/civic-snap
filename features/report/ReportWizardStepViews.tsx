@@ -265,7 +265,6 @@ export function DetailsStep({
       <Text style={styles.categoryTitle}>{currentIssueTitle}</Text>
       {photoLabelsEnabled && photoUri ? (
         <SuggestedTopicsPanel
-          labels={photoVisionResult?.suggestedLabels ?? []}
           onAnalyze={onAnalyze}
           onOpenIssueSearch={onOpenIssueSearch}
           onToggleTopic={onToggleTopic}
@@ -631,7 +630,6 @@ function EvidencePhoto({
 }
 
 function SuggestedTopicsPanel({
-  labels,
   onAnalyze,
   onOpenIssueSearch,
   onToggleTopic,
@@ -639,7 +637,6 @@ function SuggestedTopicsPanel({
   status,
   topics,
 }: {
-  labels: PhotoVisionResult['suggestedLabels'];
   onAnalyze: () => void;
   onOpenIssueSearch: () => void;
   onToggleTopic: (topic: PhotoIssueCandidate) => void;
@@ -695,16 +692,6 @@ function SuggestedTopicsPanel({
           </Pressable>
         );
       })}
-      {labels.length > 0 ? (
-        <View style={styles.promptGroup}>
-          <Text style={styles.promptTitle}>Detected evidence</Text>
-          <View style={styles.chipRow}>
-            {labels.map((label) => (
-              <Text key={label.id} style={styles.evidenceChip}>{label.label}</Text>
-            ))}
-          </View>
-        </View>
-      ) : null}
       {status === 'loading' ? (
         <Text style={styles.muted}>Checking the photo for likely 311 topics. You can keep writing.</Text>
       ) : null}
