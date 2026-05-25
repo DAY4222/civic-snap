@@ -91,15 +91,11 @@ export function ReportWizard() {
             onAddressChange={actions.setAddress}
             onBack={actions.backFromLocation}
             onContinue={() => actions.setStep('details')}
-            onEnablePhotoAnalysis={actions.enablePhotoAnalysisForCurrentReport}
             onExitToStart={actions.confirmExitToStart}
             onLocationNoteChange={actions.setLocationNote}
             onUseCurrentLocation={actions.useCurrentLocation}
             onUpdatePin={actions.updatePinFromMap}
-            photoAnalysisAvailable={wizard.photoAnalysisAvailable}
-            photoAnalysisEnabled={wizard.photoLabelsEnabled}
             photoUri={state.photoUri}
-            photoVisionStatus={state.photoVisionStatus}
             pinRegion={wizard.pinRegion}
           />
         ) : null}

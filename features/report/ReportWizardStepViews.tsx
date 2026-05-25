@@ -157,15 +157,11 @@ export function LocationStep({
   onAddressChange,
   onBack,
   onContinue,
-  onEnablePhotoAnalysis,
   onExitToStart,
   onLocationNoteChange,
   onUpdatePin,
   onUseCurrentLocation,
-  photoAnalysisAvailable,
-  photoAnalysisEnabled,
   photoUri,
-  photoVisionStatus,
   pinRegion,
 }: {
   address: string;
@@ -174,28 +170,17 @@ export function LocationStep({
   onAddressChange: (value: string) => void;
   onBack: () => void;
   onContinue: () => void;
-  onEnablePhotoAnalysis: () => void;
   onExitToStart: () => void;
   onLocationNoteChange: (value: string) => void;
   onUpdatePin: (region: Region) => void;
   onUseCurrentLocation: () => void;
-  photoAnalysisAvailable: boolean;
-  photoAnalysisEnabled: boolean;
   photoUri: string | null;
-  photoVisionStatus: PhotoVisionStatus;
   pinRegion: Region | null;
 }) {
   return (
     <View style={styles.stack}>
       <Header title="Confirm location" onBack={onBack} onExitToStart={onExitToStart} />
       {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
-      {photoUri && photoAnalysisAvailable ? (
-        <PhotoAnalysisLocationStatus
-          enabled={photoAnalysisEnabled}
-          onEnable={onEnablePhotoAnalysis}
-          status={photoVisionStatus}
-        />
-      ) : null}
       <Button
         disabled={busy}
         loading={busy}
@@ -228,56 +213,6 @@ export function LocationStep({
       />
       <Button onPress={onContinue} title="Use this spot" />
     </View>
-  );
-}
-
-function PhotoAnalysisLocationStatus({
-  enabled,
-  onEnable,
-  status,
-}: {
-  enabled: boolean;
-  onEnable: () => void;
-  status: PhotoVisionStatus;
-}) {
-  if (!enabled) {
-    return (
-      <Card style={styles.analysisCard}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sectionTitle}>Photo analysis</Text>
-          <Text style={styles.muted}>
-            Send a resized photo copy to suggest issue types. Address and notes stay on this device.
-          </Text>
-        </View>
-        <Button
-          onPress={onEnable}
-          style={styles.smallButton}
-          textStyle={styles.smallButtonText}
-          title="Enable"
-          variant="secondary"
-        />
-      </Card>
-    );
-  }
-
-  return (
-    <Card style={styles.analysisCard}>
-      <View style={styles.analysisStatusRow}>
-        {status === 'loading' ? (
-          <ActivityIndicator />
-        ) : (
-          <FontAwesome
-            color={photoAnalysisStatusColor(status)}
-            name={photoAnalysisStatusIcon(status)}
-            size={18}
-          />
-        )}
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sectionTitle}>Photo analysis</Text>
-          <Text style={styles.muted}>{photoAnalysisLocationText(status)}</Text>
-        </View>
-      </View>
-    </Card>
   );
 }
 
@@ -527,7 +462,7 @@ function categorySourceMatchText(category: IssueCategory) {
 export function Progress({ currentStep }: { currentStep: ReportWizardStep }) {
   const steps: { key: ReportWizardStep; label: string }[] = [
     { key: 'category', label: 'Issue' },
-    { key: 'location', label: 'Pin' },
+    { key: 'location', label: 'Location' },
     { key: 'details', label: 'Details' },
     { key: 'preview', label: 'Email' },
   ];
@@ -835,35 +770,6 @@ function confidenceTierText(tier: PhotoIssueCandidate['confidenceTier']) {
   if (tier === 'strong') return 'Strong match';
   if (tier === 'likely') return 'Likely match';
   return 'Possible match';
-}
-
-function photoAnalysisLocationText(status: PhotoVisionStatus) {
-  if (status === 'loading') return 'Looking for issue suggestions while you confirm the location.';
-  if (status === 'ready') return 'Suggestions will be ready on the next step.';
-  if (status === 'empty') return 'No photo suggestions found. You can still continue.';
-  if (status === 'rate-limited') return 'Daily photo analysis limit reached. You can still continue.';
-  if (status === 'payload-too-large') return 'This photo is too large for analysis. You can still continue.';
-  if (status === 'error') return 'Photo suggestions are unavailable. You can still continue.';
-  return 'Photo analysis will run in the background.';
-}
-
-function photoAnalysisStatusIcon(status: PhotoVisionStatus) {
-  if (status === 'ready') return 'check-circle';
-  if (status === 'empty') return 'search';
-  if (status === 'error' || status === 'rate-limited' || status === 'payload-too-large') {
-    return 'info-circle';
-  }
-
-  return 'image';
-}
-
-function photoAnalysisStatusColor(status: PhotoVisionStatus) {
-  if (status === 'ready') return colors.primary;
-  if (status === 'error' || status === 'rate-limited' || status === 'payload-too-large') {
-    return colors.mutedStrong;
-  }
-
-  return colors.muted;
 }
 
 function photoSuggestionFallbackText(status: PhotoVisionStatus) {
