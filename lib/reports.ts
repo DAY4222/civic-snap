@@ -1,29 +1,18 @@
 import * as SQLite from 'expo-sqlite';
 
-import { findCategoryByTitle } from './categories';
-import { PhotoIssueCandidate, PhotoVisionResult, Report, ReportStatus } from './types';
+import {
+  CREATE_REPORTS_TABLE_SQL,
+  REPORTS_SCHEMA_VERSION,
+  createReportId,
+  getMissingReportColumnMigrations,
+  rowToReport,
+  serializeAnswers,
+  serializeNullableJson,
+} from './reportPersistence';
+import type { CreateReportInput, ReportRow } from './reportPersistence';
+import type { ReportStatus } from './types';
 
-type ReportRow = {
-  id: string;
-  category_id: string | null;
-  category: string;
-  description: string;
-  answers_json: string;
-  address: string;
-  latitude: number | null;
-  longitude: number | null;
-  photo_uri: string | null;
-  photo_vision_result_json: string | null;
-  photo_issue_topic_json: string | null;
-  email_subject: string;
-  email_body: string;
-  status: ReportStatus;
-  case_number: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type CreateReportInput = Omit<Report, 'id' | 'status' | 'caseNumber' | 'createdAt' | 'updatedAt'>;
+export type { CreateReportInput } from './reportPersistence';
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -33,45 +22,30 @@ async function getDatabase() {
   }
 
   const db = await databasePromise;
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS reports (
-      id TEXT PRIMARY KEY NOT NULL,
-      category_id TEXT,
-      category TEXT NOT NULL,
-      description TEXT NOT NULL,
-      answers_json TEXT NOT NULL,
-      address TEXT NOT NULL,
-      latitude REAL,
-      longitude REAL,
-      photo_uri TEXT,
-      photo_vision_result_json TEXT,
-      photo_issue_topic_json TEXT,
-      email_subject TEXT NOT NULL,
-      email_body TEXT NOT NULL,
-      status TEXT NOT NULL,
-      case_number TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
+  await migrateReportsSchema(db);
+  return db;
+}
+
+async function migrateReportsSchema(db: SQLite.SQLiteDatabase) {
+  await db.execAsync(CREATE_REPORTS_TABLE_SQL);
 
   const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(reports)');
-  if (!columns.some((column) => column.name === 'category_id')) {
-    await db.execAsync('ALTER TABLE reports ADD COLUMN category_id TEXT;');
-  }
-  if (!columns.some((column) => column.name === 'photo_vision_result_json')) {
-    await db.execAsync('ALTER TABLE reports ADD COLUMN photo_vision_result_json TEXT;');
-  }
-  if (!columns.some((column) => column.name === 'photo_issue_topic_json')) {
-    await db.execAsync('ALTER TABLE reports ADD COLUMN photo_issue_topic_json TEXT;');
+  for (const migrationSql of getMissingReportColumnMigrations(
+    columns.map((column) => column.name)
+  )) {
+    await db.execAsync(migrationSql);
   }
 
-  return db;
+  const versionRows = await db.getAllAsync<{ user_version: number }>('PRAGMA user_version');
+  const userVersion = Number(versionRows[0]?.user_version) || 0;
+  if (userVersion < REPORTS_SCHEMA_VERSION) {
+    await db.execAsync(`PRAGMA user_version = ${REPORTS_SCHEMA_VERSION};`);
+  }
 }
 
 export async function createDraftReport(input: CreateReportInput) {
   const db = await getDatabase();
-  const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const id = createReportId();
   const now = new Date().toISOString();
 
   await db.runAsync(
@@ -84,13 +58,13 @@ export async function createDraftReport(input: CreateReportInput) {
     input.categoryId,
     input.category,
     input.description,
-    JSON.stringify(input.answers),
+    serializeAnswers(input.answers),
     input.address,
     input.latitude,
     input.longitude,
     input.photoUri,
-    JSON.stringify(input.photoVisionResult),
-    JSON.stringify(input.photoIssueTopic),
+    serializeNullableJson(input.photoVisionResult),
+    serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
     'Draft',
@@ -124,13 +98,13 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     input.categoryId,
     input.category,
     input.description,
-    JSON.stringify(input.answers),
+    serializeAnswers(input.answers),
     input.address,
     input.latitude,
     input.longitude,
     input.photoUri,
-    JSON.stringify(input.photoVisionResult),
-    JSON.stringify(input.photoIssueTopic),
+    serializeNullableJson(input.photoVisionResult),
+    serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
     'Draft',
@@ -152,9 +126,7 @@ export async function updateReportEmail(id: string, emailSubject: string, emailB
 
 export async function listReports() {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<ReportRow>(
-    'SELECT * FROM reports ORDER BY created_at DESC'
-  );
+  const rows = await db.getAllAsync<ReportRow>('SELECT * FROM reports ORDER BY created_at DESC');
   return rows.map(rowToReport);
 }
 
@@ -183,67 +155,4 @@ export async function updateCaseNumber(id: string, caseNumber: string) {
     new Date().toISOString(),
     id
   );
-}
-
-function rowToReport(row: ReportRow): Report {
-  return {
-    id: row.id,
-    categoryId: row.category_id || findCategoryByTitle(row.category)?.id || null,
-    category: row.category,
-    description: row.description,
-    answers: parseAnswers(row.answers_json),
-    address: row.address,
-    latitude: row.latitude,
-    longitude: row.longitude,
-    photoUri: row.photo_uri,
-    photoVisionResult: parsePhotoVisionResult(row.photo_vision_result_json),
-    photoIssueTopic: parsePhotoIssueTopic(row.photo_issue_topic_json),
-    emailSubject: row.email_subject,
-    emailBody: row.email_body,
-    status: row.status,
-    caseNumber: row.case_number,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function parseAnswers(raw: string) {
-  try {
-    return JSON.parse(raw) as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
-function parsePhotoVisionResult(raw: string | null) {
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as PhotoVisionResult;
-  } catch {
-    return null;
-  }
-}
-
-function parsePhotoIssueTopic(raw: string | null): PhotoIssueCandidate | null {
-  if (!raw) return null;
-
-  try {
-    const candidate = JSON.parse(raw) as Partial<PhotoIssueCandidate>;
-    if (!candidate.issueId || !candidate.title) return null;
-
-    return {
-      issueId: candidate.issueId,
-      title: candidate.title,
-      confidence: Number(candidate.confidence) || 0,
-      confidenceTier: candidate.confidenceTier ?? 'possible',
-      supportingLabelIds: candidate.supportingLabelIds ?? [],
-      evidenceChips: candidate.evidenceChips ?? [],
-      reason: candidate.reason ?? '',
-      suggestedDescription: candidate.suggestedDescription ?? '',
-      boundingBoxes: candidate.boundingBoxes ?? [],
-    };
-  } catch {
-    return null;
-  }
 }
