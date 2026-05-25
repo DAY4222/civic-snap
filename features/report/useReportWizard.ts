@@ -199,6 +199,16 @@ export function useReportWizard(resumeId?: string) {
   }, [state.step]);
 
   useEffect(() => {
+    if (!state.savedBannerId) return;
+
+    const savedBannerTimer = setTimeout(() => {
+      dispatch({ type: 'dismissSavedBanner' });
+    }, 5000);
+
+    return () => clearTimeout(savedBannerTimer);
+  }, [state.savedBannerId]);
+
+  useEffect(() => {
     return () => {
       if (reverseGeocodeTimeout.current) {
         clearTimeout(reverseGeocodeTimeout.current);

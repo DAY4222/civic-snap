@@ -111,6 +111,23 @@ describe('report wizard reducer', () => {
     expect(state.profile.name).toBe('Ada');
   });
 
+  it('dismisses the saved report banner without changing stable settings', () => {
+    let state = createInitialReportWizardState();
+    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
+    state = reportWizardReducer(state, {
+      type: 'profileLoaded',
+      profile: { name: 'Ada', email: '', phone: '555-0100' },
+    });
+    state = reportWizardReducer(state, { type: 'resetReport', savedBannerId: 'report-1' });
+
+    state = reportWizardReducer(state, { type: 'dismissSavedBanner' });
+
+    expect(state.step).toBe('start');
+    expect(state.savedBannerId).toBeNull();
+    expect(state.photoAnalysisUserEnabled).toBe(true);
+    expect(state.profile.name).toBe('Ada');
+  });
+
   it('resets active report progress while preserving stable settings', () => {
     let state = createInitialReportWizardState();
     state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
