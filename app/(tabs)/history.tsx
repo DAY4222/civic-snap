@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
+import { Card, colors } from '@/components/ui';
 import { listReports } from '@/lib/reports';
 import { Report } from '@/lib/types';
 
@@ -62,20 +63,22 @@ export default function HistoryScreen() {
         <Text style={styles.sectionTitle}>{section.title}</Text>
       )}
       renderItem={({ item }) => (
-        <Pressable style={styles.card} onPress={() => openReport(item)}>
-          {item.photoUri ? (
-            <Image source={{ uri: item.photoUri }} style={styles.thumbnail} />
-          ) : (
-            <View style={styles.iconBox}>
-              <FontAwesome name="file-text-o" size={20} color="#0a7ea4" />
+        <Pressable onPress={() => openReport(item)}>
+          <Card style={styles.card}>
+            {item.photoUri ? (
+              <Image source={{ uri: item.photoUri }} style={styles.thumbnail} />
+            ) : (
+              <View style={styles.iconBox}>
+                <FontAwesome name="file-text-o" size={20} color={colors.primary} />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{item.category}</Text>
+              <Text style={styles.subtitle} numberOfLines={1}>{item.address || 'No address'}</Text>
+              <Text style={styles.status}>{item.status === 'Draft' ? 'Resume draft' : item.status}</Text>
             </View>
-          )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>{item.category}</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>{item.address || 'No address'}</Text>
-            <Text style={styles.status}>{item.status === 'Draft' ? 'Resume draft' : item.status}</Text>
-          </View>
-          <FontAwesome name="chevron-right" size={14} color="#8e8e93" />
+            <FontAwesome name="chevron-right" size={14} color="#8e8e93" />
+          </Card>
         </Pressable>
       )}
     />
@@ -87,24 +90,24 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 20,
     paddingBottom: 48,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: colors.background,
     flexGrow: 1,
   },
   header: {
     marginBottom: 4,
   },
   title: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 30,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#636366',
+    color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
   },
   sectionTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '800',
     marginTop: 8,
@@ -112,35 +115,31 @@ const styles = StyleSheet.create({
   },
   card: {
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     gap: 12,
     padding: 12,
   },
   thumbnail: {
-    backgroundColor: '#d1d1d6',
+    backgroundColor: colors.border,
     borderRadius: 10,
     height: 58,
     width: 58,
   },
   iconBox: {
     alignItems: 'center',
-    backgroundColor: '#e9f5f9',
+    backgroundColor: colors.infoBackground,
     borderRadius: 10,
     height: 58,
     justifyContent: 'center',
     width: 58,
   },
   cardTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '800',
   },
   status: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '800',
     marginTop: 4,
@@ -151,7 +150,7 @@ const styles = StyleSheet.create({
     paddingTop: 80,
   },
   emptyTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '800',
   },

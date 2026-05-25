@@ -1,8 +1,9 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
+import { Button, Card, Field, Screen, colors } from '@/components/ui';
 import { getReport, updateCaseNumber } from '@/lib/reports';
 import { Report } from '@/lib/types';
 
@@ -35,25 +36,25 @@ export default function ReportDetailScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <Screen contentContainerStyle={styles.container}>
       {report.photoUri ? <Image source={{ uri: report.photoUri }} style={styles.photo} /> : null}
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.title}>{report.category}</Text>
         <Text style={styles.subtitle}>{report.address || 'No address'}</Text>
         <View style={styles.statusPill}>
-          <FontAwesome name="circle" size={8} color="#0a7ea4" />
+          <FontAwesome name="circle" size={8} color={colors.primary} />
           <Text style={styles.statusText}>{report.status}</Text>
         </View>
         {report.status === 'Draft' ? (
-          <Pressable
-            style={styles.resumeButton}
-            onPress={() => router.push({ pathname: '/', params: { resumeId: report.id } })}>
-            <Text style={styles.resumeButtonText}>Resume draft</Text>
-          </Pressable>
+          <Button
+            onPress={() => router.push({ pathname: '/', params: { resumeId: report.id } })}
+            title="Resume draft"
+            variant="dark"
+          />
         ) : null}
-      </View>
+      </Card>
       {report.photoIssueTopic ? (
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Selected photo evidence</Text>
           <Text style={styles.subtitle}>{report.photoIssueTopic.title}</Text>
           <Text style={styles.matchText}>{confidenceTierText(report.photoIssueTopic.confidenceTier)}</Text>
@@ -67,37 +68,31 @@ export default function ReportDetailScreen() {
           {report.photoIssueTopic.reason ? (
             <Text style={styles.subtitle}>{report.photoIssueTopic.reason}</Text>
           ) : null}
-        </View>
+        </Card>
       ) : null}
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Case number</Text>
         <Text style={styles.subtitle}>Add the 311 case number if one is returned by email.</Text>
-        <TextInput
-          value={caseNumber}
+        <Field
+          label="Case number"
           onChangeText={setCaseNumber}
           placeholder="Example: SR-2026-000123"
-          style={styles.input}
+          value={caseNumber}
         />
-        <Pressable style={styles.button} onPress={saveCaseNumber}>
-          <Text style={styles.buttonText}>Save case number</Text>
-        </Pressable>
-      </View>
-      <View style={styles.card}>
+        <Button onPress={saveCaseNumber} title="Save case number" />
+      </Card>
+      <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Email draft</Text>
         <Text style={styles.emailText}>Subject: {report.emailSubject}</Text>
         <Text style={styles.emailText}>{'\n'}{report.emailBody}</Text>
-      </View>
-    </ScrollView>
+      </Card>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#f5f5f7',
-    flexGrow: 1,
     gap: 16,
-    padding: 20,
-    paddingBottom: 48,
   },
   center: {
     alignItems: 'center',
@@ -105,33 +100,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   photo: {
-    backgroundColor: '#d1d1d6',
+    backgroundColor: colors.border,
     borderRadius: 16,
     height: 240,
     width: '100%',
   },
   card: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
     gap: 10,
     padding: 16,
   },
   title: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 24,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#636366',
+    color: colors.muted,
     fontSize: 15,
     lineHeight: 22,
   },
   statusPill: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#e9f5f9',
+    backgroundColor: colors.infoBackground,
     borderRadius: 999,
     flexDirection: 'row',
     gap: 7,
@@ -139,17 +130,17 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   statusText: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '800',
   },
   sectionTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '800',
   },
   matchText: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -159,48 +150,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   evidenceChip: {
-    backgroundColor: '#e9f5f9',
+    backgroundColor: colors.infoBackground,
     borderRadius: 999,
-    color: '#0a5f7a',
+    color: colors.primaryDark,
     fontSize: 12,
     fontWeight: '800',
     overflow: 'hidden',
     paddingHorizontal: 9,
     paddingVertical: 5,
   },
-  input: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    color: '#1d1d1f',
-    fontSize: 16,
-    padding: 14,
-  },
-  button: {
-    alignItems: 'center',
-    backgroundColor: '#0a7ea4',
-    borderRadius: 12,
-    justifyContent: 'center',
-    minHeight: 50,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '800',
-  },
-  resumeButton: {
-    alignItems: 'center',
-    backgroundColor: '#1d1d1f',
-    borderRadius: 12,
-    justifyContent: 'center',
-    minHeight: 50,
-  },
-  resumeButtonText: {
-    color: '#fff',
-    fontWeight: '800',
-  },
   emailText: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontFamily: 'SpaceMono',
     fontSize: 12,
     lineHeight: 18,

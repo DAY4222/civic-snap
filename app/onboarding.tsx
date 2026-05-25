@@ -5,14 +5,13 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
+import { Button, Field, Notice, colors } from '@/components/ui';
 import { EMPTY_PROFILE, completeOnboarding, loadProfile, saveProfile } from '@/lib/profile';
 import { Profile } from '@/lib/types';
 
@@ -95,13 +94,10 @@ export default function OnboardingScreen() {
             </Text>
           </View>
 
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>
-              Stored on this device. Included only in email drafts you choose to send.
-            </Text>
-          </View>
+          <Notice text="Stored on this device. Included only in email drafts you choose to send." />
 
           <Field
+            autoCapitalize="words"
             label="Name"
             value={profile.name}
             onChangeText={(name) => setProfile((current) => ({ ...current, name }))}
@@ -115,43 +111,21 @@ export default function OnboardingScreen() {
             textContentType="telephoneNumber"
           />
 
-          <Pressable style={styles.primaryButton} onPress={() => finish(hasContactInfo)} disabled={busy}>
-            <Text style={styles.primaryButtonText}>{hasContactInfo ? 'Save and continue' : 'Continue to report'}</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={() => finish(false)} disabled={busy}>
-            <Text style={styles.secondaryButtonText}>Skip for now</Text>
-          </Pressable>
+          <Button
+            disabled={busy}
+            loading={busy}
+            onPress={() => finish(hasContactInfo)}
+            title={hasContactInfo ? 'Save and continue' : 'Continue to report'}
+          />
+          <Button
+            disabled={busy}
+            onPress={() => finish(false)}
+            title="Skip for now"
+            variant="plain"
+          />
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChangeText,
-  keyboardType,
-  textContentType,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  keyboardType?: 'default' | 'phone-pad';
-  textContentType?: 'name' | 'telephoneNumber';
-}) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        autoCapitalize={label === 'Name' ? 'words' : 'none'}
-        keyboardType={keyboardType}
-        onChangeText={onChangeText}
-        style={styles.input}
-        textContentType={textContentType}
-        value={value}
-      />
-    </View>
   );
 }
 
@@ -176,7 +150,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   container: {
-    backgroundColor: '#f5f5f7',
+    backgroundColor: colors.background,
     flex: 1,
   },
   scrollContent: {
@@ -188,72 +162,22 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   eyebrow: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
   title: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 30,
     fontWeight: '800',
     lineHeight: 35,
     marginTop: 8,
   },
   subtitle: {
-    color: '#636366',
+    color: colors.muted,
     fontSize: 16,
     lineHeight: 23,
     marginTop: 10,
-  },
-  notice: {
-    backgroundColor: '#e9f5f9',
-    borderRadius: 14,
-    padding: 14,
-  },
-  noticeText: {
-    color: '#2f3a40',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  field: {
-    gap: 7,
-  },
-  label: {
-    color: '#636366',
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    color: '#1d1d1f',
-    fontSize: 16,
-    padding: 14,
-  },
-  primaryButton: {
-    alignItems: 'center',
-    backgroundColor: '#0a7ea4',
-    borderRadius: 14,
-    justifyContent: 'center',
-    minHeight: 56,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-  },
-  secondaryButtonText: {
-    color: '#1d1d1f',
-    fontSize: 16,
-    fontWeight: '800',
   },
 });
