@@ -1,38 +1,49 @@
 # Civic Snap Context
 
+## Current State
+
+- Civic Snap is an Expo React Native app using Expo Router in `311-mobile/`.
+- The main surfaces are the Report, History, and Map tabs, plus onboarding, settings, and report detail screens.
+- The report flow supports photo or manual starts, issue search, location pin adjustment, details/checklist prompts, editable email preview, native Mail handoff, and copy/mailto fallback.
+- Deeper architecture diagrams live in `docs/diagrams.md`; photo-analysis setup details live in `docs/photo-labels-mvp.md`.
+
 ## Architecture Decisions
 
-- Build the MVP as an Expo React Native app in `311-mobile/`.
-- Use Expo Go first; do not require EAS, TestFlight, or an Apple Developer account for the initial loop.
-- Keep `prototype/index.html` as a historical UX reference, not a source of truth for implementation.
-- Keep the app local-first: no backend, auth, cloud sync, OpenAI calls, or server storage in this MVP.
-- Use SQLite for report history and SecureStore for optional profile fields.
+- Keep saved reports, drafts, profile fields, saved report photos, and email handoff local-first.
+- Use SQLite for report history, SecureStore/device storage for profile/onboarding/settings, and local file storage for report photos.
 - Save a report as `Draft` when email preview opens so the user's work is not lost.
 - Treat `Mail opened` as the app's successful handoff state; the app does not claim Toronto received the report.
-- Use Apple Maps through `react-native-maps`; reports without coordinates show in History but not on Map.
-- Use local typed category config for the five MVP issue types and max three questions per category.
-- Use a shared email skeleton with category-specific detail sections.
 - Make email preview editable before Mail handoff; user edits are saved back into the local draft.
 - Keep draft reports resumable from History and report detail.
 - Use a fixed center pin for report location adjustment; users move the map under the pin for better mobile precision.
-- Keep route files thin when a flow grows: report creation lives in `features/report/` with a reducer for pure draft state and a hook for async device/app side effects.
+- Use `react-native-maps` for native map surfaces; reports without coordinates show in History but not on Map.
+- Keep report creation in `features/report/` with a reducer for pure draft state and a hook for async device/app side effects.
 - Share only small, repeated UI primitives in `components/ui/`; avoid a broad design system until the prototype stabilizes.
-- Evolve local SQLite with explicit `PRAGMA user_version` migrations and preserve existing drafts/reports during prototype schema changes.
+- Evolve local SQLite with explicit `PRAGMA user_version` migrations/backfills and preserve existing drafts/reports during prototype schema changes.
+- Use the generated Toronto 311 catalog as the source for 97 target issue types and 99 photo-label definitions.
 - Keep app and Edge Function photo-analysis contracts deploy-safe in their own runtimes, with contract tests proving response compatibility.
 - Verify refactors with typecheck, Jest, web export, and an iOS Expo Go/simulator smoke pass for native-only behavior.
 
-## MVP Placeholders
+## Photo Analysis Boundary
 
-- AI is not active. MVP screens say "guided questions" rather than AI.
-- Face anonymization is not active. MVP copy must say it is coming soon.
-- Councillor lookup, service targets, overdue follow-up, and backend analytics are out of scope.
-- Photos are stored locally and never uploaded, but they are not anonymized in the MVP.
+- Photo analysis is optional and assistive. It runs only when public Expo env config is present and the user enables Photo analysis in Settings.
+- The app sends a resized photo copy to the shared Supabase Edge Function for Gemini-backed photo labels and top issue candidates.
+- Address, GPS, location notes, profile fields, and email body stay out of Gemini requests.
+- Saved report photos stay on-device; only the analysis copy is sent for photo analysis.
+- Public Expo env vars configure the demo backend. Gemini API keys and Supabase service-role keys stay in Edge Function secrets, never in the app.
+- Server-side analysis logs are used for rate limiting and diagnostics; retention policy is still an open operations decision.
+
+## Placeholders And Out Of Scope
+
+- Face redaction/anonymization is not active yet.
+- Auth, cloud sync, direct 311 submission/status APIs, councillor routing, overdue follow-up automation, and analytics dashboards are out of scope.
+- Councillor lookup, service targets, and direct backend-backed follow-up should not be implied by MVP UI copy.
+- The app still hands off an email draft to the user's mail client; it does not submit directly to Toronto 311.
 
 ## Open Debates
 
-- When to replace deterministic templates with real AI drafting.
+- Whether photo analysis should stay opt-in or become default-on after more privacy and reliability testing.
 - When to add native iOS face redaction and whether that moves the app from Expo Go to an EAS development build.
-- Whether profile setup should stay optional or become a first-run onboarding step.
-- Whether follow-up and councillor routing should become part of the core loop or remain secondary.
+- Whether true 311 submission/status tracking should replace or supplement the Mail handoff.
 - Whether `Civic Snap` should stay Toronto-specific or become city-configurable later.
-- Whether the wizard CTA should become fully sticky across all steps after more physical-device testing.
+- What retention and monitoring policy should govern server-side photo-analysis logs.
