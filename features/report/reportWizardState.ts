@@ -29,6 +29,7 @@ export const GENERAL_CATEGORY: IssueCategory = {
   discoverability: 'not-discoverable',
   visualCueLabelIds: [],
   requiredAnyLabelIds: [],
+  requiredAllLabelIds: [],
   observations: [],
   questions: [],
   emailGuidanceChecklist: [],

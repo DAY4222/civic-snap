@@ -82,4 +82,31 @@ describe('photo analysis contract', () => {
       suggestedLabels: [{ id: 'road-pothole', confidence: 0.9 }],
     });
   });
+
+  it('limits live and stored issue candidates to the top three', () => {
+    const rawResult = {
+      suggestedLabels: [{ id: 'road-pothole', label: 'Road pothole', confidence: 0.9 }],
+      issueCandidates: ['one', 'two', 'three', 'four'].map((id) => ({
+        issueId: `issue-${id}`,
+        title: `Issue ${id}`,
+        confidence: 0.9,
+        confidenceTier: 'strong',
+        supportingLabelIds: ['road-pothole'],
+        evidenceChips: ['Road pothole'],
+        reason: `Reason ${id}`,
+        suggestedDescription: `Description ${id}`,
+      })),
+      provider: 'gemini',
+      model: 'gemini-test',
+      promptVersion: 'photo-issue-candidates-v1',
+      taxonomyVersion: 'photo-label-taxonomy-v3',
+      issueCatalogVersion: 'toronto-311-ai-issue-catalog-v2',
+      analyzedAt: '2026-05-20T00:00:00.000Z',
+      latencyMs: 12,
+      image: fallbackImage,
+    };
+
+    expect(normalizePhotoVisionResponse(rawResult, fallbackImage).issueCandidates).toHaveLength(3);
+    expect(parseStoredPhotoVisionResult(rawResult)?.issueCandidates).toHaveLength(3);
+  });
 });

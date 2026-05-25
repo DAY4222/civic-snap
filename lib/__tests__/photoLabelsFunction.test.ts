@@ -6,6 +6,7 @@ import {
   readLimitConfigFromEnv,
   validateRequest,
   type AnalysisRequest,
+  type EdgeIssueCatalogItem,
 } from '../../supabase/functions/analyze-photo-labels/logic';
 import { EDGE_ISSUE_CATALOG } from '../../supabase/functions/analyze-photo-labels/issueCatalog';
 
@@ -13,6 +14,7 @@ const allowedLabels = [
   { id: 'road-pothole', label: 'Road pothole' },
   { id: 'road-surface-damage', label: 'Road surface damage' },
   { id: 'roadway', label: 'Roadway' },
+  { id: 'residential-curb', label: 'Residential curb' },
   { id: 'graffiti-private-property', label: 'Graffiti on private property' },
   { id: 'curbside-garbage', label: 'Curbside garbage' },
 ];
@@ -28,6 +30,15 @@ const validRequest: AnalysisRequest = {
   allowedLabels,
   taxonomyVersion: 'photo-label-taxonomy-v1',
 };
+
+function labelsFor(labelIds: string[]) {
+  return labelIds.map((id) => ({
+    id,
+    label: id,
+    confidence: 0.92,
+    evidence: `${id} visible`,
+  }));
+}
 
 describe('photo label Edge Function logic', () => {
   it('rejects malformed numeric env values instead of disabling limits', () => {
@@ -146,8 +157,62 @@ describe('photo label Edge Function logic', () => {
     );
   });
 
-  it('adds obvious candidates from labels and keeps missed pickup possible', () => {
-    const candidates = hybridRerankIssueCandidates(
+  it('requires all mandatory labels before adding label-derived candidates', () => {
+    const catalog: EdgeIssueCatalogItem[] = [
+      {
+        id: 'icy-sidewalk-needs-salting',
+        title: 'Icy Sidewalk Needs Salting',
+        categoryPath: [],
+        shortDescription: '',
+        discoverability: 'photo',
+        visualCueLabelIds: ['icy-sidewalk', 'sidewalk'],
+        requiredAnyLabelIds: ['icy-sidewalk'],
+        requiredAllLabelIds: ['sidewalk'],
+      },
+    ];
+
+    expect(
+      hybridRerankIssueCandidates(
+        [
+          {
+            id: 'sidewalk',
+            label: 'Sidewalk',
+            confidence: 0.94,
+            evidence: 'sidewalk visible',
+          },
+        ],
+        [],
+        catalog
+      )
+    ).toEqual([]);
+
+    expect(
+      hybridRerankIssueCandidates(
+        [
+          {
+            id: 'sidewalk',
+            label: 'Sidewalk',
+            confidence: 0.94,
+            evidence: 'sidewalk visible',
+          },
+          {
+            id: 'icy-sidewalk',
+            label: 'Icy sidewalk',
+            confidence: 0.9,
+            evidence: 'ice on sidewalk',
+          },
+        ],
+        [],
+        catalog
+      )[0]
+    ).toMatchObject({
+      issueId: 'icy-sidewalk-needs-salting',
+      supportingLabelIds: ['icy-sidewalk', 'sidewalk'],
+    });
+  });
+
+  it('adds supported missed-pickup candidates and keeps them possible', () => {
+    const unsupportedCandidates = hybridRerankIssueCandidates(
       [
         {
           id: 'curbside-garbage',
@@ -160,10 +225,197 @@ describe('photo label Edge Function logic', () => {
       EDGE_ISSUE_CATALOG
     );
 
+    expect(unsupportedCandidates).toEqual([]);
+
+    const candidates = hybridRerankIssueCandidates(
+      [
+        {
+          id: 'curbside-garbage',
+          label: 'Curbside garbage',
+          confidence: 0.92,
+          evidence: 'bags at curb',
+        },
+        {
+          id: 'residential-curb',
+          label: 'Residential curb',
+          confidence: 0.86,
+          evidence: 'residential curbside set-out',
+        },
+      ],
+      [],
+      EDGE_ISSUE_CATALOG
+    );
+
     expect(candidates.map((candidate) => candidate.issueId)).toContain(
       'residential-garbage-day-collection-not-picked-up'
     );
     expect(candidates.every((candidate) => candidate.confidenceTier === 'possible')).toBe(true);
+  });
+
+  it('returns at most three candidates after scoring', () => {
+    const catalog: EdgeIssueCatalogItem[] = ['a', 'b', 'c', 'd'].map((id) => ({
+      id: `issue-${id}`,
+      title: `Issue ${id}`,
+      categoryPath: [],
+      shortDescription: '',
+      discoverability: 'photo',
+      visualCueLabelIds: [`label-${id}`],
+      requiredAnyLabelIds: [`label-${id}`],
+      requiredAllLabelIds: [],
+    }));
+
+    const candidates = hybridRerankIssueCandidates(
+      ['a', 'b', 'c', 'd'].map((id) => ({
+        id: `label-${id}`,
+        label: `Label ${id}`,
+        confidence: 0.9,
+        evidence: `evidence ${id}`,
+      })),
+      [],
+      catalog
+    );
+
+    expect(candidates).toHaveLength(3);
+    expect(candidates.map((candidate) => candidate.issueId)).toEqual([
+      'issue-a',
+      'issue-b',
+      'issue-c',
+    ]);
+  });
+
+  it('keeps only the strongest candidate in a suppression group', () => {
+    const catalog: EdgeIssueCatalogItem[] = [
+      {
+        id: 'weaker-tree-issue',
+        title: 'Weaker Tree Issue',
+        categoryPath: [],
+        shortDescription: '',
+        discoverability: 'photo',
+        visualCueLabelIds: ['tree-hazard'],
+        requiredAnyLabelIds: ['tree-hazard'],
+        requiredAllLabelIds: [],
+        suppressionGroup: 'tree-hazard',
+      },
+      {
+        id: 'stronger-tree-issue',
+        title: 'Stronger Tree Issue',
+        categoryPath: [],
+        shortDescription: '',
+        discoverability: 'photo',
+        visualCueLabelIds: ['tree-hazard'],
+        requiredAnyLabelIds: ['tree-hazard'],
+        requiredAllLabelIds: [],
+        suppressionGroup: 'tree-hazard',
+      },
+    ];
+
+    const candidates = hybridRerankIssueCandidates(
+      [
+        {
+          id: 'tree-hazard',
+          label: 'Tree hazard',
+          confidence: 0.88,
+          evidence: 'large limb blocking sidewalk',
+        },
+      ],
+      [
+        {
+          issueId: 'weaker-tree-issue',
+          confidence: 0.75,
+          supportingLabelIds: ['tree-hazard'],
+          reason: 'Visible hazard.',
+          suggestedDescription: 'Photo shows a visible tree hazard.',
+        },
+        {
+          issueId: 'stronger-tree-issue',
+          confidence: 0.95,
+          supportingLabelIds: ['tree-hazard'],
+          reason: 'Visible hazard.',
+          suggestedDescription: 'Photo shows a visible tree hazard.',
+        },
+      ],
+      catalog
+    );
+
+    expect(candidates.map((candidate) => candidate.issueId)).toEqual(['stronger-tree-issue']);
+  });
+
+  it('does not suggest issues from generic context labels alone', () => {
+    for (const label of [
+      { id: 'traffic-sign', label: 'Traffic sign' },
+      { id: 'water-service-box', label: 'Water service box' },
+      { id: 'garbage-bin', label: 'Garbage bin' },
+      { id: 'sidewalk', label: 'Sidewalk' },
+    ]) {
+      expect(
+        hybridRerankIssueCandidates(
+          [
+            {
+              ...label,
+              confidence: 0.96,
+              evidence: `${label.label} is visible`,
+            },
+          ],
+          [],
+          EDGE_ISSUE_CATALOG
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it('suppresses duplicates in the real ambiguous issue clusters', () => {
+    const issueById = new Map<string, EdgeIssueCatalogItem>(
+      EDGE_ISSUE_CATALOG.map((issue) => [issue.id, issue])
+    );
+    const examples = [
+      {
+        group: 'tree-hazard',
+        labels: [
+          'fallen-tree-blocking-road-or-sidewalk',
+          'private-hazardous-tree',
+          'hanging-or-broken-branch',
+        ],
+      },
+      {
+        group: 'water-service-box',
+        labels: [
+          'water-service-box-damaged',
+          'water-leaking-from-service-box',
+          'surface-watermain-break',
+          'water-service-box',
+        ],
+      },
+      {
+        group: 'street-traffic-signs',
+        labels: [
+          'damaged-or-missing-traffic-sign',
+          'regulatory-sign-damaged',
+          'traffic-sign',
+          'regulatory-or-warning-sign',
+        ],
+      },
+      {
+        group: 'road-sinking',
+        labels: ['sunken-road-surface', 'open-sinkhole', 'road-sinking-or-sinkhole', 'roadway'],
+      },
+      {
+        group: 'missed-garbage',
+        labels: ['curbside-garbage', 'residential-curb', 'multiple-curbside-setouts', 'garbage-bin'],
+      },
+      {
+        group: 'intersection-snow-sightline',
+        labels: ['snow-blocking-intersection-sightline', 'intersection', 'roadway'],
+      },
+    ];
+
+    for (const example of examples) {
+      const candidates = hybridRerankIssueCandidates(labelsFor(example.labels), [], EDGE_ISSUE_CATALOG);
+      const groupedCandidates = candidates.filter(
+        (candidate) => issueById.get(candidate.issueId)?.suppressionGroup === example.group
+      );
+
+      expect(groupedCandidates).toHaveLength(1);
+    }
   });
 
   it('keeps a high-confidence pothole candidate when Gemini returns roadway support only', () => {

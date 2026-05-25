@@ -1,5 +1,5 @@
 {
-  "version": "photo-label-taxonomy-v2",
+  "version": "photo-label-taxonomy-v3",
   "labels": [
     {
       "id": "roadway",
@@ -162,11 +162,6 @@
       "description": "Damaged or missing collection-bin wheel."
     },
     {
-      "id": "missing-bin-evidence",
-      "label": "Missing bin evidence",
-      "description": "Visible evidence related to a missing residential bin request."
-    },
-    {
       "id": "overflowing-street-litter-bin",
       "label": "Overflowing street litter bin",
       "description": "Public street litter bin full or overflowing."
@@ -185,6 +180,11 @@
       "id": "curbside-organics",
       "label": "Curbside organics",
       "description": "Organic waste set out at the curb."
+    },
+    {
+      "id": "multiple-curbside-setouts",
+      "label": "Multiple curbside set-outs",
+      "description": "Multiple neighbouring curbside set-outs visible on the same street."
     },
     {
       "id": "yard-waste",
@@ -217,6 +217,26 @@
       "description": "Construction material, renovation waste, concrete, wood, drywall, or spill."
     },
     {
+      "id": "roadway-debris",
+      "label": "Roadway debris",
+      "description": "Debris, litter, or material visibly on a roadway or curb lane."
+    },
+    {
+      "id": "sidewalk-boulevard-litter",
+      "label": "Sidewalk or boulevard litter",
+      "description": "Litter or debris visibly on a sidewalk or boulevard."
+    },
+    {
+      "id": "laneway-litter",
+      "label": "Laneway litter",
+      "description": "Litter or debris visibly in a public laneway."
+    },
+    {
+      "id": "construction-spill-on-road",
+      "label": "Construction spill on road",
+      "description": "Construction material or spill visibly on a roadway."
+    },
+    {
       "id": "needles-or-syringes",
       "label": "Needles or syringes",
       "description": "Needle or syringe visible in the scene."
@@ -232,6 +252,11 @@
       "description": "Road that appears snow-covered or uncleared."
     },
     {
+      "id": "icy-road",
+      "label": "Icy road",
+      "description": "Road surface that appears icy and needs salting."
+    },
+    {
       "id": "snow-covered-sidewalk",
       "label": "Snow-covered sidewalk",
       "description": "Sidewalk that appears snow-covered or uncleared."
@@ -245,6 +270,11 @@
       "id": "icy-laneway",
       "label": "Icy laneway",
       "description": "Laneway that appears icy or needs salting."
+    },
+    {
+      "id": "snow-dumped-on-public-sidewalk",
+      "label": "Snow dumped on public sidewalk",
+      "description": "Snow piled or dumped from private property onto a public sidewalk."
     },
     {
       "id": "snowbank-blocking-driveway",
@@ -312,6 +342,21 @@
       "description": "Tree roots causing sidewalk or walking-surface hazard."
     },
     {
+      "id": "fallen-tree-blocking-road-or-sidewalk",
+      "label": "Fallen tree blocking road or sidewalk",
+      "description": "Fallen tree or large limb blocking a road, sidewalk, or public path."
+    },
+    {
+      "id": "hazardous-hanging-limb-over-public-way",
+      "label": "Hazardous limb over public way",
+      "description": "Broken or hanging limb visibly over a road, sidewalk, or public path."
+    },
+    {
+      "id": "private-hazardous-tree",
+      "label": "Private hazardous tree",
+      "description": "Private tree visibly leaning, split, or with large hazardous limbs."
+    },
+    {
       "id": "long-grass-or-prohibited-plants",
       "label": "Long grass or prohibited plants",
       "description": "Long grass, weeds, or prohibited plants on property."
@@ -340,6 +385,26 @@
       "id": "unpermitted-sign",
       "label": "Unpermitted sign",
       "description": "Temporary, portable, or possibly unpermitted sign."
+    },
+    {
+      "id": "damaged-or-missing-traffic-sign",
+      "label": "Damaged or missing traffic sign",
+      "description": "Traffic sign visibly damaged, knocked down, missing, or unreadable."
+    },
+    {
+      "id": "faded-or-obstructed-sign",
+      "label": "Faded or obstructed sign",
+      "description": "Traffic or street sign visibly faded, blocked, or hard to read."
+    },
+    {
+      "id": "street-name-sign-damaged",
+      "label": "Street name sign damaged",
+      "description": "Street name sign visibly damaged, missing, faded, or unreadable."
+    },
+    {
+      "id": "regulatory-sign-damaged",
+      "label": "Regulatory sign damaged",
+      "description": "Stop, parking, speed, warning, or regulatory sign visibly damaged or missing."
     },
     {
       "id": "encroachment-on-city-property",
@@ -397,14 +462,39 @@
       "description": "Water surfacing, flowing, pooling, or spraying from a possible watermain break."
     },
     {
+      "id": "large-water-flow-on-road",
+      "label": "Large water flow on road",
+      "description": "Large volume of water flowing or pooling on a road, sidewalk, or boulevard."
+    },
+    {
       "id": "water-service-box",
       "label": "Water service box",
       "description": "Water service box, curb stop, or related water-service cover."
     },
     {
+      "id": "water-leaking-from-service-box",
+      "label": "Water leaking from service box",
+      "description": "Water visibly leaking, bubbling, or pooling from a water service box."
+    },
+    {
+      "id": "water-service-box-damaged",
+      "label": "Water service box damaged",
+      "description": "Water service box or cover visibly damaged, missing, raised, or sunken."
+    },
+    {
       "id": "sewer-cleanout",
       "label": "Sewer cleanout",
       "description": "Sewer cleanout, basement drain, or visible sewer service access."
+    },
+    {
+      "id": "sunken-road-surface",
+      "label": "Sunken road surface",
+      "description": "Road surface visibly sunken or depressed without an open hole."
+    },
+    {
+      "id": "open-sinkhole",
+      "label": "Open sinkhole",
+      "description": "Open hole or collapse in a road or paved surface."
     }
   ]
 }

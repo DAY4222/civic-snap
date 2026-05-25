@@ -49,6 +49,9 @@ describe('category lookup', () => {
       for (const labelId of category.visualCueLabelIds) {
         expect(labelIds.has(labelId)).toBe(true);
       }
+      for (const labelId of category.requiredAllLabelIds) {
+        expect(labelIds.has(labelId)).toBe(true);
+      }
     }
   });
 

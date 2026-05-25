@@ -1,6 +1,7 @@
 import { PhotoIssueCandidate, PhotoVisionLabel, PhotoVisionResult } from './types';
 
 type PhotoVisionImage = PhotoVisionResult['image'];
+const MAX_ISSUE_CANDIDATES = 3;
 
 export function normalizePhotoVisionResponse(
   result: unknown,
@@ -95,7 +96,7 @@ function normalizeIssueCandidates(
       };
     })
     .filter((candidate): candidate is PhotoIssueCandidate => candidate != null)
-    .slice(0, 5);
+    .slice(0, MAX_ISSUE_CANDIDATES);
 }
 
 function normalizeConfidenceTier(value: unknown) {

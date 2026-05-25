@@ -64,6 +64,7 @@ describe('buildEmail', () => {
       discoverability: 'not-discoverable',
       visualCueLabelIds: [],
       requiredAnyLabelIds: [],
+      requiredAllLabelIds: [],
       observations: [],
       questions: [],
       emailGuidanceChecklist: [],

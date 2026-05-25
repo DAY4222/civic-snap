@@ -2,8 +2,8 @@
 
 import type { IssueCategory, PhotoLabelDefinition } from '../types';
 
-export const ISSUE_CATALOG_VERSION = "toronto-311-ai-issue-catalog-v1";
-export const PHOTO_LABEL_TAXONOMY_VERSION = "photo-label-taxonomy-v2";
+export const ISSUE_CATALOG_VERSION = "toronto-311-ai-issue-catalog-v2";
+export const PHOTO_LABEL_TAXONOMY_VERSION = "photo-label-taxonomy-v3";
 
 export const PHOTO_LABELS: PhotoLabelDefinition[] = [
   {
@@ -167,11 +167,6 @@ export const PHOTO_LABELS: PhotoLabelDefinition[] = [
     "description": "Damaged or missing collection-bin wheel."
   },
   {
-    "id": "missing-bin-evidence",
-    "label": "Missing bin evidence",
-    "description": "Visible evidence related to a missing residential bin request."
-  },
-  {
     "id": "overflowing-street-litter-bin",
     "label": "Overflowing street litter bin",
     "description": "Public street litter bin full or overflowing."
@@ -190,6 +185,11 @@ export const PHOTO_LABELS: PhotoLabelDefinition[] = [
     "id": "curbside-organics",
     "label": "Curbside organics",
     "description": "Organic waste set out at the curb."
+  },
+  {
+    "id": "multiple-curbside-setouts",
+    "label": "Multiple curbside set-outs",
+    "description": "Multiple neighbouring curbside set-outs visible on the same street."
   },
   {
     "id": "yard-waste",
@@ -222,6 +222,26 @@ export const PHOTO_LABELS: PhotoLabelDefinition[] = [
     "description": "Construction material, renovation waste, concrete, wood, drywall, or spill."
   },
   {
+    "id": "roadway-debris",
+    "label": "Roadway debris",
+    "description": "Debris, litter, or material visibly on a roadway or curb lane."
+  },
+  {
+    "id": "sidewalk-boulevard-litter",
+    "label": "Sidewalk or boulevard litter",
+    "description": "Litter or debris visibly on a sidewalk or boulevard."
+  },
+  {
+    "id": "laneway-litter",
+    "label": "Laneway litter",
+    "description": "Litter or debris visibly in a public laneway."
+  },
+  {
+    "id": "construction-spill-on-road",
+    "label": "Construction spill on road",
+    "description": "Construction material or spill visibly on a roadway."
+  },
+  {
     "id": "needles-or-syringes",
     "label": "Needles or syringes",
     "description": "Needle or syringe visible in the scene."
@@ -237,6 +257,11 @@ export const PHOTO_LABELS: PhotoLabelDefinition[] = [
     "description": "Road that appears snow-covered or uncleared."
   },
   {
+    "id": "icy-road",
+    "label": "Icy road",
+    "description": "Road surface that appears icy and needs salting."
+  },
+  {
     "id": "snow-covered-sidewalk",
     "label": "Snow-covered sidewalk",
     "description": "Sidewalk that appears snow-covered or uncleared."
@@ -250,6 +275,11 @@ export const PHOTO_LABELS: PhotoLabelDefinition[] = [
     "id": "icy-laneway",
     "label": "Icy laneway",
     "description": "Laneway that appears icy or needs salting."
+  },
+  {
+    "id": "snow-dumped-on-public-sidewalk",
+    "label": "Snow dumped on public sidewalk",
+    "description": "Snow piled or dumped from private property onto a public sidewalk."
   },
   {
     "id": "snowbank-blocking-driveway",
@@ -317,6 +347,21 @@ export const PHOTO_LABELS: PhotoLabelDefinition[] = [
     "description": "Tree roots causing sidewalk or walking-surface hazard."
   },
   {
+    "id": "fallen-tree-blocking-road-or-sidewalk",
+    "label": "Fallen tree blocking road or sidewalk",
+    "description": "Fallen tree or large limb blocking a road, sidewalk, or public path."
+  },
+  {
+    "id": "hazardous-hanging-limb-over-public-way",
+    "label": "Hazardous limb over public way",
+    "description": "Broken or hanging limb visibly over a road, sidewalk, or public path."
+  },
+  {
+    "id": "private-hazardous-tree",
+    "label": "Private hazardous tree",
+    "description": "Private tree visibly leaning, split, or with large hazardous limbs."
+  },
+  {
     "id": "long-grass-or-prohibited-plants",
     "label": "Long grass or prohibited plants",
     "description": "Long grass, weeds, or prohibited plants on property."
@@ -345,6 +390,26 @@ export const PHOTO_LABELS: PhotoLabelDefinition[] = [
     "id": "unpermitted-sign",
     "label": "Unpermitted sign",
     "description": "Temporary, portable, or possibly unpermitted sign."
+  },
+  {
+    "id": "damaged-or-missing-traffic-sign",
+    "label": "Damaged or missing traffic sign",
+    "description": "Traffic sign visibly damaged, knocked down, missing, or unreadable."
+  },
+  {
+    "id": "faded-or-obstructed-sign",
+    "label": "Faded or obstructed sign",
+    "description": "Traffic or street sign visibly faded, blocked, or hard to read."
+  },
+  {
+    "id": "street-name-sign-damaged",
+    "label": "Street name sign damaged",
+    "description": "Street name sign visibly damaged, missing, faded, or unreadable."
+  },
+  {
+    "id": "regulatory-sign-damaged",
+    "label": "Regulatory sign damaged",
+    "description": "Stop, parking, speed, warning, or regulatory sign visibly damaged or missing."
   },
   {
     "id": "encroachment-on-city-property",
@@ -402,14 +467,39 @@ export const PHOTO_LABELS: PhotoLabelDefinition[] = [
     "description": "Water surfacing, flowing, pooling, or spraying from a possible watermain break."
   },
   {
+    "id": "large-water-flow-on-road",
+    "label": "Large water flow on road",
+    "description": "Large volume of water flowing or pooling on a road, sidewalk, or boulevard."
+  },
+  {
     "id": "water-service-box",
     "label": "Water service box",
     "description": "Water service box, curb stop, or related water-service cover."
   },
   {
+    "id": "water-leaking-from-service-box",
+    "label": "Water leaking from service box",
+    "description": "Water visibly leaking, bubbling, or pooling from a water service box."
+  },
+  {
+    "id": "water-service-box-damaged",
+    "label": "Water service box damaged",
+    "description": "Water service box or cover visibly damaged, missing, raised, or sunken."
+  },
+  {
     "id": "sewer-cleanout",
     "label": "Sewer cleanout",
     "description": "Sewer cleanout, basement drain, or visible sewer service access."
+  },
+  {
+    "id": "sunken-road-surface",
+    "label": "Sunken road surface",
+    "description": "Road surface visibly sunken or depressed without an open hole."
+  },
+  {
+    "id": "open-sinkhole",
+    "label": "Open sinkhole",
+    "description": "Open hole or collapse in a road or paved surface."
   }
 ];
 
@@ -437,6 +527,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "bin-lid-damaged"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Visible residential collection bin lid damage or missing lid.",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -682,6 +774,9 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
       "road-pothole",
       "road-surface-damage"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Visible pothole, broken asphalt, or damaged pavement in a road or bike lane.",
+    "suppressionGroup": "road-surface-defect",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -844,6 +939,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
       "private-property-waste",
       "standing-water-private-property"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Visible private-property exterior disrepair, waste accumulation, or standing water.",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -1387,6 +1484,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snow-covered-sidewalk"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "sidewalk-snow-ice",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -1411,6 +1510,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "injured-wildlife"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -1705,6 +1805,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "dead-wildlife"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -1928,6 +2029,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snow-covered-road"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "road-winter-maintenance",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -1949,13 +2052,15 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "photo",
     "visualCueLabelIds": [
       "tree-pruning-needed",
-      "hanging-or-broken-branch",
-      "public-tree"
-    ],
-    "requiredAnyLabelIds": [
-      "tree-pruning-needed",
+      "public-tree",
       "hanging-or-broken-branch"
     ],
+    "requiredAnyLabelIds": [
+      "tree-pruning-needed"
+    ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Visible public tree limbs or growth needing pruning, without an immediate blockage or hazard.",
+    "suppressionGroup": "tree-maintenance",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -2068,6 +2173,11 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "curbside-garbage"
     ],
+    "requiredAllLabelIds": [
+      "residential-curb"
+    ],
+    "photoHint": "Garbage set out at a residential curb; pickup timing still needs confirmation.",
+    "suppressionGroup": "missed-garbage",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -2276,6 +2386,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "bin-body-or-handle-damaged"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -2514,6 +2625,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snowbank-blocking-driveway"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -2540,6 +2652,11 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "oversized-or-electronic-item"
     ],
+    "requiredAllLabelIds": [
+      "residential-curb"
+    ],
+    "photoHint": "Oversized item or electronics set out at a residential curb; pickup timing still needs confirmation.",
+    "suppressionGroup": "missed-oversized",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -2745,6 +2862,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "private-property-waste"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -3206,12 +3324,17 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "limited-context",
     "visualCueLabelIds": [
       "curbside-organics",
-      "organic-bin",
-      "residential-curb"
+      "residential-curb",
+      "organic-bin"
     ],
     "requiredAnyLabelIds": [
       "curbside-organics"
     ],
+    "requiredAllLabelIds": [
+      "residential-curb"
+    ],
+    "photoHint": "Organics set out at a residential curb; pickup timing still needs confirmation.",
+    "suppressionGroup": "missed-organics",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -3411,6 +3534,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -3453,6 +3577,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
+      "fallen-tree-blocking-road-or-sidewalk",
+      "hazardous-hanging-limb-over-public-way",
       "fallen-tree-or-large-limb",
       "hanging-or-broken-branch",
       "public-tree",
@@ -3460,9 +3586,12 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
       "sidewalk"
     ],
     "requiredAnyLabelIds": [
-      "fallen-tree-or-large-limb",
-      "hanging-or-broken-branch"
+      "fallen-tree-blocking-road-or-sidewalk",
+      "hazardous-hanging-limb-over-public-way"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Fallen tree or hazardous limb visibly blocking or threatening a public road, sidewalk, or path.",
+    "suppressionGroup": "tree-hazard",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -3507,6 +3636,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "photo",
     "visualCueLabelIds": [
       "illegal-dumping",
+      "biohazard-human-waste",
       "roadway",
       "sidewalk",
       "boulevard",
@@ -3515,8 +3645,11 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
       "construction-debris"
     ],
     "requiredAnyLabelIds": [
-      "illegal-dumping"
+      "illegal-dumping",
+      "biohazard-human-waste"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Dumped waste or biohazard on a public road allowance, not normal residential set-out.",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -3667,6 +3800,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "sewer-cleanout"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -3712,14 +3846,18 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
-      "construction-debris",
-      "loose-litter",
-      "roadway"
-    ],
-    "requiredAnyLabelIds": [
+      "roadway-debris",
+      "construction-spill-on-road",
+      "roadway",
       "construction-debris",
       "loose-litter"
     ],
+    "requiredAnyLabelIds": [
+      "roadway-debris",
+      "construction-spill-on-road"
+    ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Debris, litter, or construction spill visibly on a road or curb lane.",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -3764,12 +3902,17 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "limited-context",
     "visualCueLabelIds": [
       "curbside-recycling",
-      "recycling-bin",
-      "residential-curb"
+      "residential-curb",
+      "recycling-bin"
     ],
     "requiredAnyLabelIds": [
       "curbside-recycling"
     ],
+    "requiredAllLabelIds": [
+      "residential-curb"
+    ],
+    "photoHint": "Recycling set out at a residential curb; pickup timing still needs confirmation.",
+    "suppressionGroup": "missed-recycling",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -3975,6 +4118,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "traffic-signal"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -4092,6 +4236,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "household-hazardous-waste"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -4238,6 +4383,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
       "construction-site",
       "unpermitted-sign"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -4737,11 +4883,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "visualCueLabelIds": [
       "encroachment-on-city-property",
       "boulevard",
-      "sidewalk"
+      "sidewalk",
+      "bike-lane"
     ],
     "requiredAnyLabelIds": [
       "encroachment-on-city-property"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -4938,18 +5086,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
     "sourceMatchStatus": "matched",
-    "discoverability": "limited-context",
-    "visualCueLabelIds": [
-      "missing-bin-evidence",
-      "garbage-bin",
-      "residential-curb"
-    ],
-    "requiredAnyLabelIds": [
-      "missing-bin-evidence"
-    ],
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can support this issue type.",
-      "Use the checklist to include any jurisdiction, timing, or safety details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -5183,6 +5326,9 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
+      "damaged-or-missing-traffic-sign",
+      "street-name-sign-damaged",
+      "faded-or-obstructed-sign",
       "traffic-sign",
       "street-name-sign",
       "regulatory-or-warning-sign",
@@ -5190,10 +5336,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
       "intersection"
     ],
     "requiredAnyLabelIds": [
-      "traffic-sign",
-      "street-name-sign",
-      "regulatory-or-warning-sign"
+      "damaged-or-missing-traffic-sign",
+      "street-name-sign-damaged",
+      "faded-or-obstructed-sign"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Visible missing, damaged, faded, obstructed, or unreadable traffic or street-name sign.",
+    "suppressionGroup": "street-traffic-signs",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -5303,18 +5452,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
     "sourceMatchStatus": "matched",
-    "discoverability": "limited-context",
-    "visualCueLabelIds": [
-      "missing-bin-evidence",
-      "organic-bin",
-      "residential-curb"
-    ],
-    "requiredAnyLabelIds": [
-      "missing-bin-evidence"
-    ],
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can support this issue type.",
-      "Use the checklist to include any jurisdiction, timing, or safety details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -5551,11 +5695,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
       "catch-basin",
       "roadway",
       "boulevard",
-      "surface-watermain-break"
+      "surface-watermain-break",
+      "large-water-flow-on-road"
     ],
     "requiredAnyLabelIds": [
       "catch-basin"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -5653,6 +5799,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "long-grass-or-prohibited-plants"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -6063,6 +6210,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -6460,17 +6608,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Report missed collection of garbage, organic waste, yard waste, oversized items, Christmas trees, hazardous or electronic waste.",
     "sourceMatchStatus": "matched",
-    "discoverability": "limited-context",
-    "visualCueLabelIds": [
-      "oversized-or-electronic-item"
-    ],
-    "requiredAnyLabelIds": [
-      "oversized-or-electronic-item"
-    ],
-    "forceConfidenceTier": "possible",
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can show the material, but pickup timing still needs user confirmation.",
-      "Use the checklist to include schedule and set-out details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -6573,18 +6717,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
     "sourceMatchStatus": "matched",
-    "discoverability": "limited-context",
-    "visualCueLabelIds": [
-      "missing-bin-evidence",
-      "recycling-bin",
-      "residential-curb"
-    ],
-    "requiredAnyLabelIds": [
-      "missing-bin-evidence"
-    ],
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can support this issue type.",
-      "Use the checklist to include any jurisdiction, timing, or safety details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -6819,6 +6958,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -7058,6 +7198,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "icy-sidewalk"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "sidewalk-snow-ice",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -7086,6 +7228,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "tree-removal-or-injury"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "tree-removal",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -7192,6 +7336,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -7435,6 +7580,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "damaged-concrete-sidewalk"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "sidewalk-surface-defect",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -7644,6 +7791,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snow-plow-boulevard-damage"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -7750,6 +7898,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -7823,17 +7972,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Request repair of interlocking bricks, concrete surfaces, walkways, accessibility ramps or tactile pavers. Request installation of accessibility ramps or tactile pavers. Request sidewalk cleaning.",
     "sourceMatchStatus": "matched",
-    "discoverability": "photo",
-    "visualCueLabelIds": [
-      "loose-litter",
-      "sidewalk"
-    ],
-    "requiredAnyLabelIds": [
-      "loose-litter"
-    ],
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can support this issue type.",
-      "Use the checklist to include any jurisdiction, timing, or safety details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -7897,12 +8042,16 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
+      "sunken-road-surface",
       "road-sinking-or-sinkhole",
       "roadway"
     ],
     "requiredAnyLabelIds": [
-      "road-sinking-or-sinkhole"
+      "sunken-road-surface"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Sunken or depressed road surface without an open hole.",
+    "suppressionGroup": "road-sinking",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -8107,6 +8256,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -8128,6 +8278,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -8171,6 +8322,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -8546,12 +8698,14 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "limited-context",
     "visualCueLabelIds": [
-      "snow-covered-road",
+      "icy-road",
       "roadway"
     ],
     "requiredAnyLabelIds": [
-      "snow-covered-road"
+      "icy-road"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "road-winter-maintenance",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -8573,6 +8727,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -8740,6 +8895,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -8977,6 +9133,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -9214,6 +9371,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -9456,6 +9614,10 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "yard-waste"
     ],
+    "requiredAllLabelIds": [
+      "residential-curb"
+    ],
+    "suppressionGroup": "missed-yard-waste",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -9654,11 +9816,15 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
+      "water-service-box-damaged",
       "water-service-box"
     ],
     "requiredAnyLabelIds": [
-      "water-service-box"
+      "water-service-box-damaged"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Water service box or cover is visibly damaged, missing, raised, or sunken.",
+    "suppressionGroup": "water-service-box",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -9860,13 +10026,17 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
+      "large-water-flow-on-road",
       "surface-watermain-break",
       "roadway",
       "boulevard"
     ],
     "requiredAnyLabelIds": [
-      "surface-watermain-break"
+      "large-water-flow-on-road"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Large volume of water surfacing or flowing on public road, roadside, sidewalk, or boulevard.",
+    "suppressionGroup": "water-main-break",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -9989,13 +10159,18 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
+      "sidewalk-boulevard-litter",
+      "laneway-litter",
       "loose-litter",
       "sidewalk",
-      "boulevard"
+      "boulevard",
+      "laneway"
     ],
     "requiredAnyLabelIds": [
-      "loose-litter"
+      "sidewalk-boulevard-litter",
+      "laneway-litter"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -10138,6 +10313,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -10164,6 +10340,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "overflowing-street-litter-bin"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -10305,14 +10482,17 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "limited-context",
     "visualCueLabelIds": [
+      "snow-dumped-on-public-sidewalk",
       "snow-covered-sidewalk",
       "icy-sidewalk",
       "sidewalk"
     ],
     "requiredAnyLabelIds": [
-      "snow-covered-sidewalk",
-      "icy-sidewalk"
+      "snow-dumped-on-public-sidewalk"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Snow visibly dumped or piled from private property onto a public sidewalk.",
+    "suppressionGroup": "sidewalk-snow-ice",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -10432,6 +10612,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -10666,20 +10847,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Request investigation of temporary condition, warning, regulatory signs or report missing or damaged street and traffic signs.",
     "sourceMatchStatus": "matched",
-    "discoverability": "photo",
-    "visualCueLabelIds": [
-      "street-name-sign",
-      "traffic-sign",
-      "regulatory-or-warning-sign"
-    ],
-    "requiredAnyLabelIds": [
-      "street-name-sign",
-      "traffic-sign",
-      "regulatory-or-warning-sign"
-    ],
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can support this issue type.",
-      "Use the checklist to include any jurisdiction, timing, or safety details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -10788,6 +10962,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -11148,13 +11323,16 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "limited-context",
     "visualCueLabelIds": [
+      "water-leaking-from-service-box",
       "surface-watermain-break",
       "water-service-box"
     ],
     "requiredAnyLabelIds": [
-      "surface-watermain-break",
-      "water-service-box"
+      "water-leaking-from-service-box"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Water visibly leaking, bubbling, or pooling from a water service box.",
+    "suppressionGroup": "water-service-box",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -11437,6 +11615,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "dog-off-leash"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -11734,6 +11913,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -11814,6 +11994,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "tree-removal-or-injury"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "tree-removal",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -12071,19 +12253,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Request for general maintenance on a City tree, e.g. roots causing a trip hazard, stakes and ties, tree watering, verifying tree ownership, branch or brush clean-up, issues with carpenter ants and termites, etc.",
     "sourceMatchStatus": "matched",
-    "discoverability": "photo",
-    "visualCueLabelIds": [
-      "tree-pruning-needed",
-      "hanging-or-broken-branch",
-      "public-tree"
-    ],
-    "requiredAnyLabelIds": [
-      "tree-pruning-needed",
-      "hanging-or-broken-branch"
-    ],
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can support this issue type.",
-      "Use the checklist to include any jurisdiction, timing, or safety details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -12323,6 +12499,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -12490,6 +12667,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "poster-on-public-asset"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -12673,6 +12851,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "graffiti-private-property"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -12951,6 +13130,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -13196,6 +13376,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "bin-wheel-damaged"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -13432,12 +13613,17 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "limited-context",
     "visualCueLabelIds": [
+      "multiple-curbside-setouts",
       "curbside-organics",
       "organic-bin"
     ],
     "requiredAnyLabelIds": [
+      "multiple-curbside-setouts"
+    ],
+    "requiredAllLabelIds": [
       "curbside-organics"
     ],
+    "suppressionGroup": "missed-organics",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -13643,6 +13829,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "illegal-off-street-parking"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -13806,6 +13993,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -14041,16 +14229,18 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "limited-context",
     "visualCueLabelIds": [
+      "private-hazardous-tree",
       "private-tree",
       "hanging-or-broken-branch",
       "fallen-tree-or-large-limb",
       "private-property"
     ],
     "requiredAnyLabelIds": [
-      "private-tree",
-      "hanging-or-broken-branch",
-      "fallen-tree-or-large-limb"
+      "private-hazardous-tree"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Private tree visibly leaning, split, fallen, or with large hazardous limbs.",
+    "suppressionGroup": "tree-hazard",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -14384,6 +14574,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "icy-laneway"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -14410,6 +14601,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "damaged-boulevard-asphalt"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -14471,6 +14663,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "uneven-walkway"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "sidewalk-surface-defect",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -14537,12 +14731,17 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "limited-context",
     "visualCueLabelIds": [
+      "multiple-curbside-setouts",
       "curbside-garbage",
       "garbage-bin"
     ],
     "requiredAnyLabelIds": [
+      "multiple-curbside-setouts"
+    ],
+    "requiredAllLabelIds": [
       "curbside-garbage"
     ],
+    "suppressionGroup": "missed-garbage",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -14745,6 +14944,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snow-blocking-intersection-sightline"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "intersection-snow-sightline",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -14762,12 +14963,16 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
+      "open-sinkhole",
       "road-sinking-or-sinkhole",
       "roadway"
     ],
     "requiredAnyLabelIds": [
-      "road-sinking-or-sinkhole"
+      "open-sinkhole"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Open sinkhole or visible collapse, not just a sunken surface.",
+    "suppressionGroup": "road-sinking",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -14783,18 +14988,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "",
     "sourceMatchStatus": "matched",
-    "discoverability": "limited-context",
-    "visualCueLabelIds": [
-      "surface-watermain-break",
-      "water-service-box"
-    ],
-    "requiredAnyLabelIds": [
-      "surface-watermain-break",
-      "water-service-box"
-    ],
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can support this issue type.",
-      "Use the checklist to include any jurisdiction, timing, or safety details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": []
   },
@@ -14810,18 +15010,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Report missed collection of garbage, organic waste, yard waste, oversized items, Christmas trees, hazardous or electronic waste.",
     "sourceMatchStatus": "matched",
-    "discoverability": "limited-context",
-    "visualCueLabelIds": [
-      "curbside-garbage",
-      "garbage-bin"
-    ],
-    "requiredAnyLabelIds": [
-      "curbside-garbage"
-    ],
-    "forceConfidenceTier": "possible",
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can show the material, but pickup timing still needs user confirmation.",
-      "Use the checklist to include schedule and set-out details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -14924,18 +15119,13 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     ],
     "description": "Request to turn the City's water service on or off (e.g., to complete repairs or renovate a home or building, to conduct work on a sprinkler system, if you are going on an extended vacation). Appointments can be booked ahead of time, within four-hour time",
     "sourceMatchStatus": "matched",
-    "discoverability": "limited-context",
-    "visualCueLabelIds": [
-      "surface-watermain-break",
-      "water-service-box"
-    ],
-    "requiredAnyLabelIds": [
-      "surface-watermain-break",
-      "water-service-box"
-    ],
+    "discoverability": "not-discoverable",
+    "visualCueLabelIds": [],
+    "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
-      "Photo evidence can support this issue type.",
-      "Use the checklist to include any jurisdiction, timing, or safety details."
+      "This issue usually needs user-supplied context beyond what a photo can prove.",
+      "Use the checklist to include the details Toronto 311 asks for."
     ],
     "questions": [
       {
@@ -15012,6 +15202,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snow-blocking-intersection-sightline"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "intersection-snow-sightline",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -15032,6 +15224,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -15161,6 +15354,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "not-discoverable",
     "visualCueLabelIds": [],
     "requiredAnyLabelIds": [],
+    "requiredAllLabelIds": [],
     "observations": [
       "This issue usually needs user-supplied context beyond what a photo can prove.",
       "Use the checklist to include the details Toronto 311 asks for."
@@ -15402,6 +15596,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "unpermitted-sign"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -15820,6 +16015,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snow-covered-bus-stop"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -15844,6 +16040,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "confined-stray-animal"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -16027,12 +16224,17 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "discoverability": "photo",
     "visualCueLabelIds": [
       "maintenance-hole-lid",
+      "bike-lane-bollard-or-barrier",
       "roadway",
-      "sidewalk"
+      "sidewalk",
+      "bike-lane"
     ],
     "requiredAnyLabelIds": [
-      "maintenance-hole-lid"
+      "maintenance-hole-lid",
+      "bike-lane-bollard-or-barrier"
     ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Loose, missing, sunken, or damaged maintenance hole cover or visible bollard/barrier damage.",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -16244,6 +16446,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "stray-dog"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -16543,6 +16746,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snow-covered-school-zone"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -16569,6 +16773,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
       "snow-covered-sidewalk",
       "icy-sidewalk"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "sidewalk-snow-ice",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -16610,6 +16816,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "dead-domestic-animal"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -16794,6 +17001,8 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "snow-covered-bike-lane"
     ],
+    "requiredAllLabelIds": [],
+    "suppressionGroup": "road-winter-maintenance",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -16814,12 +17023,16 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "photo",
     "visualCueLabelIds": [
-      "regulatory-or-warning-sign",
-      "traffic-sign"
-    ],
-    "requiredAnyLabelIds": [
+      "regulatory-sign-damaged",
+      "traffic-sign",
       "regulatory-or-warning-sign"
     ],
+    "requiredAnyLabelIds": [
+      "regulatory-sign-damaged"
+    ],
+    "requiredAllLabelIds": [],
+    "photoHint": "Regulatory or warning sign visibly damaged, missing, faded, or unreadable.",
+    "suppressionGroup": "street-traffic-signs",
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."
@@ -16931,11 +17144,16 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "sourceMatchStatus": "matched",
     "discoverability": "limited-context",
     "visualCueLabelIds": [
+      "multiple-curbside-setouts",
       "yard-waste"
     ],
     "requiredAnyLabelIds": [
+      "multiple-curbside-setouts"
+    ],
+    "requiredAllLabelIds": [
       "yard-waste"
     ],
+    "suppressionGroup": "missed-yard-waste",
     "forceConfidenceTier": "possible",
     "observations": [
       "Photo evidence can show the material, but pickup timing still needs user confirmation.",
@@ -17143,6 +17361,7 @@ const ISSUE_CATALOG_DATA: Omit<IssueCategory, 'emailGuidanceChecklist'>[] = [
     "requiredAnyLabelIds": [
       "needles-or-syringes"
     ],
+    "requiredAllLabelIds": [],
     "observations": [
       "Photo evidence can support this issue type.",
       "Use the checklist to include any jurisdiction, timing, or safety details."

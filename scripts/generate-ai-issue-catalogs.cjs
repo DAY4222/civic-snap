@@ -10,8 +10,8 @@ const EDGE_CATALOG_TS = path.join(ROOT, 'supabase/functions/analyze-photo-labels
 const PHOTO_LABELS_JSON = path.join(ROOT, 'data/generated/photo-label-taxonomy.json');
 const EDGE_CATALOG_JSON = path.join(ROOT, 'data/generated/edge-issue-catalog.json');
 
-const ISSUE_CATALOG_VERSION = 'toronto-311-ai-issue-catalog-v1';
-const PHOTO_LABEL_TAXONOMY_VERSION = 'photo-label-taxonomy-v2';
+const ISSUE_CATALOG_VERSION = 'toronto-311-ai-issue-catalog-v2';
+const PHOTO_LABEL_TAXONOMY_VERSION = 'photo-label-taxonomy-v3';
 
 const DISCOVERABILITY = {
   PHOTO: 'photo',
@@ -52,23 +52,29 @@ const PHOTO_LABELS = [
   ['bin-lid-damaged', 'Bin lid damaged', 'Damaged or missing collection-bin lid.'],
   ['bin-body-or-handle-damaged', 'Bin body or handle damaged', 'Damaged collection-bin body or handle.'],
   ['bin-wheel-damaged', 'Bin wheel damaged', 'Damaged or missing collection-bin wheel.'],
-  ['missing-bin-evidence', 'Missing bin evidence', 'Visible evidence related to a missing residential bin request.'],
   ['overflowing-street-litter-bin', 'Overflowing street litter bin', 'Public street litter bin full or overflowing.'],
   ['curbside-garbage', 'Curbside garbage', 'Garbage set out at the curb.'],
   ['curbside-recycling', 'Curbside recycling', 'Recycling set out at the curb.'],
   ['curbside-organics', 'Curbside organics', 'Organic waste set out at the curb.'],
+  ['multiple-curbside-setouts', 'Multiple curbside set-outs', 'Multiple neighbouring curbside set-outs visible on the same street.'],
   ['yard-waste', 'Yard waste', 'Yard waste bags, bundles, or containers.'],
   ['oversized-or-electronic-item', 'Oversized or electronic item', 'Large item, appliance, furniture, mattress, or electronics set out.'],
   ['household-hazardous-waste', 'Household hazardous waste', 'Paint, chemicals, batteries, propane, or other hazardous waste.'],
   ['loose-litter', 'Loose litter', 'Loose scattered litter or small debris.'],
   ['illegal-dumping', 'Illegal dumping', 'Dumped waste, bags, furniture, or debris not part of normal set-out.'],
   ['construction-debris', 'Construction debris', 'Construction material, renovation waste, concrete, wood, drywall, or spill.'],
+  ['roadway-debris', 'Roadway debris', 'Debris, litter, or material visibly on a roadway or curb lane.'],
+  ['sidewalk-boulevard-litter', 'Sidewalk or boulevard litter', 'Litter or debris visibly on a sidewalk or boulevard.'],
+  ['laneway-litter', 'Laneway litter', 'Litter or debris visibly in a public laneway.'],
+  ['construction-spill-on-road', 'Construction spill on road', 'Construction material or spill visibly on a roadway.'],
   ['needles-or-syringes', 'Needles or syringes', 'Needle or syringe visible in the scene.'],
   ['biohazard-human-waste', 'Biohazard human waste', 'Visible human waste or biohazard cleanup concern.'],
   ['snow-covered-road', 'Snow-covered road', 'Road that appears snow-covered or uncleared.'],
+  ['icy-road', 'Icy road', 'Road surface that appears icy and needs salting.'],
   ['snow-covered-sidewalk', 'Snow-covered sidewalk', 'Sidewalk that appears snow-covered or uncleared.'],
   ['icy-sidewalk', 'Icy sidewalk', 'Sidewalk that appears icy or needs salting.'],
   ['icy-laneway', 'Icy laneway', 'Laneway that appears icy or needs salting.'],
+  ['snow-dumped-on-public-sidewalk', 'Snow dumped on public sidewalk', 'Snow piled or dumped from private property onto a public sidewalk.'],
   ['snowbank-blocking-driveway', 'Snowbank blocking driveway', 'Plowed snowbank blocking driveway access.'],
   ['snow-blocking-intersection-sightline', 'Snow blocking intersection sightline', 'Snowbank obstructing intersection visibility or mobility.'],
   ['snow-covered-bus-stop', 'Snow-covered bus stop', 'Bus stop or shelter area blocked by snow.'],
@@ -82,12 +88,19 @@ const PHOTO_LABELS = [
   ['tree-pruning-needed', 'Tree pruning needed', 'Visible tree growth or limbs suggesting pruning is needed.'],
   ['tree-removal-or-injury', 'Tree removal or injury', 'Tree removal, cutting, damage, or injury evidence.'],
   ['tree-roots-trip-hazard', 'Tree roots trip hazard', 'Tree roots causing sidewalk or walking-surface hazard.'],
+  ['fallen-tree-blocking-road-or-sidewalk', 'Fallen tree blocking road or sidewalk', 'Fallen tree or large limb blocking a road, sidewalk, or public path.'],
+  ['hazardous-hanging-limb-over-public-way', 'Hazardous limb over public way', 'Broken or hanging limb visibly over a road, sidewalk, or public path.'],
+  ['private-hazardous-tree', 'Private hazardous tree', 'Private tree visibly leaning, split, or with large hazardous limbs.'],
   ['long-grass-or-prohibited-plants', 'Long grass or prohibited plants', 'Long grass, weeds, or prohibited plants on property.'],
   ['private-property-waste', 'Private property waste', 'Waste, debris, or dumping on private property.'],
   ['private-property-disrepair', 'Private property disrepair', 'Visible exterior disrepair on private property.'],
   ['graffiti-private-property', 'Graffiti on private property', 'Graffiti visible on private property.'],
   ['poster-on-public-asset', 'Poster on public asset', 'Poster, flyer, sticker, or sign attached to public property.'],
   ['unpermitted-sign', 'Unpermitted sign', 'Temporary, portable, or possibly unpermitted sign.'],
+  ['damaged-or-missing-traffic-sign', 'Damaged or missing traffic sign', 'Traffic sign visibly damaged, knocked down, missing, or unreadable.'],
+  ['faded-or-obstructed-sign', 'Faded or obstructed sign', 'Traffic or street sign visibly faded, blocked, or hard to read.'],
+  ['street-name-sign-damaged', 'Street name sign damaged', 'Street name sign visibly damaged, missing, faded, or unreadable.'],
+  ['regulatory-sign-damaged', 'Regulatory sign damaged', 'Stop, parking, speed, warning, or regulatory sign visibly damaged or missing.'],
   ['encroachment-on-city-property', 'Encroachment on City property', 'Object, fence, landscaping, or structure encroaching on City property.'],
   ['illegal-off-street-parking', 'Illegal off-street parking', 'Vehicle parked on lawn, boulevard, or other off-street area.'],
   ['construction-site', 'Construction site', 'Construction activity, site, equipment, or hoarding.'],
@@ -99,94 +112,212 @@ const PHOTO_LABELS = [
   ['dog-off-leash', 'Dog off leash', 'Dog off leash in a park or public space.'],
   ['confined-stray-animal', 'Confined stray animal', 'Stray animal confined in a yard, room, vehicle, or enclosure.'],
   ['surface-watermain-break', 'Surface watermain break', 'Water surfacing, flowing, pooling, or spraying from a possible watermain break.'],
+  ['large-water-flow-on-road', 'Large water flow on road', 'Large volume of water flowing or pooling on a road, sidewalk, or boulevard.'],
   ['water-service-box', 'Water service box', 'Water service box, curb stop, or related water-service cover.'],
+  ['water-leaking-from-service-box', 'Water leaking from service box', 'Water visibly leaking, bubbling, or pooling from a water service box.'],
+  ['water-service-box-damaged', 'Water service box damaged', 'Water service box or cover visibly damaged, missing, raised, or sunken.'],
   ['sewer-cleanout', 'Sewer cleanout', 'Sewer cleanout, basement drain, or visible sewer service access.'],
+  ['sunken-road-surface', 'Sunken road surface', 'Road surface visibly sunken or depressed without an open hole.'],
+  ['open-sinkhole', 'Open sinkhole', 'Open hole or collapse in a road or paved surface.'],
 ].map(([id, label, description]) => ({ id, label, description }));
 
 const ISSUE_RULES = {
-  'Residential Bin Lid Damaged': rule(DISCOVERABILITY.PHOTO, ['bin-lid-damaged'], ['residential-collection-bin', 'garbage-bin', 'recycling-bin', 'organic-bin']),
-  'Road Pothole / Road Damage': rule(DISCOVERABILITY.PHOTO, ['road-pothole', 'road-surface-damage'], ['roadway', 'bike-lane']),
-  'Property Standards and Maintenance Violations': rule(DISCOVERABILITY.LIMITED, ['private-property-disrepair', 'private-property-waste', 'standing-water-private-property'], ['private-property', 'long-grass-or-prohibited-plants']),
-  'Sidewalk Snow Clearing Required': rule(DISCOVERABILITY.PHOTO, ['snow-covered-sidewalk'], ['sidewalk']),
+  'Residential Bin Lid Damaged': rule(DISCOVERABILITY.PHOTO, ['bin-lid-damaged'], ['residential-collection-bin', 'garbage-bin', 'recycling-bin', 'organic-bin'], {
+    photoHint: 'Visible residential collection bin lid damage or missing lid.',
+  }),
+  'Road Pothole / Road Damage': rule(DISCOVERABILITY.PHOTO, ['road-pothole', 'road-surface-damage'], ['roadway', 'bike-lane'], {
+    photoHint: 'Visible pothole, broken asphalt, or damaged pavement in a road or bike lane.',
+    suppressionGroup: 'road-surface-defect',
+  }),
+  'Property Standards and Maintenance Violations': rule(DISCOVERABILITY.LIMITED, ['private-property-disrepair', 'private-property-waste', 'standing-water-private-property'], ['private-property', 'long-grass-or-prohibited-plants'], {
+    photoHint: 'Visible private-property exterior disrepair, waste accumulation, or standing water.',
+  }),
+  'Sidewalk Snow Clearing Required': rule(DISCOVERABILITY.PHOTO, ['snow-covered-sidewalk'], ['sidewalk'], {
+    suppressionGroup: 'sidewalk-snow-ice',
+  }),
   'Injured - Wildlife': rule(DISCOVERABILITY.PHOTO, ['injured-wildlife'], []),
   'Pick up Dead Wildlife': rule(DISCOVERABILITY.PHOTO, ['dead-wildlife'], []),
-  'Road Plowing Request': rule(DISCOVERABILITY.PHOTO, ['snow-covered-road'], ['roadway']),
-  'General Pruning': rule(DISCOVERABILITY.PHOTO, ['tree-pruning-needed', 'hanging-or-broken-branch'], ['public-tree']),
-  'Residential - Garbage Day Collection - Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['curbside-garbage'], ['residential-curb', 'garbage-bin'], 'possible'),
+  'Road Plowing Request': rule(DISCOVERABILITY.PHOTO, ['snow-covered-road'], ['roadway'], {
+    suppressionGroup: 'road-winter-maintenance',
+  }),
+  'General Pruning': rule(DISCOVERABILITY.PHOTO, ['tree-pruning-needed'], ['public-tree', 'hanging-or-broken-branch'], {
+    photoHint: 'Visible public tree limbs or growth needing pruning, without an immediate blockage or hazard.',
+    suppressionGroup: 'tree-maintenance',
+  }),
+  'Residential - Garbage Day Collection - Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['curbside-garbage'], ['garbage-bin', 'residential-curb'], {
+    forceConfidenceTier: 'possible',
+    requiredAllLabelIds: ['residential-curb'],
+    photoHint: 'Garbage set out at a residential curb; pickup timing still needs confirmation.',
+    suppressionGroup: 'missed-garbage',
+  }),
   'Residential Bin Body or Handle Damaged': rule(DISCOVERABILITY.PHOTO, ['bin-body-or-handle-damaged'], ['residential-collection-bin', 'garbage-bin', 'recycling-bin', 'organic-bin']),
   'Driveway Blocked By Plowed Snowbank': rule(DISCOVERABILITY.PHOTO, ['snowbank-blocking-driveway'], []),
-  'Residential Oversized/Electronics Item Day Collection Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['oversized-or-electronic-item'], ['residential-curb'], 'possible'),
+  'Residential Oversized/Electronics Item Day Collection Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['oversized-or-electronic-item'], ['residential-curb'], {
+    forceConfidenceTier: 'possible',
+    requiredAllLabelIds: ['residential-curb'],
+    photoHint: 'Oversized item or electronics set out at a residential curb; pickup timing still needs confirmation.',
+    suppressionGroup: 'missed-oversized',
+  }),
   'Waste or Illegal Dumping on Private Property': rule(DISCOVERABILITY.PHOTO, ['private-property-waste'], ['private-property', 'illegal-dumping']),
-  'Residential Organics Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['curbside-organics'], ['organic-bin', 'residential-curb'], 'possible'),
-  'Tree Emergency Clean-Up': rule(DISCOVERABILITY.PHOTO, ['fallen-tree-or-large-limb', 'hanging-or-broken-branch'], ['public-tree', 'roadway', 'sidewalk']),
-  'Clean up Illegal Dumping on City Road Allowance': rule(DISCOVERABILITY.PHOTO, ['illegal-dumping'], ['roadway', 'sidewalk', 'boulevard', 'laneway', 'oversized-or-electronic-item', 'construction-debris']),
+  'Residential Organics Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['curbside-organics'], ['organic-bin', 'residential-curb'], {
+    forceConfidenceTier: 'possible',
+    requiredAllLabelIds: ['residential-curb'],
+    photoHint: 'Organics set out at a residential curb; pickup timing still needs confirmation.',
+    suppressionGroup: 'missed-organics',
+  }),
+  'Tree Emergency Clean-Up': rule(DISCOVERABILITY.PHOTO, ['fallen-tree-blocking-road-or-sidewalk', 'hazardous-hanging-limb-over-public-way'], ['fallen-tree-or-large-limb', 'hanging-or-broken-branch', 'public-tree', 'roadway', 'sidewalk'], {
+    photoHint: 'Fallen tree or hazardous limb visibly blocking or threatening a public road, sidewalk, or path.',
+    suppressionGroup: 'tree-hazard',
+  }),
+  'Clean up Illegal Dumping on City Road Allowance': rule(DISCOVERABILITY.PHOTO, ['illegal-dumping', 'biohazard-human-waste'], ['roadway', 'sidewalk', 'boulevard', 'laneway', 'oversized-or-electronic-item', 'construction-debris'], {
+    photoHint: 'Dumped waste or biohazard on a public road allowance, not normal residential set-out.',
+  }),
   'Sewer Service Line-Blocked': rule(DISCOVERABILITY.LIMITED, ['sewer-cleanout'], ['surface-watermain-break']),
-  'Clean up Debris on Road': rule(DISCOVERABILITY.PHOTO, ['construction-debris', 'loose-litter'], ['roadway']),
-  'Residential - Recycling Day Collection - Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['curbside-recycling'], ['recycling-bin', 'residential-curb'], 'possible'),
+  'Clean up Debris on Road': rule(DISCOVERABILITY.PHOTO, ['roadway-debris', 'construction-spill-on-road'], ['roadway', 'construction-debris', 'loose-litter'], {
+    photoHint: 'Debris, litter, or construction spill visibly on a road or curb lane.',
+  }),
+  'Residential - Recycling Day Collection - Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['curbside-recycling'], ['recycling-bin', 'residential-curb'], {
+    forceConfidenceTier: 'possible',
+    requiredAllLabelIds: ['residential-curb'],
+    photoHint: 'Recycling set out at a residential curb; pickup timing still needs confirmation.',
+    suppressionGroup: 'missed-recycling',
+  }),
   'Traffic Signal Repair': rule(DISCOVERABILITY.PHOTO, ['traffic-signal'], ['intersection']),
   'Hazardous Waste Pick-up': rule(DISCOVERABILITY.PHOTO, ['household-hazardous-waste'], []),
   'Zoning Regulations Violations': rule(DISCOVERABILITY.LIMITED, ['construction-site', 'unpermitted-sign'], ['private-property']),
-  'Report an Encroachment on City Property': rule(DISCOVERABILITY.PHOTO, ['encroachment-on-city-property'], ['boulevard', 'sidewalk']),
-  'Residential: Garbage Bin: Missing': rule(DISCOVERABILITY.LIMITED, ['missing-bin-evidence'], ['garbage-bin', 'residential-curb']),
-  'Missing / Damaged Street or Traffic Signs': rule(DISCOVERABILITY.PHOTO, ['traffic-sign', 'street-name-sign', 'regulatory-or-warning-sign'], ['roadway', 'intersection']),
-  'Replace Missing Residential Organic Bin': rule(DISCOVERABILITY.LIMITED, ['missing-bin-evidence'], ['organic-bin', 'residential-curb']),
-  'Catch Basin - Blocked / Flooding': rule(DISCOVERABILITY.PHOTO, ['catch-basin'], ['roadway', 'boulevard', 'surface-watermain-break']),
+  'Report an Encroachment on City Property': rule(DISCOVERABILITY.PHOTO, ['encroachment-on-city-property'], ['boulevard', 'sidewalk', 'bike-lane']),
+  'Missing / Damaged Street or Traffic Signs': rule(DISCOVERABILITY.PHOTO, ['damaged-or-missing-traffic-sign', 'street-name-sign-damaged', 'faded-or-obstructed-sign'], ['traffic-sign', 'street-name-sign', 'regulatory-or-warning-sign', 'roadway', 'intersection'], {
+    photoHint: 'Visible missing, damaged, faded, obstructed, or unreadable traffic or street-name sign.',
+    suppressionGroup: 'street-traffic-signs',
+  }),
+  'Catch Basin - Blocked / Flooding': rule(DISCOVERABILITY.PHOTO, ['catch-basin'], ['roadway', 'boulevard', 'surface-watermain-break', 'large-water-flow-on-road']),
   'Long Grass and Prohibited Plants on Private Property': rule(DISCOVERABILITY.PHOTO, ['long-grass-or-prohibited-plants'], ['private-property']),
-  'Multi-residential Front End Loaded Oversized Items Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['oversized-or-electronic-item'], [], 'possible'),
-  'Residential: Recycle Bin: Missing': rule(DISCOVERABILITY.LIMITED, ['missing-bin-evidence'], ['recycling-bin', 'residential-curb']),
-  'Icy Sidewalk Needs Salting': rule(DISCOVERABILITY.PHOTO, ['icy-sidewalk'], ['sidewalk']),
-  'Residential or Park Tree Removal': rule(DISCOVERABILITY.LIMITED, ['tree-removal-or-injury'], ['public-tree', 'private-tree', 'city-park']),
-  'Damaged Concrete Sidewalk': rule(DISCOVERABILITY.PHOTO, ['damaged-concrete-sidewalk'], ['sidewalk', 'tree-roots-trip-hazard']),
+  'Icy Sidewalk Needs Salting': rule(DISCOVERABILITY.PHOTO, ['icy-sidewalk'], ['sidewalk'], {
+    suppressionGroup: 'sidewalk-snow-ice',
+  }),
+  'Residential or Park Tree Removal': rule(DISCOVERABILITY.LIMITED, ['tree-removal-or-injury'], ['public-tree', 'private-tree', 'city-park'], {
+    suppressionGroup: 'tree-removal',
+  }),
+  'Damaged Concrete Sidewalk': rule(DISCOVERABILITY.PHOTO, ['damaged-concrete-sidewalk'], ['sidewalk', 'tree-roots-trip-hazard'], {
+    suppressionGroup: 'sidewalk-surface-defect',
+  }),
   'Boulevard Plow Damage': rule(DISCOVERABILITY.PHOTO, ['snow-plow-boulevard-damage'], ['boulevard']),
-  'Sidewalk - Cleaning': rule(DISCOVERABILITY.PHOTO, ['loose-litter'], ['sidewalk']),
-  'Road - Sinking': rule(DISCOVERABILITY.PHOTO, ['road-sinking-or-sinkhole'], ['roadway']),
-  'Road Salting Request': rule(DISCOVERABILITY.LIMITED, ['snow-covered-road'], ['roadway'], 'possible'),
-  'Residential / Yard Waste / Missed': rule(DISCOVERABILITY.LIMITED, ['yard-waste'], ['residential-curb'], 'possible'),
-  'Water Service Line-Check Water Service Box': rule(DISCOVERABILITY.PHOTO, ['water-service-box'], []),
-  'Watermain-Possible Break': rule(DISCOVERABILITY.PHOTO, ['surface-watermain-break'], ['roadway', 'boulevard']),
-  'Clean up Litter on Sidewalks and Boulevards': rule(DISCOVERABILITY.PHOTO, ['loose-litter'], ['sidewalk', 'boulevard']),
+  'Road - Sinking': rule(DISCOVERABILITY.PHOTO, ['sunken-road-surface'], ['road-sinking-or-sinkhole', 'roadway'], {
+    photoHint: 'Sunken or depressed road surface without an open hole.',
+    suppressionGroup: 'road-sinking',
+  }),
+  'Road Salting Request': rule(DISCOVERABILITY.LIMITED, ['icy-road'], ['roadway'], {
+    forceConfidenceTier: 'possible',
+    suppressionGroup: 'road-winter-maintenance',
+  }),
+  'Residential / Yard Waste / Missed': rule(DISCOVERABILITY.LIMITED, ['yard-waste'], ['residential-curb'], {
+    forceConfidenceTier: 'possible',
+    requiredAllLabelIds: ['residential-curb'],
+    suppressionGroup: 'missed-yard-waste',
+  }),
+  'Water Service Line-Check Water Service Box': rule(DISCOVERABILITY.PHOTO, ['water-service-box-damaged'], ['water-service-box'], {
+    photoHint: 'Water service box or cover is visibly damaged, missing, raised, or sunken.',
+    suppressionGroup: 'water-service-box',
+  }),
+  'Watermain-Possible Break': rule(DISCOVERABILITY.PHOTO, ['large-water-flow-on-road'], ['surface-watermain-break', 'roadway', 'boulevard'], {
+    photoHint: 'Large volume of water surfacing or flowing on public road, roadside, sidewalk, or boulevard.',
+    suppressionGroup: 'water-main-break',
+  }),
+  'Clean up Litter on Sidewalks and Boulevards': rule(DISCOVERABILITY.PHOTO, ['sidewalk-boulevard-litter', 'laneway-litter'], ['loose-litter', 'sidewalk', 'boulevard', 'laneway']),
   'Clean up Overflowing Street Litter Bin': rule(DISCOVERABILITY.PHOTO, ['overflowing-street-litter-bin'], ['street-litter-bin']),
-  'Illegal Snow Dumping & Failure to Clear Snow or Ice on Public Sidewalk': rule(DISCOVERABILITY.LIMITED, ['snow-covered-sidewalk', 'icy-sidewalk'], ['sidewalk']),
-  'Missing/Damaged/Faded/Relocating Street Name or Traffic Signs': rule(DISCOVERABILITY.PHOTO, ['street-name-sign', 'traffic-sign', 'regulatory-or-warning-sign'], []),
-  'Water Service Line-Leaking': rule(DISCOVERABILITY.LIMITED, ['surface-watermain-break', 'water-service-box'], []),
+  'Illegal Snow Dumping & Failure to Clear Snow or Ice on Public Sidewalk': rule(DISCOVERABILITY.LIMITED, ['snow-dumped-on-public-sidewalk'], ['snow-covered-sidewalk', 'icy-sidewalk', 'sidewalk'], {
+    photoHint: 'Snow visibly dumped or piled from private property onto a public sidewalk.',
+    suppressionGroup: 'sidewalk-snow-ice',
+  }),
+  'Water Service Line-Leaking': rule(DISCOVERABILITY.LIMITED, ['water-leaking-from-service-box'], ['surface-watermain-break', 'water-service-box'], {
+    photoHint: 'Water visibly leaking, bubbling, or pooling from a water service box.',
+    suppressionGroup: 'water-service-box',
+  }),
   'Dog Off-Leash in a City Park': rule(DISCOVERABILITY.PHOTO, ['dog-off-leash'], ['city-park']),
-  'Unauthorized Tree Injury or Removal': rule(DISCOVERABILITY.PHOTO, ['tree-removal-or-injury'], ['public-tree']),
-  'General Tree Maintenance': rule(DISCOVERABILITY.PHOTO, ['tree-pruning-needed', 'hanging-or-broken-branch'], ['public-tree']),
+  'Unauthorized Tree Injury or Removal': rule(DISCOVERABILITY.PHOTO, ['tree-removal-or-injury'], ['public-tree'], {
+    suppressionGroup: 'tree-removal',
+  }),
   'Postering City Property / Structures': rule(DISCOVERABILITY.PHOTO, ['poster-on-public-asset'], []),
   'Graffiti on Private Property': rule(DISCOVERABILITY.PHOTO, ['graffiti-private-property'], ['private-property']),
   'Residential Bin Wheel Damaged': rule(DISCOVERABILITY.PHOTO, ['bin-wheel-damaged'], ['residential-collection-bin', 'garbage-bin', 'recycling-bin', 'organic-bin']),
-  'Residential Organic Bin Whole Street Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['curbside-organics'], ['organic-bin'], 'possible'),
+  'Residential Organic Bin Whole Street Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['multiple-curbside-setouts'], ['curbside-organics', 'organic-bin'], {
+    forceConfidenceTier: 'possible',
+    requiredAllLabelIds: ['curbside-organics'],
+    suppressionGroup: 'missed-organics',
+  }),
   'Illegal Off-Street Parking': rule(DISCOVERABILITY.PHOTO, ['illegal-off-street-parking'], ['private-property', 'boulevard']),
-  'Dangerous Private Tree Investigation': rule(DISCOVERABILITY.LIMITED, ['private-tree', 'hanging-or-broken-branch', 'fallen-tree-or-large-limb'], ['private-property']),
+  'Dangerous Private Tree Investigation': rule(DISCOVERABILITY.LIMITED, ['private-hazardous-tree'], ['private-tree', 'hanging-or-broken-branch', 'fallen-tree-or-large-limb', 'private-property'], {
+    photoHint: 'Private tree visibly leaning, split, fallen, or with large hazardous limbs.',
+    suppressionGroup: 'tree-hazard',
+  }),
   'Laneway Needs Salting': rule(DISCOVERABILITY.PHOTO, ['icy-laneway'], ['laneway']),
   'Boulevards - Damaged Asphalt': rule(DISCOVERABILITY.PHOTO, ['damaged-boulevard-asphalt'], ['boulevard']),
-  'Walkway - Damaged or Uneven': rule(DISCOVERABILITY.PHOTO, ['uneven-walkway'], ['sidewalk']),
-  'Residential Garbage Not Picked Up on the Whole Street': rule(DISCOVERABILITY.LIMITED, ['curbside-garbage'], ['garbage-bin'], 'possible'),
-  'Snow at Intersections - Impeded Mobility': rule(DISCOVERABILITY.PHOTO, ['snow-blocking-intersection-sightline'], ['intersection']),
-  'Sink Hole': rule(DISCOVERABILITY.PHOTO, ['road-sinking-or-sinkhole'], ['roadway']),
-  'Water-Miscellaneous': rule(DISCOVERABILITY.LIMITED, ['surface-watermain-break', 'water-service-box'], []),
-  'Multi-residential Front End Loaded Garbage Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['curbside-garbage'], ['garbage-bin'], 'possible'),
-  'Water Service Line-Turn Off/Burst': rule(DISCOVERABILITY.LIMITED, ['surface-watermain-break', 'water-service-box'], []),
-  'Snow Removal - Sightline Problem': rule(DISCOVERABILITY.PHOTO, ['snow-blocking-intersection-sightline'], ['intersection', 'roadway']),
+  'Walkway - Damaged or Uneven': rule(DISCOVERABILITY.PHOTO, ['uneven-walkway'], ['sidewalk'], {
+    suppressionGroup: 'sidewalk-surface-defect',
+  }),
+  'Residential Garbage Not Picked Up on the Whole Street': rule(DISCOVERABILITY.LIMITED, ['multiple-curbside-setouts'], ['curbside-garbage', 'garbage-bin'], {
+    forceConfidenceTier: 'possible',
+    requiredAllLabelIds: ['curbside-garbage'],
+    suppressionGroup: 'missed-garbage',
+  }),
+  'Snow at Intersections - Impeded Mobility': rule(DISCOVERABILITY.PHOTO, ['snow-blocking-intersection-sightline'], ['intersection'], {
+    suppressionGroup: 'intersection-snow-sightline',
+  }),
+  'Sink Hole': rule(DISCOVERABILITY.PHOTO, ['open-sinkhole'], ['road-sinking-or-sinkhole', 'roadway'], {
+    photoHint: 'Open sinkhole or visible collapse, not just a sunken surface.',
+    suppressionGroup: 'road-sinking',
+  }),
+  'Snow Removal - Sightline Problem': rule(DISCOVERABILITY.PHOTO, ['snow-blocking-intersection-sightline'], ['intersection', 'roadway'], {
+    suppressionGroup: 'intersection-snow-sightline',
+  }),
   'Signs': rule(DISCOVERABILITY.LIMITED, ['unpermitted-sign'], ['private-property']),
   'Bus Stops Snow Clearing Required': rule(DISCOVERABILITY.PHOTO, ['snow-covered-bus-stop'], ['bus-stop']),
   'Stray - Confined': rule(DISCOVERABILITY.PHOTO, ['confined-stray-animal'], []),
-  'Maintenance Holes Lid Loose/Missing': rule(DISCOVERABILITY.PHOTO, ['maintenance-hole-lid'], ['roadway', 'sidewalk']),
+  'Maintenance Holes Lid Loose/Missing': rule(DISCOVERABILITY.PHOTO, ['maintenance-hole-lid', 'bike-lane-bollard-or-barrier'], ['roadway', 'sidewalk', 'bike-lane'], {
+    photoHint: 'Loose, missing, sunken, or damaged maintenance hole cover or visible bollard/barrier damage.',
+  }),
   'Stray - At Large': rule(DISCOVERABILITY.PHOTO, ['stray-dog'], []),
   'School Zone Snow Clearing': rule(DISCOVERABILITY.PHOTO, ['snow-covered-school-zone'], ['school-zone']),
-  'Walkway Snow Clearing/Salting Request': rule(DISCOVERABILITY.PHOTO, ['snow-covered-sidewalk', 'icy-sidewalk'], ['sidewalk', 'uneven-walkway']),
+  'Walkway Snow Clearing/Salting Request': rule(DISCOVERABILITY.PHOTO, ['snow-covered-sidewalk', 'icy-sidewalk'], ['sidewalk', 'uneven-walkway'], {
+    suppressionGroup: 'sidewalk-snow-ice',
+  }),
   'Pick up Dead Domestic Animals': rule(DISCOVERABILITY.PHOTO, ['dead-domestic-animal'], []),
-  'Bike Lane Winter Maintenance Required': rule(DISCOVERABILITY.PHOTO, ['snow-covered-bike-lane'], ['bike-lane']),
-  'Investigate Regulatory Signs': rule(DISCOVERABILITY.PHOTO, ['regulatory-or-warning-sign'], ['traffic-sign']),
-  'Residential Yard Waste Whole Street Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['yard-waste'], [], 'possible'),
+  'Bike Lane Winter Maintenance Required': rule(DISCOVERABILITY.PHOTO, ['snow-covered-bike-lane'], ['bike-lane'], {
+    suppressionGroup: 'road-winter-maintenance',
+  }),
+  'Investigate Regulatory Signs': rule(DISCOVERABILITY.PHOTO, ['regulatory-sign-damaged'], ['traffic-sign', 'regulatory-or-warning-sign'], {
+    photoHint: 'Regulatory or warning sign visibly damaged, missing, faded, or unreadable.',
+    suppressionGroup: 'street-traffic-signs',
+  }),
+  'Residential Yard Waste Whole Street Not Picked Up': rule(DISCOVERABILITY.LIMITED, ['multiple-curbside-setouts'], ['yard-waste'], {
+    forceConfidenceTier: 'possible',
+    requiredAllLabelIds: ['yard-waste'],
+    suppressionGroup: 'missed-yard-waste',
+  }),
   'Clean up Needles or Syringes': rule(DISCOVERABILITY.PHOTO, ['needles-or-syringes'], ['sidewalk', 'boulevard', 'laneway']),
 };
 
 const DEFAULT_RULE = rule(DISCOVERABILITY.NONE, [], []);
 
-function rule(discoverability, requiredAnyLabelIds, supportingLabelIds, forceConfidenceTier) {
-  const visualCueLabelIds = unique([...requiredAnyLabelIds, ...supportingLabelIds]);
-  return { discoverability, requiredAnyLabelIds, visualCueLabelIds, forceConfidenceTier };
+function rule(discoverability, requiredAnyLabelIds, supportingLabelIds, config) {
+  const options = typeof config === 'string'
+    ? { forceConfidenceTier: config }
+    : config ?? {};
+  const requiredAllLabelIds = options.requiredAllLabelIds ?? [];
+  const visualCueLabelIds = unique([
+    ...requiredAnyLabelIds,
+    ...requiredAllLabelIds,
+    ...supportingLabelIds,
+  ]);
+  return {
+    discoverability,
+    requiredAnyLabelIds,
+    requiredAllLabelIds,
+    visualCueLabelIds,
+    forceConfidenceTier: options.forceConfidenceTier,
+    photoHint: options.photoHint,
+    suppressionGroup: options.suppressionGroup,
+  };
 }
 
 function main() {
@@ -205,6 +336,9 @@ function main() {
     discoverability: issue.discoverability,
     visualCueLabelIds: issue.visualCueLabelIds,
     requiredAnyLabelIds: issue.requiredAnyLabelIds,
+    requiredAllLabelIds: issue.requiredAllLabelIds,
+    photoHint: issue.photoHint,
+    suppressionGroup: issue.suppressionGroup,
     forceConfidenceTier: issue.forceConfidenceTier,
   }));
 
@@ -245,6 +379,9 @@ function toAppIssue(target) {
     discoverability: ruleForIssue.discoverability,
     visualCueLabelIds: ruleForIssue.visualCueLabelIds,
     requiredAnyLabelIds: ruleForIssue.requiredAnyLabelIds,
+    requiredAllLabelIds: ruleForIssue.requiredAllLabelIds,
+    photoHint: ruleForIssue.photoHint,
+    suppressionGroup: ruleForIssue.suppressionGroup,
     forceConfidenceTier: ruleForIssue.forceConfidenceTier,
     observations: observationsFor(target, ruleForIssue),
     questions,

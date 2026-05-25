@@ -46,6 +46,9 @@ export type IssueCategory = {
   sourceMatchStatus?: IssueCategorySourceMatchStatus;
   visualCueLabelIds: string[];
   requiredAnyLabelIds: string[];
+  requiredAllLabelIds: string[];
+  photoHint?: string;
+  suppressionGroup?: string;
   forceConfidenceTier?: PhotoIssueConfidenceTier;
   observations: string[];
   questions: CategoryQuestion[];

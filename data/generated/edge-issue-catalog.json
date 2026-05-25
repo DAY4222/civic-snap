@@ -1,5 +1,5 @@
 {
-  "version": "toronto-311-ai-issue-catalog-v1",
+  "version": "toronto-311-ai-issue-catalog-v2",
   "issues": [
     {
       "id": "residential-bin-lid-damaged",
@@ -21,7 +21,9 @@
       ],
       "requiredAnyLabelIds": [
         "bin-lid-damaged"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Visible residential collection bin lid damage or missing lid."
     },
     {
       "id": "road-pothole-road-damage",
@@ -43,7 +45,10 @@
       "requiredAnyLabelIds": [
         "road-pothole",
         "road-surface-damage"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Visible pothole, broken asphalt, or damaged pavement in a road or bike lane.",
+      "suppressionGroup": "road-surface-defect"
     },
     {
       "id": "property-standards-and-maintenance-violations",
@@ -66,7 +71,9 @@
         "private-property-disrepair",
         "private-property-waste",
         "standing-water-private-property"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Visible private-property exterior disrepair, waste accumulation, or standing water."
     },
     {
       "id": "sidewalk-snow-clearing-required",
@@ -82,7 +89,9 @@
       ],
       "requiredAnyLabelIds": [
         "snow-covered-sidewalk"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "sidewalk-snow-ice"
     },
     {
       "id": "injured-wildlife",
@@ -99,7 +108,8 @@
       ],
       "requiredAnyLabelIds": [
         "injured-wildlife"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "pick-up-dead-wildlife",
@@ -116,7 +126,8 @@
       ],
       "requiredAnyLabelIds": [
         "dead-wildlife"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "road-plowing-request",
@@ -132,7 +143,9 @@
       ],
       "requiredAnyLabelIds": [
         "snow-covered-road"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "road-winter-maintenance"
     },
     {
       "id": "general-pruning",
@@ -147,13 +160,15 @@
       "discoverability": "photo",
       "visualCueLabelIds": [
         "tree-pruning-needed",
-        "hanging-or-broken-branch",
-        "public-tree"
+        "public-tree",
+        "hanging-or-broken-branch"
       ],
       "requiredAnyLabelIds": [
-        "tree-pruning-needed",
-        "hanging-or-broken-branch"
-      ]
+        "tree-pruning-needed"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Visible public tree limbs or growth needing pruning, without an immediate blockage or hazard.",
+      "suppressionGroup": "tree-maintenance"
     },
     {
       "id": "residential-garbage-day-collection-not-picked-up",
@@ -174,6 +189,11 @@
       "requiredAnyLabelIds": [
         "curbside-garbage"
       ],
+      "requiredAllLabelIds": [
+        "residential-curb"
+      ],
+      "photoHint": "Garbage set out at a residential curb; pickup timing still needs confirmation.",
+      "suppressionGroup": "missed-garbage",
       "forceConfidenceTier": "possible"
     },
     {
@@ -196,7 +216,8 @@
       ],
       "requiredAnyLabelIds": [
         "bin-body-or-handle-damaged"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "driveway-blocked-by-plowed-snowbank",
@@ -211,7 +232,8 @@
       ],
       "requiredAnyLabelIds": [
         "snowbank-blocking-driveway"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-oversized-electronics-item-day-collection-not-picked-up",
@@ -231,6 +253,11 @@
       "requiredAnyLabelIds": [
         "oversized-or-electronic-item"
       ],
+      "requiredAllLabelIds": [
+        "residential-curb"
+      ],
+      "photoHint": "Oversized item or electronics set out at a residential curb; pickup timing still needs confirmation.",
+      "suppressionGroup": "missed-oversized",
       "forceConfidenceTier": "possible"
     },
     {
@@ -250,7 +277,8 @@
       ],
       "requiredAnyLabelIds": [
         "private-property-waste"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-organics-not-picked-up",
@@ -265,12 +293,17 @@
       "discoverability": "limited-context",
       "visualCueLabelIds": [
         "curbside-organics",
-        "organic-bin",
-        "residential-curb"
+        "residential-curb",
+        "organic-bin"
       ],
       "requiredAnyLabelIds": [
         "curbside-organics"
       ],
+      "requiredAllLabelIds": [
+        "residential-curb"
+      ],
+      "photoHint": "Organics set out at a residential curb; pickup timing still needs confirmation.",
+      "suppressionGroup": "missed-organics",
       "forceConfidenceTier": "possible"
     },
     {
@@ -284,7 +317,8 @@
       "shortDescription": "Report amplified sound made by any electronic devices incorporating one or more loudspeakers.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "tree-emergency-clean-up",
@@ -297,6 +331,8 @@
       "shortDescription": "Request clean-up of a City-owned tree that has fallen or poses a hazard to pedestrians or traffic.",
       "discoverability": "photo",
       "visualCueLabelIds": [
+        "fallen-tree-blocking-road-or-sidewalk",
+        "hazardous-hanging-limb-over-public-way",
         "fallen-tree-or-large-limb",
         "hanging-or-broken-branch",
         "public-tree",
@@ -304,9 +340,12 @@
         "sidewalk"
       ],
       "requiredAnyLabelIds": [
-        "fallen-tree-or-large-limb",
-        "hanging-or-broken-branch"
-      ]
+        "fallen-tree-blocking-road-or-sidewalk",
+        "hazardous-hanging-limb-over-public-way"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Fallen tree or hazardous limb visibly blocking or threatening a public road, sidewalk, or path.",
+      "suppressionGroup": "tree-hazard"
     },
     {
       "id": "clean-up-illegal-dumping-on-city-road-allowance",
@@ -321,6 +360,7 @@
       "discoverability": "photo",
       "visualCueLabelIds": [
         "illegal-dumping",
+        "biohazard-human-waste",
         "roadway",
         "sidewalk",
         "boulevard",
@@ -329,8 +369,11 @@
         "construction-debris"
       ],
       "requiredAnyLabelIds": [
-        "illegal-dumping"
-      ]
+        "illegal-dumping",
+        "biohazard-human-waste"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Dumped waste or biohazard on a public road allowance, not normal residential set-out."
     },
     {
       "id": "sewer-service-line-blocked",
@@ -349,7 +392,8 @@
       ],
       "requiredAnyLabelIds": [
         "sewer-cleanout"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "clean-up-debris-on-road",
@@ -362,14 +406,18 @@
       "shortDescription": "Request road cleaning or removing debris or litter on a City roadway",
       "discoverability": "photo",
       "visualCueLabelIds": [
-        "construction-debris",
-        "loose-litter",
-        "roadway"
-      ],
-      "requiredAnyLabelIds": [
+        "roadway-debris",
+        "construction-spill-on-road",
+        "roadway",
         "construction-debris",
         "loose-litter"
-      ]
+      ],
+      "requiredAnyLabelIds": [
+        "roadway-debris",
+        "construction-spill-on-road"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Debris, litter, or construction spill visibly on a road or curb lane."
     },
     {
       "id": "residential-recycling-day-collection-not-picked-up",
@@ -384,12 +432,17 @@
       "discoverability": "limited-context",
       "visualCueLabelIds": [
         "curbside-recycling",
-        "recycling-bin",
-        "residential-curb"
+        "residential-curb",
+        "recycling-bin"
       ],
       "requiredAnyLabelIds": [
         "curbside-recycling"
       ],
+      "requiredAllLabelIds": [
+        "residential-curb"
+      ],
+      "photoHint": "Recycling set out at a residential curb; pickup timing still needs confirmation.",
+      "suppressionGroup": "missed-recycling",
       "forceConfidenceTier": "possible"
     },
     {
@@ -409,7 +462,8 @@
       ],
       "requiredAnyLabelIds": [
         "traffic-signal"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "hazardous-waste-pick-up",
@@ -426,7 +480,8 @@
       ],
       "requiredAnyLabelIds": [
         "household-hazardous-waste"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "zoning-regulations-violations",
@@ -446,7 +501,8 @@
       "requiredAnyLabelIds": [
         "construction-site",
         "unpermitted-sign"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "report-an-encroachment-on-city-property",
@@ -461,11 +517,13 @@
       "visualCueLabelIds": [
         "encroachment-on-city-property",
         "boulevard",
-        "sidewalk"
+        "sidewalk",
+        "bike-lane"
       ],
       "requiredAnyLabelIds": [
         "encroachment-on-city-property"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-garbage-bin-missing",
@@ -477,15 +535,10 @@
         "Residential: Garbage Bin: Missing"
       ],
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
-      "discoverability": "limited-context",
-      "visualCueLabelIds": [
-        "missing-bin-evidence",
-        "garbage-bin",
-        "residential-curb"
-      ],
-      "requiredAnyLabelIds": [
-        "missing-bin-evidence"
-      ]
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "missing-damaged-street-or-traffic-signs",
@@ -499,6 +552,9 @@
       "shortDescription": "Request investigation of temporary condition, warning, regulatory signs or report missing or damaged street and traffic signs.",
       "discoverability": "photo",
       "visualCueLabelIds": [
+        "damaged-or-missing-traffic-sign",
+        "street-name-sign-damaged",
+        "faded-or-obstructed-sign",
         "traffic-sign",
         "street-name-sign",
         "regulatory-or-warning-sign",
@@ -506,10 +562,13 @@
         "intersection"
       ],
       "requiredAnyLabelIds": [
-        "traffic-sign",
-        "street-name-sign",
-        "regulatory-or-warning-sign"
-      ]
+        "damaged-or-missing-traffic-sign",
+        "street-name-sign-damaged",
+        "faded-or-obstructed-sign"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Visible missing, damaged, faded, obstructed, or unreadable traffic or street-name sign.",
+      "suppressionGroup": "street-traffic-signs"
     },
     {
       "id": "replace-missing-residential-organic-bin",
@@ -521,15 +580,10 @@
         "Replace Missing Residential Organic Bin"
       ],
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
-      "discoverability": "limited-context",
-      "visualCueLabelIds": [
-        "missing-bin-evidence",
-        "organic-bin",
-        "residential-curb"
-      ],
-      "requiredAnyLabelIds": [
-        "missing-bin-evidence"
-      ]
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "catch-basin-blocked-flooding",
@@ -546,11 +600,13 @@
         "catch-basin",
         "roadway",
         "boulevard",
-        "surface-watermain-break"
+        "surface-watermain-break",
+        "large-water-flow-on-road"
       ],
       "requiredAnyLabelIds": [
         "catch-basin"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "long-grass-and-prohibited-plants-on-private-property",
@@ -568,7 +624,8 @@
       ],
       "requiredAnyLabelIds": [
         "long-grass-or-prohibited-plants"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "construction-noise",
@@ -581,7 +638,8 @@
       "shortDescription": "Report noise from construction activities, equipment, or crane work (including erection, dismantling, or any crane work requiring road closure) outside permitted hours. Examples include noise from building repair, demolition, or excavation.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "multi-residential-front-end-loaded-oversized-items-not-picked-up",
@@ -593,14 +651,10 @@
         "Multi-residential Front End Loaded Oversized Items Not Picked Up"
       ],
       "shortDescription": "Report missed collection of garbage, organic waste, yard waste, oversized items, Christmas trees, hazardous or electronic waste.",
-      "discoverability": "limited-context",
-      "visualCueLabelIds": [
-        "oversized-or-electronic-item"
-      ],
-      "requiredAnyLabelIds": [
-        "oversized-or-electronic-item"
-      ],
-      "forceConfidenceTier": "possible"
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-recycle-bin-missing",
@@ -612,15 +666,10 @@
         "Residential: Recycle Bin: Missing"
       ],
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
-      "discoverability": "limited-context",
-      "visualCueLabelIds": [
-        "missing-bin-evidence",
-        "recycling-bin",
-        "residential-curb"
-      ],
-      "requiredAnyLabelIds": [
-        "missing-bin-evidence"
-      ]
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-garbage-bin-exchange-to-medium",
@@ -634,7 +683,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "icy-sidewalk-needs-salting",
@@ -650,7 +700,9 @@
       ],
       "requiredAnyLabelIds": [
         "icy-sidewalk"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "sidewalk-snow-ice"
     },
     {
       "id": "residential-or-park-tree-removal",
@@ -671,7 +723,9 @@
       ],
       "requiredAnyLabelIds": [
         "tree-removal-or-injury"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "tree-removal"
     },
     {
       "id": "residential-garbage-bin-exchange-to-large",
@@ -685,7 +739,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "damaged-concrete-sidewalk",
@@ -705,7 +760,9 @@
       ],
       "requiredAnyLabelIds": [
         "damaged-concrete-sidewalk"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "sidewalk-surface-defect"
     },
     {
       "id": "boulevard-plow-damage",
@@ -721,7 +778,8 @@
       ],
       "requiredAnyLabelIds": [
         "snow-plow-boulevard-damage"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "request-water-service-turn-off",
@@ -735,7 +793,8 @@
       "shortDescription": "Request to turn the City's water service on or off (e.g., to complete repairs or renovate a home or building, to conduct work on a sprinkler system, if you are going on an extended vacation). Appointments can be booked ahead of time, within four-hour time",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "sidewalk-cleaning",
@@ -747,14 +806,10 @@
         "Sidewalk - Cleaning"
       ],
       "shortDescription": "Request repair of interlocking bricks, concrete surfaces, walkways, accessibility ramps or tactile pavers. Request installation of accessibility ramps or tactile pavers. Request sidewalk cleaning.",
-      "discoverability": "photo",
-      "visualCueLabelIds": [
-        "loose-litter",
-        "sidewalk"
-      ],
-      "requiredAnyLabelIds": [
-        "loose-litter"
-      ]
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "road-sinking",
@@ -768,12 +823,16 @@
       "shortDescription": "Request removal of debris and litter for a City road. Request repair of a gravel road, maintenance hole lid, pothole, uneven pavement, sinking road or road shoulder.",
       "discoverability": "photo",
       "visualCueLabelIds": [
+        "sunken-road-surface",
         "road-sinking-or-sinkhole",
         "roadway"
       ],
       "requiredAnyLabelIds": [
-        "road-sinking-or-sinkhole"
-      ]
+        "sunken-road-surface"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Sunken or depressed road surface without an open hole.",
+      "suppressionGroup": "road-sinking"
     },
     {
       "id": "bin-investigation-request",
@@ -784,7 +843,8 @@
       "shortDescription": "",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "moving-motor-vehicle-noise",
@@ -798,7 +858,8 @@
       "shortDescription": "Report noise from moving or stationary vehicles.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "unreasonable-and-persistent-noise",
@@ -811,7 +872,8 @@
       "shortDescription": "Report any unreasonable and persistent noise and/or sound-induced vibration. Vibration is felt physically and transmitted through structures, liquids, surfaces, or the ground.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "road-salting-request",
@@ -822,12 +884,14 @@
       "shortDescription": "Request salting of a road with icy conditions....",
       "discoverability": "limited-context",
       "visualCueLabelIds": [
-        "snow-covered-road",
+        "icy-road",
         "roadway"
       ],
       "requiredAnyLabelIds": [
-        "snow-covered-road"
+        "icy-road"
       ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "road-winter-maintenance",
       "forceConfidenceTier": "possible"
     },
     {
@@ -841,7 +905,8 @@
       "shortDescription": "Report excessive or persistent animal noise.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "additional-residential-organic-bin",
@@ -855,7 +920,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-recycle-bin-exchange-to-extra-large",
@@ -869,7 +935,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-bin-wrong-delivery-or-bin-return",
@@ -883,7 +950,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-yard-waste-missed",
@@ -903,6 +971,10 @@
       "requiredAnyLabelIds": [
         "yard-waste"
       ],
+      "requiredAllLabelIds": [
+        "residential-curb"
+      ],
+      "suppressionGroup": "missed-yard-waste",
       "forceConfidenceTier": "possible"
     },
     {
@@ -916,11 +988,15 @@
       "shortDescription": "Request for Toronto Water to check or repair a water service box on the sidewalk or front lawn. Note: A water service box is a round brown valve on the sidewalk or front lawn. Service boxes give the City access to shut off water to your home.",
       "discoverability": "photo",
       "visualCueLabelIds": [
+        "water-service-box-damaged",
         "water-service-box"
       ],
       "requiredAnyLabelIds": [
-        "water-service-box"
-      ]
+        "water-service-box-damaged"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Water service box or cover is visibly damaged, missing, raised, or sunken.",
+      "suppressionGroup": "water-service-box"
     },
     {
       "id": "watermain-possible-break",
@@ -933,13 +1009,17 @@
       "shortDescription": "Report a large volume of water surfacing on City property (road, roadside or sidewalk).",
       "discoverability": "photo",
       "visualCueLabelIds": [
+        "large-water-flow-on-road",
         "surface-watermain-break",
         "roadway",
         "boulevard"
       ],
       "requiredAnyLabelIds": [
-        "surface-watermain-break"
-      ]
+        "large-water-flow-on-road"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Large volume of water surfacing or flowing on public road, roadside, sidewalk, or boulevard.",
+      "suppressionGroup": "water-main-break"
     },
     {
       "id": "clean-up-litter-on-sidewalks-and-boulevards",
@@ -953,13 +1033,18 @@
       "shortDescription": "Report an overflowing street litter bin, request to clean up debris, litter, needles, human waste or illegally dumped items on City road, sidewalk, boulevard or laneway.",
       "discoverability": "photo",
       "visualCueLabelIds": [
+        "sidewalk-boulevard-litter",
+        "laneway-litter",
         "loose-litter",
         "sidewalk",
-        "boulevard"
+        "boulevard",
+        "laneway"
       ],
       "requiredAnyLabelIds": [
-        "loose-litter"
-      ]
+        "sidewalk-boulevard-litter",
+        "laneway-litter"
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "low-heat-or-no-heat",
@@ -970,7 +1055,8 @@
       "shortDescription": "Report low heat no heat in a residential or industrial structure building....",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "clean-up-overflowing-street-litter-bin",
@@ -989,7 +1075,8 @@
       ],
       "requiredAnyLabelIds": [
         "overflowing-street-litter-bin"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "illegal-snow-dumping-and-failure-to-clear-snow-or-ice-on-public-sidewalk",
@@ -1000,14 +1087,17 @@
       "shortDescription": "Report illegal snow dumping onto City roadways, or a property owner who fails to clear ice or snow on the public sidewalk next to the property.",
       "discoverability": "limited-context",
       "visualCueLabelIds": [
+        "snow-dumped-on-public-sidewalk",
         "snow-covered-sidewalk",
         "icy-sidewalk",
         "sidewalk"
       ],
       "requiredAnyLabelIds": [
-        "snow-covered-sidewalk",
-        "icy-sidewalk"
-      ]
+        "snow-dumped-on-public-sidewalk"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Snow visibly dumped or piled from private property onto a public sidewalk.",
+      "suppressionGroup": "sidewalk-snow-ice"
     },
     {
       "id": "residential-garbage-bin-exchange-to-extra-large",
@@ -1021,7 +1111,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "missing-damaged-faded-relocating-street-name-or-traffic-signs",
@@ -1033,17 +1124,10 @@
         "Missing/Damaged/Faded/Relocating Street Name or Traffic Signs"
       ],
       "shortDescription": "Request investigation of temporary condition, warning, regulatory signs or report missing or damaged street and traffic signs.",
-      "discoverability": "photo",
-      "visualCueLabelIds": [
-        "street-name-sign",
-        "traffic-sign",
-        "regulatory-or-warning-sign"
-      ],
-      "requiredAnyLabelIds": [
-        "street-name-sign",
-        "traffic-sign",
-        "regulatory-or-warning-sign"
-      ]
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "water-service-line-no-water",
@@ -1056,7 +1140,8 @@
       "shortDescription": "Report no water service at your location.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "water-service-line-leaking",
@@ -1069,13 +1154,16 @@
       "shortDescription": "Report a water service line leaking on City property.",
       "discoverability": "limited-context",
       "visualCueLabelIds": [
+        "water-leaking-from-service-box",
         "surface-watermain-break",
         "water-service-box"
       ],
       "requiredAnyLabelIds": [
-        "surface-watermain-break",
-        "water-service-box"
-      ]
+        "water-leaking-from-service-box"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Water visibly leaking, bubbling, or pooling from a water service box.",
+      "suppressionGroup": "water-service-box"
     },
     {
       "id": "dog-off-leash-in-a-city-park",
@@ -1094,7 +1182,8 @@
       ],
       "requiredAnyLabelIds": [
         "dog-off-leash"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "request-water-service-turn-on",
@@ -1108,7 +1197,8 @@
       "shortDescription": "Request to turn the City's water service on or off (e.g., to complete repairs or renovate a home or building, to conduct work on a sprinkler system, if you are going on an extended vacation). Appointments can be booked ahead of time, within four-hour time",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "unauthorized-tree-injury-or-removal",
@@ -1126,7 +1216,9 @@
       ],
       "requiredAnyLabelIds": [
         "tree-removal-or-injury"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "tree-removal"
     },
     {
       "id": "general-tree-maintenance",
@@ -1137,16 +1229,10 @@
         "Termites in Trees"
       ],
       "shortDescription": "Request for general maintenance on a City tree, e.g. roots causing a trip hazard, stakes and ties, tree watering, verifying tree ownership, branch or brush clean-up, issues with carpenter ants and termites, etc.",
-      "discoverability": "photo",
-      "visualCueLabelIds": [
-        "tree-pruning-needed",
-        "hanging-or-broken-branch",
-        "public-tree"
-      ],
-      "requiredAnyLabelIds": [
-        "tree-pruning-needed",
-        "hanging-or-broken-branch"
-      ]
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "park-use",
@@ -1160,7 +1246,8 @@
       "shortDescription": "Report unauthorized use of a City park including campfires, nighttime activities or amplified noise.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "postering-city-property-structures",
@@ -1177,7 +1264,8 @@
       ],
       "requiredAnyLabelIds": [
         "poster-on-public-asset"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "graffiti-on-private-property",
@@ -1195,7 +1283,8 @@
       ],
       "requiredAnyLabelIds": [
         "graffiti-private-property"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-garbage-bin-exchange-to-small",
@@ -1209,7 +1298,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-bin-wheel-damaged",
@@ -1231,7 +1321,8 @@
       ],
       "requiredAnyLabelIds": [
         "bin-wheel-damaged"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-organic-bin-whole-street-not-picked-up",
@@ -1245,12 +1336,17 @@
       "shortDescription": "Report missed collection of garbage, organic waste, yard waste, oversized items, Christmas trees or electronic waste.",
       "discoverability": "limited-context",
       "visualCueLabelIds": [
+        "multiple-curbside-setouts",
         "curbside-organics",
         "organic-bin"
       ],
       "requiredAnyLabelIds": [
+        "multiple-curbside-setouts"
+      ],
+      "requiredAllLabelIds": [
         "curbside-organics"
       ],
+      "suppressionGroup": "missed-organics",
       "forceConfidenceTier": "possible"
     },
     {
@@ -1270,7 +1366,8 @@
       ],
       "requiredAnyLabelIds": [
         "illegal-off-street-parking"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-recycle-bin-additional-extra-large",
@@ -1284,7 +1381,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "dangerous-private-tree-investigation",
@@ -1297,16 +1395,18 @@
       "shortDescription": "Report dangerous trees or branches on private property.",
       "discoverability": "limited-context",
       "visualCueLabelIds": [
+        "private-hazardous-tree",
         "private-tree",
         "hanging-or-broken-branch",
         "fallen-tree-or-large-limb",
         "private-property"
       ],
       "requiredAnyLabelIds": [
-        "private-tree",
-        "hanging-or-broken-branch",
-        "fallen-tree-or-large-limb"
-      ]
+        "private-hazardous-tree"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Private tree visibly leaning, split, fallen, or with large hazardous limbs.",
+      "suppressionGroup": "tree-hazard"
     },
     {
       "id": "laneway-needs-salting",
@@ -1322,7 +1422,8 @@
       ],
       "requiredAnyLabelIds": [
         "icy-laneway"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "boulevards-damaged-asphalt",
@@ -1341,7 +1442,8 @@
       ],
       "requiredAnyLabelIds": [
         "damaged-boulevard-asphalt"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "walkway-damaged-or-uneven",
@@ -1360,7 +1462,9 @@
       ],
       "requiredAnyLabelIds": [
         "uneven-walkway"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "sidewalk-surface-defect"
     },
     {
       "id": "residential-garbage-not-picked-up-on-the-whole-street",
@@ -1374,12 +1478,17 @@
       "shortDescription": "Report missed collection of garbage, organic waste, yard waste, oversized items, Christmas trees or electronic waste.",
       "discoverability": "limited-context",
       "visualCueLabelIds": [
+        "multiple-curbside-setouts",
         "curbside-garbage",
         "garbage-bin"
       ],
       "requiredAnyLabelIds": [
+        "multiple-curbside-setouts"
+      ],
+      "requiredAllLabelIds": [
         "curbside-garbage"
       ],
+      "suppressionGroup": "missed-garbage",
       "forceConfidenceTier": "possible"
     },
     {
@@ -1396,7 +1505,9 @@
       ],
       "requiredAnyLabelIds": [
         "snow-blocking-intersection-sightline"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "intersection-snow-sightline"
     },
     {
       "id": "sink-hole",
@@ -1407,12 +1518,16 @@
       "shortDescription": "",
       "discoverability": "photo",
       "visualCueLabelIds": [
+        "open-sinkhole",
         "road-sinking-or-sinkhole",
         "roadway"
       ],
       "requiredAnyLabelIds": [
-        "road-sinking-or-sinkhole"
-      ]
+        "open-sinkhole"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Open sinkhole or visible collapse, not just a sunken surface.",
+      "suppressionGroup": "road-sinking"
     },
     {
       "id": "water-miscellaneous",
@@ -1421,15 +1536,10 @@
         "Water-Miscellaneous"
       ],
       "shortDescription": "",
-      "discoverability": "limited-context",
-      "visualCueLabelIds": [
-        "surface-watermain-break",
-        "water-service-box"
-      ],
-      "requiredAnyLabelIds": [
-        "surface-watermain-break",
-        "water-service-box"
-      ]
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "multi-residential-front-end-loaded-garbage-not-picked-up",
@@ -1441,15 +1551,10 @@
         "Multi-residential Front End Loaded Garbage Not Picked Up"
       ],
       "shortDescription": "Report missed collection of garbage, organic waste, yard waste, oversized items, Christmas trees, hazardous or electronic waste.",
-      "discoverability": "limited-context",
-      "visualCueLabelIds": [
-        "curbside-garbage",
-        "garbage-bin"
-      ],
-      "requiredAnyLabelIds": [
-        "curbside-garbage"
-      ],
-      "forceConfidenceTier": "possible"
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "water-service-line-turn-off-burst",
@@ -1461,15 +1566,10 @@
         "Water Service Line-Turn Off/Burst"
       ],
       "shortDescription": "Request to turn the City's water service on or off (e.g., to complete repairs or renovate a home or building, to conduct work on a sprinkler system, if you are going on an extended vacation). Appointments can be booked ahead of time, within four-hour time",
-      "discoverability": "limited-context",
-      "visualCueLabelIds": [
-        "surface-watermain-break",
-        "water-service-box"
-      ],
-      "requiredAnyLabelIds": [
-        "surface-watermain-break",
-        "water-service-box"
-      ]
+      "discoverability": "not-discoverable",
+      "visualCueLabelIds": [],
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "snow-removal-sightline-problem",
@@ -1486,7 +1586,9 @@
       ],
       "requiredAnyLabelIds": [
         "snow-blocking-intersection-sightline"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "intersection-snow-sightline"
     },
     {
       "id": "toronto-water-service-card-request",
@@ -1499,7 +1601,8 @@
       "shortDescription": "Request a service card that may contain information about water and sewer connections on City property (may include pipe material, size, and location). It is recommended that an email be provided for a faster response.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "residential-recycle-bin-exchange-to-large",
@@ -1513,7 +1616,8 @@
       "shortDescription": "Request repairs for a damaged bin, replacement of a missing bin, exchange of a bin to a different size, request for an additional bin or, return of a bin. Note: This request is applicable only for residential properties using City-issued bins.",
       "discoverability": "not-discoverable",
       "visualCueLabelIds": [],
-      "requiredAnyLabelIds": []
+      "requiredAnyLabelIds": [],
+      "requiredAllLabelIds": []
     },
     {
       "id": "signs",
@@ -1531,7 +1635,8 @@
       ],
       "requiredAnyLabelIds": [
         "unpermitted-sign"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "bus-stops-snow-clearing-required",
@@ -1547,7 +1652,8 @@
       ],
       "requiredAnyLabelIds": [
         "snow-covered-bus-stop"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "stray-confined",
@@ -1564,7 +1670,8 @@
       ],
       "requiredAnyLabelIds": [
         "confined-stray-animal"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "maintenance-holes-lid-loose-missing",
@@ -1579,12 +1686,17 @@
       "discoverability": "photo",
       "visualCueLabelIds": [
         "maintenance-hole-lid",
+        "bike-lane-bollard-or-barrier",
         "roadway",
-        "sidewalk"
+        "sidewalk",
+        "bike-lane"
       ],
       "requiredAnyLabelIds": [
-        "maintenance-hole-lid"
-      ]
+        "maintenance-hole-lid",
+        "bike-lane-bollard-or-barrier"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Loose, missing, sunken, or damaged maintenance hole cover or visible bollard/barrier damage."
     },
     {
       "id": "stray-at-large",
@@ -1602,7 +1714,8 @@
       ],
       "requiredAnyLabelIds": [
         "stray-dog"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "school-zone-snow-clearing",
@@ -1618,7 +1731,8 @@
       ],
       "requiredAnyLabelIds": [
         "snow-covered-school-zone"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "walkway-snow-clearing-salting-request",
@@ -1637,7 +1751,9 @@
       "requiredAnyLabelIds": [
         "snow-covered-sidewalk",
         "icy-sidewalk"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "sidewalk-snow-ice"
     },
     {
       "id": "pick-up-dead-domestic-animals",
@@ -1654,7 +1770,8 @@
       ],
       "requiredAnyLabelIds": [
         "dead-domestic-animal"
-      ]
+      ],
+      "requiredAllLabelIds": []
     },
     {
       "id": "bike-lane-winter-maintenance-required",
@@ -1670,7 +1787,9 @@
       ],
       "requiredAnyLabelIds": [
         "snow-covered-bike-lane"
-      ]
+      ],
+      "requiredAllLabelIds": [],
+      "suppressionGroup": "road-winter-maintenance"
     },
     {
       "id": "investigate-regulatory-signs",
@@ -1684,12 +1803,16 @@
       "shortDescription": "Request investigation of temporary condition, warning, regulatory signs or report missing or damaged street and traffic signs.",
       "discoverability": "photo",
       "visualCueLabelIds": [
-        "regulatory-or-warning-sign",
-        "traffic-sign"
+        "regulatory-sign-damaged",
+        "traffic-sign",
+        "regulatory-or-warning-sign"
       ],
       "requiredAnyLabelIds": [
-        "regulatory-or-warning-sign"
-      ]
+        "regulatory-sign-damaged"
+      ],
+      "requiredAllLabelIds": [],
+      "photoHint": "Regulatory or warning sign visibly damaged, missing, faded, or unreadable.",
+      "suppressionGroup": "street-traffic-signs"
     },
     {
       "id": "residential-yard-waste-whole-street-not-picked-up",
@@ -1703,11 +1826,16 @@
       "shortDescription": "Report missed collection of garbage, organic waste, yard waste, oversized items, Christmas trees or electronic waste.",
       "discoverability": "limited-context",
       "visualCueLabelIds": [
+        "multiple-curbside-setouts",
         "yard-waste"
       ],
       "requiredAnyLabelIds": [
+        "multiple-curbside-setouts"
+      ],
+      "requiredAllLabelIds": [
         "yard-waste"
       ],
+      "suppressionGroup": "missed-yard-waste",
       "forceConfidenceTier": "possible"
     },
     {
@@ -1729,7 +1857,8 @@
       ],
       "requiredAnyLabelIds": [
         "needles-or-syringes"
-      ]
+      ],
+      "requiredAllLabelIds": []
     }
   ]
 }

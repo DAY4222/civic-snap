@@ -12,6 +12,9 @@ export type EdgeIssueCatalogItem = {
   discoverability: 'photo' | 'limited-context' | 'not-discoverable';
   visualCueLabelIds: readonly string[];
   requiredAnyLabelIds: readonly string[];
+  requiredAllLabelIds?: readonly string[];
+  photoHint?: string;
+  suppressionGroup?: string;
   forceConfidenceTier?: ConfidenceTier;
 };
 
@@ -99,7 +102,7 @@ export const DEFAULT_LIMIT_CONFIG: LimitConfig = {
 
 export const MIN_CONFIDENCE = 0.55;
 export const MAX_LABELS = 10;
-export const MAX_ISSUE_CANDIDATES = 5;
+export const MAX_ISSUE_CANDIDATES = 3;
 export const MAX_EVIDENCE_CHARS = 240;
 export const MAX_REASON_CHARS = 180;
 export const MAX_DESCRIPTION_CHARS = 180;
@@ -326,11 +329,7 @@ export function hybridRerankIssueCandidates(
     });
   }
 
-  return [...candidatesByIssueId.values()]
-    .sort((left, right) => {
-      const tierDelta = tierRank(right.confidenceTier) - tierRank(left.confidenceTier);
-      return tierDelta || right.confidence - left.confidence;
-    })
+  return suppressGroupedCandidates([...candidatesByIssueId.values()], issueById)
     .slice(0, MAX_ISSUE_CANDIDATES);
 }
 
@@ -397,6 +396,8 @@ function issueIsSupported(
   support: string[]
 ) {
   if (support.length === 0) return false;
+  const requiredAllLabelIds = issue.requiredAllLabelIds ?? [];
+  if (requiredAllLabelIds.some((labelId) => !support.includes(labelId))) return false;
   if (issue.requiredAnyLabelIds.length === 0) return true;
   return issue.requiredAnyLabelIds.some((labelId) => support.includes(labelId));
 }
@@ -415,15 +416,45 @@ function bridgeRequiredSupportIfSafe(
 }
 
 function scoreIssue(issue: EdgeIssueCatalogItem, supportingLabelIds: string[]) {
+  const requiredAllLabelIds = issue.requiredAllLabelIds ?? [];
+  const requiredAllMatches = requiredAllLabelIds.filter((labelId) =>
+    supportingLabelIds.includes(labelId)
+  ).length;
   const requiredMatches = issue.requiredAnyLabelIds.filter((labelId) =>
     supportingLabelIds.includes(labelId)
   ).length;
+  if (requiredAllMatches !== requiredAllLabelIds.length) return 0;
   if (issue.requiredAnyLabelIds.length > 0 && requiredMatches === 0) return 0;
 
   const base = issue.discoverability === 'photo' ? 0.82 : 0.66;
   const supportBonus = Math.min(supportingLabelIds.length * 0.035, 0.12);
-  const requiredBonus = Math.min(requiredMatches * 0.05, 0.1);
+  const requiredBonus = Math.min(requiredMatches * 0.05 + requiredAllMatches * 0.06, 0.16);
   return clamp(base + supportBonus + requiredBonus, 0, 0.96);
+}
+
+function suppressGroupedCandidates(
+  candidates: NormalizedIssueCandidate[],
+  issueById: Map<string, EdgeIssueCatalogItem>
+) {
+  const sorted = candidates.sort(compareIssueCandidates);
+  const seenGroups = new Set<string>();
+  const result: NormalizedIssueCandidate[] = [];
+
+  for (const candidate of sorted) {
+    const suppressionGroup = issueById.get(candidate.issueId)?.suppressionGroup;
+    if (suppressionGroup) {
+      if (seenGroups.has(suppressionGroup)) continue;
+      seenGroups.add(suppressionGroup);
+    }
+    result.push(candidate);
+  }
+
+  return result;
+}
+
+function compareIssueCandidates(left: NormalizedIssueCandidate, right: NormalizedIssueCandidate) {
+  const tierDelta = tierRank(right.confidenceTier) - tierRank(left.confidenceTier);
+  return tierDelta || right.confidence - left.confidence;
 }
 
 function confidenceTierFor(confidence: number): ConfidenceTier {

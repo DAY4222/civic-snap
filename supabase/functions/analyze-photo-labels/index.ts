@@ -228,6 +228,9 @@ function buildPrompt(allowedLabels: AllowedLabel[]) {
     discoverability: issue.discoverability,
     visualCueLabelIds: issue.visualCueLabelIds,
     requiredAnyLabelIds: issue.requiredAnyLabelIds,
+    requiredAllLabelIds: issue.requiredAllLabelIds ?? [],
+    photoHint: issue.photoHint,
+    suppressionGroup: issue.suppressionGroup,
     forceConfidenceTier: issue.forceConfidenceTier,
   }));
 
@@ -244,7 +247,9 @@ function buildPrompt(allowedLabels: AllowedLabel[]) {
     'Include a tight normalized boundingBox when the visible evidence is localizable; omit boundingBox for whole-image or non-localizable labels. x, y, width, height must be numbers from 0 to 1.',
     `Keep evidence under ${MAX_EVIDENCE_CHARS} characters per label.`,
     `Return at most ${MAX_ISSUE_CANDIDATES} issueCandidates. Choose issueId only from issueCatalog.`,
-    'Use issueCatalog fields: visualCueLabelIds are supporting cues; if requiredAnyLabelIds is non-empty, include an issue only when at least one required id is in suggestedLabels.',
+    'Use issueCatalog fields: visualCueLabelIds are supporting cues; every requiredAllLabelIds value must be in suggestedLabels, and if requiredAnyLabelIds is non-empty at least one requiredAnyLabelIds value must be in suggestedLabels.',
+    'Use photoHint only to disambiguate visible evidence. It is not permission to infer non-visible context.',
+    'When multiple supported issues share a suppressionGroup, include only the strongest and most specific one.',
     'Every issueCandidate.supportingLabelIds value must refer to an id in suggestedLabels.',
     'Suggest only photo issues, or limited-context issues when visible labels support them and the reason names the missing context.',
     'Prefer the most specific supported issue. Do not include multiple candidates for the same visible problem.',
