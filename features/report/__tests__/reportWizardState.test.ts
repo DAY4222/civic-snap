@@ -111,6 +111,53 @@ describe('report wizard reducer', () => {
     expect(state.profile.name).toBe('Ada');
   });
 
+  it('resets active report progress while preserving stable settings', () => {
+    let state = createInitialReportWizardState();
+    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
+    state = reportWizardReducer(state, {
+      type: 'profileLoaded',
+      profile: { name: 'Ada', email: 'ada@example.com', phone: '555-0100' },
+    });
+    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///photo.jpg' });
+    state = reportWizardReducer(state, {
+      type: 'chooseCategory',
+      categoryId: 'road-pothole-road-damage',
+    });
+    state = reportWizardReducer(state, { type: 'setAddress', address: '123 Queen St W' });
+    state = reportWizardReducer(state, { type: 'setLocationNote', locationNote: 'south curb' });
+    state = reportWizardReducer(state, {
+      type: 'setPinLocation',
+      latitude: 43.65,
+      longitude: -79.38,
+    });
+    state = reportWizardReducer(state, { type: 'setDescription', description: 'Large pothole.' });
+    state = reportWizardReducer(state, { type: 'setAnswer', questionId: 'q1', value: 'yes' });
+    state = reportWizardReducer(state, {
+      type: 'previewReady',
+      emailBody: 'Body',
+      emailSubject: 'Subject',
+      savedReportId: 'report-1',
+    });
+
+    state = reportWizardReducer(state, { type: 'resetReport' });
+
+    expect(state.step).toBe('start');
+    expect(state.savedReportId).toBeNull();
+    expect(state.savedBannerId).toBeNull();
+    expect(state.address).toBe('');
+    expect(state.answers).toEqual({});
+    expect(state.description).toBe('');
+    expect(state.emailBody).toBe('');
+    expect(state.emailSubject).toBe('');
+    expect(state.latitude).toBeNull();
+    expect(state.locationNote).toBe('');
+    expect(state.longitude).toBeNull();
+    expect(state.photoUri).toBeNull();
+    expect(state.selectedCategoryId).toBeNull();
+    expect(state.photoAnalysisUserEnabled).toBe(true);
+    expect(state.profile.name).toBe('Ada');
+  });
+
   it('classifies photo vision status from normalized results', () => {
     expect(getPhotoVisionStatus(null)).toBe('idle');
     expect(

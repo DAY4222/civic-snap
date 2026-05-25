@@ -100,6 +100,7 @@ export function ReportWizard() {
             issueSearchQuery={state.issueSearchQuery}
             onBack={actions.backFromCategory}
             onChooseCategory={actions.chooseCategory}
+            onExitToStart={actions.confirmExitToStart}
             onSearchChange={actions.setIssueSearchQuery}
             selectedCategoryId={state.selectedCategoryId}
           />
@@ -113,6 +114,7 @@ export function ReportWizard() {
             onAddressChange={actions.setAddress}
             onBack={actions.backFromLocation}
             onContinue={() => actions.setStep('details')}
+            onExitToStart={actions.confirmExitToStart}
             onLocationNoteChange={actions.setLocationNote}
             onUseCurrentLocation={actions.useCurrentLocation}
             onUpdatePin={actions.updatePinFromMap}
@@ -132,6 +134,7 @@ export function ReportWizard() {
             onAnalyze={actions.analyzeCurrentPhoto}
             onBack={() => actions.setStep('location')}
             onDescriptionChange={actions.setDescription}
+            onExitToStart={actions.confirmExitToStart}
             onInsertSuggestedDescription={actions.insertSuggestedDescription}
             onOpenIssueSearch={() => actions.openCategory('details')}
             onSetAnswer={actions.setAnswer}
@@ -155,6 +158,7 @@ export function ReportWizard() {
             onDismissContactPrompt={actions.dismissContactPrompt}
             onEmailBodyChange={actions.setEmailBody}
             onEmailSubjectChange={actions.setEmailSubject}
+            onExitToStart={actions.confirmExitToStart}
             photoUri={state.photoUri}
             profile={state.profile}
           />
@@ -164,6 +168,7 @@ export function ReportWizard() {
           <FallbackStep
             onBack={() => actions.setStep('preview')}
             onCopyEmail={actions.copyEmail}
+            onExitToStart={actions.confirmExitToStart}
             onOpenMailto={actions.openMailto}
           />
         ) : null}
@@ -244,6 +249,7 @@ function CategoryStep({
   issueSearchQuery,
   onBack,
   onChooseCategory,
+  onExitToStart,
   onSearchChange,
   selectedCategoryId,
 }: {
@@ -251,12 +257,13 @@ function CategoryStep({
   issueSearchQuery: string;
   onBack: () => void;
   onChooseCategory: (categoryId: string | null) => void;
+  onExitToStart: () => void;
   onSearchChange: (value: string) => void;
   selectedCategoryId: string | null;
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Search issue types" onBack={onBack} />
+      <Header title="Search issue types" onBack={onBack} onExitToStart={onExitToStart} />
       <Field
         label="Search"
         onChangeText={onSearchChange}
@@ -291,6 +298,7 @@ function LocationStep({
   onAddressChange,
   onBack,
   onContinue,
+  onExitToStart,
   onLocationNoteChange,
   onUpdatePin,
   onUseCurrentLocation,
@@ -303,6 +311,7 @@ function LocationStep({
   onAddressChange: (value: string) => void;
   onBack: () => void;
   onContinue: () => void;
+  onExitToStart: () => void;
   onLocationNoteChange: (value: string) => void;
   onUpdatePin: (region: Region) => void;
   onUseCurrentLocation: () => void;
@@ -311,7 +320,7 @@ function LocationStep({
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Confirm location" onBack={onBack} />
+      <Header title="Confirm location" onBack={onBack} onExitToStart={onExitToStart} />
       {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
       <Button
         disabled={busy}
@@ -358,6 +367,7 @@ function DetailsStep({
   onAnalyze,
   onBack,
   onDescriptionChange,
+  onExitToStart,
   onInsertSuggestedDescription,
   onOpenIssueSearch,
   onSetAnswer,
@@ -378,6 +388,7 @@ function DetailsStep({
   onAnalyze: () => void;
   onBack: () => void;
   onDescriptionChange: (value: string) => void;
+  onExitToStart: () => void;
   onInsertSuggestedDescription: (value: string) => void;
   onOpenIssueSearch: () => void;
   onSetAnswer: (questionId: string, value: string) => void;
@@ -391,7 +402,7 @@ function DetailsStep({
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Add details" onBack={onBack} />
+      <Header title="Add details" onBack={onBack} onExitToStart={onExitToStart} />
       <Text style={styles.categoryTitle}>{currentIssueTitle}</Text>
       {photoLabelsEnabled && photoUri ? (
         <SuggestedTopicsPanel
@@ -464,6 +475,7 @@ function PreviewStep({
   onDismissContactPrompt,
   onEmailBodyChange,
   onEmailSubjectChange,
+  onExitToStart,
   photoUri,
   profile,
 }: {
@@ -475,12 +487,13 @@ function PreviewStep({
   onDismissContactPrompt: () => void;
   onEmailBodyChange: (value: string) => void;
   onEmailSubjectChange: (value: string) => void;
+  onExitToStart: () => void;
   photoUri: string | null;
   profile: { name: string; phone: string };
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Email preview" onBack={onBack} />
+      <Header title="Email preview" onBack={onBack} onExitToStart={onExitToStart} />
       <Notice text="This draft is saved locally as Draft. You still send it from your own email." />
       {(!profile.name.trim() || !profile.phone.trim()) && !dismissedContactPrompt ? (
         <Card style={styles.warningCard} tone="warning">
@@ -520,15 +533,17 @@ function PreviewStep({
 function FallbackStep({
   onBack,
   onCopyEmail,
+  onExitToStart,
   onOpenMailto,
 }: {
   onBack: () => void;
   onCopyEmail: () => void;
+  onExitToStart: () => void;
   onOpenMailto: () => void;
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Mail unavailable" onBack={onBack} />
+      <Header title="Mail unavailable" onBack={onBack} onExitToStart={onExitToStart} />
       <Notice
         text="The iOS mail composer is unavailable. Copy the draft, then attach the photo manually if needed."
         tone="warning"
@@ -539,14 +554,29 @@ function FallbackStep({
   );
 }
 
-function Header({ title, onBack }: { title: string; onBack: () => void }) {
+function Header({
+  title,
+  onBack,
+  onExitToStart,
+}: {
+  title: string;
+  onBack: () => void;
+  onExitToStart: () => void;
+}) {
   return (
     <View style={styles.headerRow}>
-      <Pressable hitSlop={10} onPress={onBack}>
+      <Pressable hitSlop={10} onPress={onBack} style={styles.headerIconButton}>
         <FontAwesome name="chevron-left" size={18} color={colors.text} />
       </Pressable>
       <Text style={styles.headerTitle}>{title}</Text>
-      <View style={{ width: 18 }} />
+      <Pressable
+        accessibilityLabel="Return to start"
+        accessibilityRole="button"
+        hitSlop={10}
+        onPress={onExitToStart}
+        style={styles.headerIconButton}>
+        <FontAwesome name="times" size={18} color={colors.text} />
+      </Pressable>
     </View>
   );
 }
@@ -997,6 +1027,12 @@ const styles = StyleSheet.create({
   },
   field: {
     gap: 7,
+  },
+  headerIconButton: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
   headerRow: {
     alignItems: 'center',

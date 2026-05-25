@@ -479,6 +479,21 @@ export function useReportWizard(resumeId?: string) {
     });
   }
 
+  function confirmExitToStart() {
+    const message = state.savedReportId
+      ? 'This will return to the start screen. Your saved draft will stay in History.'
+      : 'This will return to the start screen and clear the current report progress.';
+
+    Alert.alert('Return to start?', message, [
+      { text: 'Keep editing', style: 'cancel' },
+      {
+        text: 'Return to start',
+        style: 'destructive',
+        onPress: () => dispatch({ type: 'resetReport' }),
+      },
+    ]);
+  }
+
   return {
     actions: {
       analyzeCurrentPhoto,
@@ -486,6 +501,7 @@ export function useReportWizard(resumeId?: string) {
       chooseCategory: (categoryId: string | null) =>
         dispatch({ type: 'chooseCategory', categoryId }),
       choosePhoto,
+      confirmExitToStart,
       copyEmail,
       dismissContactPrompt: () => dispatch({ type: 'dismissContactPrompt' }),
       insertSuggestedDescription,
