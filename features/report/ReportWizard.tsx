@@ -476,7 +476,6 @@ function DetailsStep({
       {photoLabelsEnabled && photoUri ? (
         <SuggestedTopicsPanel
           labels={photoVisionResult?.suggestedLabels ?? []}
-          manualCategory={manualCategory}
           onAnalyze={onAnalyze}
           onOpenIssueSearch={onOpenIssueSearch}
           onToggleTopic={onToggleTopic}
@@ -832,7 +831,6 @@ function EvidencePhoto({
 
 function SuggestedTopicsPanel({
   labels,
-  manualCategory,
   onAnalyze,
   onOpenIssueSearch,
   onToggleTopic,
@@ -841,7 +839,6 @@ function SuggestedTopicsPanel({
   topics,
 }: {
   labels: PhotoVisionResult['suggestedLabels'];
-  manualCategory: IssueCategory | null;
   onAnalyze: () => void;
   onOpenIssueSearch: () => void;
   onToggleTopic: (topic: PhotoIssueCandidate) => void;
