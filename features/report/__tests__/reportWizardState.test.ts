@@ -1,22 +1,18 @@
 import {
   createInitialReportWizardState,
+  getPhotoVisionErrorStatus,
   getPhotoVisionStatus,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from '../reportWizardState';
+import {
+  makePhotoIssueCandidate,
+  makePhotoVisionResult,
+} from '@/lib/testUtils/photoVisionFixtures';
 import type { PhotoIssueCandidate, PhotoVisionResult, Report } from '@/lib/types';
+import { PhotoVisionError } from '@/lib/vision';
 
-const topic: PhotoIssueCandidate = {
-  issueId: 'road-pothole-road-damage',
-  title: 'Road Pothole / Road Damage',
-  confidence: 0.91,
-  confidenceTier: 'strong',
-  supportingLabelIds: ['road-pothole'],
-  evidenceChips: ['Road pothole'],
-  reason: 'The photo shows a road pothole.',
-  suggestedDescription: 'Photo shows a road pothole at this location.',
-  boundingBoxes: [],
-};
+const topic: PhotoIssueCandidate = makePhotoIssueCandidate();
 
 const report: Report = {
   id: 'report-1',
@@ -38,24 +34,7 @@ const report: Report = {
   updatedAt: '2026-05-20T00:00:00.000Z',
 };
 
-const photoVisionResult: PhotoVisionResult = {
-  suggestedLabels: [
-    {
-      id: 'road-pothole',
-      label: 'Road pothole',
-      confidence: 0.9,
-      evidence: 'visible road pothole',
-    },
-  ],
-  issueCandidates: [topic],
-  provider: 'gemini',
-  model: 'model',
-  promptVersion: 'prompt',
-  taxonomyVersion: 'taxonomy',
-  analyzedAt: '2026-05-20T00:00:00.000Z',
-  latencyMs: 10,
-  image: { bytes: 10, height: 100, mimeType: 'image/jpeg', width: 100 },
-};
+const photoVisionResult: PhotoVisionResult = makePhotoVisionResult({ issueCandidates: [topic] });
 
 describe('report wizard reducer', () => {
   it('walks manual issue selection back to the intended return step', () => {
@@ -259,5 +238,17 @@ describe('report wizard reducer', () => {
   it('classifies photo vision status from normalized results', () => {
     expect(getPhotoVisionStatus(null)).toBe('idle');
     expect(getPhotoVisionStatus({ ...photoVisionResult, suggestedLabels: [] })).toBe('empty');
+  });
+
+  it('maps photo vision errors to user-facing statuses', () => {
+    expect(
+      getPhotoVisionErrorStatus(new PhotoVisionError('Photo label limit reached.', 'rate-limited'))
+    ).toBe('rate-limited');
+    expect(
+      getPhotoVisionErrorStatus(
+        new PhotoVisionError('Photo analysis image is too large.', 'payload-too-large')
+      )
+    ).toBe('payload-too-large');
+    expect(getPhotoVisionErrorStatus(new Error('network failed'))).toBe('error');
   });
 });

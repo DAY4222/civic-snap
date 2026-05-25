@@ -14,6 +14,7 @@
     "scrape:toronto311-targets": "node scripts/scrape-toronto-311-target-issues.cjs",
     "generate:ai-catalogs": "node scripts/generate-ai-issue-catalogs.cjs",
     "live:ai-photo-check": "node scripts/live-ai-photo-spot-check.cjs",
+    "live:ai-photo-sample": "RUN_LIVE_AI_PHOTO_TEST=1 jest --watchAll=false --runInBand scripts/live-ai-photo-sample.test.js",
     "build:web": "expo export --platform web --output-dir dist",
     "check": "tsc --noEmit && jest --watchAll=false && expo export --platform web --output-dir dist"
   },

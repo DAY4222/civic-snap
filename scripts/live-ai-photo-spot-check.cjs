@@ -20,18 +20,23 @@ const DEFAULT_CHECKS = [
     expectedIssueId: 'residential-oversized-electronics-item-day-collection-not-picked-up',
   },
 ];
+const LIVE_SAMPLE_CHECK = DEFAULT_CHECKS[1];
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
 
 async function main() {
   const env = loadEnv();
   const functionUrl = env.EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL;
   const anonKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   if (!functionUrl || !anonKey) {
-    throw new Error('Set EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY first.');
+    throw new Error(
+      'Set EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY first.'
+    );
   }
 
   const labelTaxonomy = JSON.parse(
@@ -67,29 +72,16 @@ async function main() {
       console.log(`  ${error.message}`);
       continue;
     }
-    const topThree = Array.isArray(result.issueCandidates) ? result.issueCandidates.slice(0, 3) : [];
     if (!Array.isArray(result.issueCandidates)) {
       console.log(
         `WARN ${path.relative(ROOT, absolutePath)} returned no issueCandidates. promptVersion=${result.promptVersion ?? 'unknown'}`
       );
     }
-    const passed = check.expectedIssueId
-      ? topThree.some(
-          (candidate) =>
-            candidate.issueId === check.expectedIssueId && candidate.supportingLabelIds.length > 0
-        )
-      : topThree.length > 0 && topThree[0].supportingLabelIds.length > 0;
+    const passed = checkResultPassed(check, result);
 
     if (!passed) failures += 1;
     console.log(`${passed ? 'PASS' : 'FAIL'} ${path.relative(ROOT, absolutePath)}`);
-    console.log(
-      topThree
-        .map(
-          (candidate, index) =>
-            `  ${index + 1}. ${candidate.issueId} (${candidate.confidenceTier}) labels=${candidate.supportingLabelIds.join(',')}`
-        )
-        .join('\n')
-    );
+    console.log(formatAnalysisDiagnostics({ check, imagePath: absolutePath, result }));
   }
 
   if (failures > 0) {
@@ -127,6 +119,106 @@ async function analyzeImage({ anonKey, functionUrl, imagePath, labels, taxonomyV
   return response.json();
 }
 
+function checkResultPassed(check, result) {
+  const topThree = getTopIssueCandidates(result);
+  if (check.expectedIssueId) {
+    return topThree.some(
+      (candidate) =>
+        candidate.issueId === check.expectedIssueId &&
+        Array.isArray(candidate.supportingLabelIds) &&
+        candidate.supportingLabelIds.length > 0
+    );
+  }
+
+  return (
+    topThree.length > 0 &&
+    Array.isArray(topThree[0].supportingLabelIds) &&
+    topThree[0].supportingLabelIds.length > 0
+  );
+}
+
+function getTopIssueCandidates(result) {
+  return Array.isArray(result?.issueCandidates) ? result.issueCandidates.slice(0, 3) : [];
+}
+
+function formatAnalysisDiagnostics({ check, imagePath, result, responseJsonPath }) {
+  const labels = Array.isArray(result?.suggestedLabels) ? result.suggestedLabels.slice(0, 10) : [];
+  const candidates = getTopIssueCandidates(result);
+  const image = result?.image ?? {};
+  const lines = [
+    `Live AI photo sample: ${path.relative(ROOT, imagePath)}`,
+    `Expected issue: ${check.expectedIssueId ?? 'any supported issue candidate'}`,
+    '',
+    'Returned metadata:',
+    [
+      `provider=${formatValue(result?.provider)}`,
+      `model=${formatValue(result?.model)}`,
+      `promptVersion=${formatValue(result?.promptVersion)}`,
+      `taxonomyVersion=${formatValue(result?.taxonomyVersion)}`,
+      `issueCatalogVersion=${formatValue(result?.issueCatalogVersion)}`,
+      `latencyMs=${formatValue(result?.latencyMs)}`,
+    ].join(' '),
+    `image=${formatValue(image.width)}x${formatValue(image.height)} bytes=${formatValue(
+      image.bytes
+    )} mime=${formatValue(image.mimeType)}`,
+    '',
+    'Top labels:',
+  ];
+
+  if (labels.length === 0) {
+    lines.push('  none');
+  } else {
+    for (const [index, label] of labels.entries()) {
+      lines.push(
+        `  ${index + 1}. ${formatValue(label.label || label.id)} (${formatConfidence(
+          label.confidence
+        )}) evidence="${formatValue(label.evidence)}"`
+      );
+    }
+  }
+
+  lines.push('', 'Issue cards app would show:');
+  if (candidates.length === 0) {
+    lines.push('  none');
+  } else {
+    for (const [index, candidate] of candidates.entries()) {
+      const evidenceChips = Array.isArray(candidate.evidenceChips)
+        ? candidate.evidenceChips.join(', ')
+        : '';
+      const supportingLabelIds = Array.isArray(candidate.supportingLabelIds)
+        ? candidate.supportingLabelIds.join(',')
+        : '';
+
+      lines.push(
+        `  ${index + 1}. ${formatValue(candidate.title || candidate.issueId)} [${formatValue(
+          candidate.confidenceTier
+        )}]`
+      );
+      lines.push(`     issueId=${formatValue(candidate.issueId)}`);
+      lines.push(`     evidence=${evidenceChips || 'none'}`);
+      if (supportingLabelIds) lines.push(`     supportingLabelIds=${supportingLabelIds}`);
+      lines.push(`     reason=${formatValue(candidate.reason)}`);
+      lines.push(`     suggestedDescription=${formatValue(candidate.suggestedDescription)}`);
+    }
+  }
+
+  if (responseJsonPath) {
+    lines.push('', 'Full response JSON:', `  ${responseJsonPath}`);
+  }
+
+  return lines.join('\n');
+}
+
+function formatConfidence(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(2) : 'n/a';
+}
+
+function formatValue(value) {
+  if (value == null || value === '') return 'unknown';
+  return String(value);
+}
+
 function mimeTypeFor(filePath) {
   const extension = path.extname(filePath).toLowerCase();
   if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
@@ -150,3 +242,15 @@ function loadEnv() {
 
   return env;
 }
+
+module.exports = {
+  DEFAULT_CHECKS,
+  LIVE_SAMPLE_CHECK,
+  ROOT,
+  analyzeImage,
+  checkResultPassed,
+  formatAnalysisDiagnostics,
+  imageChecksFromArgs,
+  loadEnv,
+  mimeTypeFor,
+};
