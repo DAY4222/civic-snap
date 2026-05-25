@@ -1,23 +1,27 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { Image, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Image, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import { Card, colors } from '@/components/ui';
+import { deleteReport } from '@/lib/reports';
 import { useReportsOnFocus } from '@/lib/useReportsOnFocus';
 import { Report } from '@/lib/types';
 
 export default function HistoryScreen() {
   const { error, reports } = useReportsOnFocus();
+  const [deletedDraftIds, setDeletedDraftIds] = useState(() => new Set<string>());
+  const [deletingDraftIds, setDeletingDraftIds] = useState(() => new Set<string>());
 
   const sections = useMemo(() => {
-    const drafts = reports.filter((report) => report.status === 'Draft');
-    const opened = reports.filter((report) => report.status !== 'Draft');
+    const visibleReports = reports.filter((report) => !deletedDraftIds.has(report.id));
+    const drafts = visibleReports.filter((report) => report.status === 'Draft');
+    const opened = visibleReports.filter((report) => report.status !== 'Draft');
     return [
       { title: 'Drafts', data: drafts },
       { title: 'Tracking', data: opened },
     ].filter((section) => section.data.length > 0);
-  }, [reports]);
+  }, [deletedDraftIds, reports]);
 
   function openReport(report: Report) {
     if (report.status === 'Draft') {
@@ -26,6 +30,38 @@ export default function HistoryScreen() {
     }
 
     router.push({ pathname: '/report/[id]', params: { id: report.id } });
+  }
+
+  function confirmDeleteDraft(report: Report) {
+    if (deletingDraftIds.has(report.id)) return;
+
+    Alert.alert('Delete draft?', 'This removes the draft and saved photo from this device.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void removeDraft(report.id);
+        },
+      },
+    ]);
+  }
+
+  async function removeDraft(id: string) {
+    setDeletingDraftIds((current) => new Set(current).add(id));
+
+    try {
+      await deleteReport(id);
+      setDeletedDraftIds((current) => new Set(current).add(id));
+    } catch {
+      Alert.alert('Draft not deleted', 'Try again from History.');
+    } finally {
+      setDeletingDraftIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    }
   }
 
   return (
@@ -50,28 +86,49 @@ export default function HistoryScreen() {
       renderSectionHeader={({ section }) => (
         <Text style={styles.sectionTitle}>{section.title}</Text>
       )}
-      renderItem={({ item }) => (
-        <Pressable
-          accessibilityLabel={`${item.status === 'Draft' ? 'Resume draft' : 'Open report'}: ${item.category}`}
-          accessibilityRole="button"
-          onPress={() => openReport(item)}>
+      renderItem={({ item }) => {
+        const isDraft = item.status === 'Draft';
+        const deleting = deletingDraftIds.has(item.id);
+
+        return (
           <Card style={styles.card}>
-            {item.photoUri ? (
-              <Image source={{ uri: item.thumbnailUri ?? item.photoUri }} style={styles.thumbnail} />
-            ) : (
-              <View style={styles.iconBox}>
-                <FontAwesome name="file-text-o" size={20} color={colors.primary} />
+            <Pressable
+              accessibilityLabel={`${isDraft ? 'Resume draft' : 'Open report'}: ${item.category}`}
+              accessibilityRole="button"
+              onPress={() => openReport(item)}
+              style={({ pressed }) => [styles.reportButton, pressed && styles.pressed]}>
+              {item.photoUri ? (
+                <Image source={{ uri: item.thumbnailUri ?? item.photoUri }} style={styles.thumbnail} />
+              ) : (
+                <View style={styles.iconBox}>
+                  <FontAwesome name="file-text-o" size={20} color={colors.primary} />
+                </View>
+              )}
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{item.category}</Text>
+                <Text style={styles.subtitle} numberOfLines={1}>{item.address || 'No address'}</Text>
+                <Text style={styles.status}>{isDraft ? 'Resume draft' : item.status}</Text>
               </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{item.category}</Text>
-              <Text style={styles.subtitle} numberOfLines={1}>{item.address || 'No address'}</Text>
-              <Text style={styles.status}>{item.status === 'Draft' ? 'Resume draft' : item.status}</Text>
-            </View>
-            <FontAwesome name="chevron-right" size={14} color="#8e8e93" />
+              {isDraft ? null : <FontAwesome name="chevron-right" size={14} color="#8e8e93" />}
+            </Pressable>
+            {isDraft ? (
+              <Pressable
+                accessibilityLabel={`Delete draft: ${item.category}`}
+                accessibilityRole="button"
+                disabled={deleting}
+                hitSlop={8}
+                onPress={() => confirmDeleteDraft(item)}
+                style={({ pressed }) => [
+                  styles.deleteDraftButton,
+                  pressed && !deleting && styles.pressed,
+                  deleting && styles.disabled,
+                ]}>
+                <FontAwesome name="times" size={16} color={colors.danger} />
+              </Pressable>
+            ) : null}
           </Card>
-        </Pressable>
-      )}
+        );
+      }}
     />
   );
 }
@@ -109,6 +166,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     padding: 12,
+  },
+  reportButton: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+  cardBody: {
+    flex: 1,
+  },
+  deleteDraftButton: {
+    alignItems: 'center',
+    borderRadius: 20,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  disabled: {
+    opacity: 0.45,
   },
   thumbnail: {
     backgroundColor: colors.border,
