@@ -1,9 +1,11 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFocusEffect } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Image, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
+import { colors, hairline, radius, spacing } from '@/constants/ui';
 import { listReports } from '@/lib/reports';
 import { Report } from '@/lib/types';
 
@@ -53,7 +55,7 @@ export default function HistoryScreen() {
       }
       ListEmptyComponent={
         <View style={styles.empty}>
-          <FontAwesome name="inbox" size={28} color="#8e8e93" />
+          <FontAwesome name="inbox" size={28} color={colors.muted} />
           <Text style={styles.emptyTitle}>No reports yet</Text>
           <Text style={styles.subtitle}>Create a report from the Report tab.</Text>
         </View>
@@ -64,10 +66,10 @@ export default function HistoryScreen() {
       renderItem={({ item }) => (
         <Pressable style={styles.card} onPress={() => openReport(item)}>
           {item.photoUri ? (
-            <Image source={{ uri: item.photoUri }} style={styles.thumbnail} />
+            <Image source={{ uri: item.photoUri }} contentFit="cover" transition={150} style={styles.thumbnail} />
           ) : (
             <View style={styles.iconBox}>
-              <FontAwesome name="file-text-o" size={20} color="#0a7ea4" />
+              <FontAwesome name="file-text-o" size={20} color={colors.primary} />
             </View>
           )}
           <View style={{ flex: 1 }}>
@@ -75,7 +77,7 @@ export default function HistoryScreen() {
             <Text style={styles.subtitle} numberOfLines={1}>{item.address || 'No address'}</Text>
             <Text style={styles.status}>{item.status === 'Draft' ? 'Resume draft' : item.status}</Text>
           </View>
-          <FontAwesome name="chevron-right" size={14} color="#8e8e93" />
+          <FontAwesome name="chevron-right" size={14} color={colors.muted} />
         </Pressable>
       )}
     />
@@ -84,27 +86,27 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
-    padding: 20,
-    paddingBottom: 48,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: colors.background,
     flexGrow: 1,
+    gap: spacing.md,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxxl,
   },
   header: {
     marginBottom: 4,
   },
   title: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 30,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#636366',
+    color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
   },
   sectionTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '800',
     marginTop: 8,
@@ -112,46 +114,46 @@ const styles = StyleSheet.create({
   },
   card: {
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    borderWidth: hairline,
     flexDirection: 'row',
-    gap: 12,
-    padding: 12,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   thumbnail: {
-    backgroundColor: '#d1d1d6',
-    borderRadius: 10,
+    backgroundColor: colors.border,
+    borderRadius: radius.card,
     height: 58,
     width: 58,
   },
   iconBox: {
     alignItems: 'center',
-    backgroundColor: '#e9f5f9',
-    borderRadius: 10,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.card,
     height: 58,
     justifyContent: 'center',
     width: 58,
   },
   cardTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '800',
   },
   status: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '800',
     marginTop: 4,
   },
   empty: {
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
     paddingTop: 80,
   },
   emptyTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '800',
   },

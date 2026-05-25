@@ -1,27 +1,35 @@
+import {
+  BottomSheetBackdrop,
+  type BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetScrollView,
+} from '@gorhom/bottom-sheet';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as Clipboard from 'expo-clipboard';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactElement, forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
+import { Button, Card, Chip, Field as CivicField, Notice as CivicNotice } from '@/components/CivicUI';
 import MapView, { type Region } from '@/components/CivicMap';
+import { colors, hairline, radius, spacing, typography } from '@/constants/ui';
 import { ISSUE_CATEGORIES, getCategory } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
+import { selectionHaptic, successHaptic } from '@/lib/haptics';
 import {
   appendSuggestedDescription,
   getSuggestedAnswerOptions,
@@ -84,7 +92,6 @@ const GENERAL_CATEGORY: IssueCategory = {
 export default function ReportScreen() {
   const { resumeId } = useLocalSearchParams<{ resumeId?: string }>();
   const [step, setStep] = useState<Step>('start');
-  const [categoryReturnStep, setCategoryReturnStep] = useState<CategoryReturnStep>('location');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedPhotoIssueTopic, setSelectedPhotoIssueTopic] =
     useState<PhotoIssueCandidate | null>(null);
@@ -109,8 +116,18 @@ export default function ReportScreen() {
   const [photoVisionStatus, setPhotoVisionStatus] = useState<PhotoVisionStatus>('idle');
   const [photoAnalysisUserEnabled, setPhotoAnalysisUserEnabled] = useState(false);
   const [raccoonFrameIndex, setRaccoonFrameIndex] = useState(0);
+  const categorySheetRef = useRef<BottomSheetModal>(null);
+  const categoryReturnStepRef = useRef<CategoryReturnStep>('location');
+  const scrollViewRef = useRef<ScrollView>(null);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const photoLabelsEnabled = canAnalyzePhotoLabels() && photoAnalysisUserEnabled;
+  const categorySnapPoints = useMemo(() => ['72%', '92%'], []);
+  const renderCategoryBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />
+    ),
+    []
+  );
 
   const manualCategory = useMemo(
     () => (selectedCategoryId ? getCategory(selectedCategoryId) : null),
@@ -282,6 +299,10 @@ export default function ReportScreen() {
   }, [step]);
 
   useEffect(() => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
+
+  useEffect(() => {
     return () => {
       if (reverseGeocodeTimeout.current) {
         clearTimeout(reverseGeocodeTimeout.current);
@@ -325,7 +346,7 @@ export default function ReportScreen() {
 
   function resetReport() {
     setStep('start');
-    setCategoryReturnStep('location');
+    categoryReturnStepRef.current = 'location';
     setSelectedCategoryId(null);
     setSelectedPhotoIssueTopic(null);
     setIssueSearchQuery('');
@@ -387,6 +408,7 @@ export default function ReportScreen() {
       setPhotoVisionResult(null);
       setPhotoVisionPhotoUri(null);
       setPhotoVisionStatus('idle');
+      successHaptic();
     } catch {
       Alert.alert('Photo not saved', 'The report can continue without a saved photo.');
     } finally {
@@ -415,6 +437,7 @@ export default function ReportScreen() {
       if (place) {
         setAddress(formatAddress(place));
       }
+      successHaptic();
     } catch {
       Alert.alert('Location unavailable', 'Enter the address manually to continue.');
     } finally {
@@ -500,6 +523,7 @@ export default function ReportScreen() {
       setEmailBody(nextEmail.body);
       setDismissedContactPrompt(false);
       setStep('preview');
+      successHaptic();
     } finally {
       setBusy(false);
     }
@@ -544,23 +568,27 @@ export default function ReportScreen() {
   }
 
   function openCategory(returnStep: CategoryReturnStep) {
-    setCategoryReturnStep(returnStep);
+    categoryReturnStepRef.current = returnStep;
     setIssueSearchQuery('');
-    setStep('category');
+    categorySheetRef.current?.present();
   }
 
   function chooseCategory(categoryId: string | null) {
+    const nextStep = categoryReturnStepRef.current;
     setSelectedCategoryId(categoryId);
     setSelectedPhotoIssueTopic(null);
     setAnswers({});
     setIssueSearchQuery('');
-    setStep(categoryReturnStep);
+    categorySheetRef.current?.dismiss();
+    setStep(nextStep);
+    selectionHaptic();
   }
 
   function togglePhotoIssueTopic(topic: PhotoIssueCandidate) {
     setSelectedCategoryId(null);
     setAnswers({});
     setSelectedPhotoIssueTopic((current) => (current?.issueId === topic.issueId ? null : topic));
+    selectionHaptic();
   }
 
   async function analyzeCurrentPhoto() {
@@ -582,10 +610,6 @@ export default function ReportScreen() {
     }
   }
 
-  function backFromCategory() {
-    setStep(categoryReturnStep === 'details' ? 'details' : 'start');
-  }
-
   function backFromLocation() {
     if (selectedCategoryId) {
       openCategory('location');
@@ -596,7 +620,8 @@ export default function ReportScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
       {savedBannerId ? (
         <View style={styles.banner}>
           <View style={{ flex: 1 }}>
@@ -618,7 +643,7 @@ export default function ReportScreen() {
             <Text style={styles.eyebrow}>Civic Snap</Text>
             <View style={styles.raccoonStage}>
               <Image
-                resizeMode="contain"
+                contentFit="contain"
                 source={RACCOON_SWEEPER_FRAMES[raccoonFrameIndex]}
                 style={styles.raccoonSprite}
               />
@@ -629,61 +654,33 @@ export default function ReportScreen() {
             </Text>
           </View>
           <Notice tone="plain" text="For emergencies or immediate danger, use emergency services instead of this app." />
-          <Pressable style={styles.primaryButton} onPress={takePhoto} disabled={busy}>
-            <FontAwesome name="camera" size={22} color="#fff" />
-            <Text style={styles.primaryButtonText}>Take photo</Text>
-          </Pressable>
-          <View style={styles.buttonRow}>
-            <Pressable style={styles.secondaryButton} onPress={() => setStep('location')}>
-              <Text style={styles.secondaryButtonText}>Report without photo</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={choosePhoto}>
-              <Text style={styles.secondaryButtonText}>Choose photo</Text>
-            </Pressable>
-          </View>
-          <Pressable style={styles.secondaryButton} onPress={() => openCategory('location')}>
-            <Text style={styles.secondaryButtonText}>Choose issue type</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {step === 'category' ? (
-        <View style={styles.stack}>
-          <Header title="Search issue types" onBack={backFromCategory} />
-          <Field
-            label="Search"
-            value={issueSearchQuery}
-            onChangeText={setIssueSearchQuery}
-            placeholder="Example: pothole, graffiti, sidewalk"
+          <Button
+            disabled={busy}
+            icon={<FontAwesome name="camera" size={22} color={colors.surface} />}
+            label="Take photo"
+            onPress={takePhoto}
           />
-          <Pressable
-            style={[styles.card, selectedCategoryId == null && styles.selectedCard]}
-            onPress={() => chooseCategory(null)}>
-            <Text style={styles.cardTitle}>General 311 report</Text>
-            <Text style={styles.muted}>Continue with a general 311 report.</Text>
-          </Pressable>
-          {filteredIssueCategories.map((item) => (
-            <Pressable
-              key={item.id}
-              style={[styles.card, item.id === selectedCategoryId && styles.selectedCard]}
-              onPress={() => chooseCategory(item.id)}>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.muted}>{categorySourceMatchText(item)}</Text>
-            </Pressable>
-          ))}
-          {filteredIssueCategories.length === 0 ? (
-            <Text style={styles.muted}>No issue types found. Try a different search term.</Text>
-          ) : null}
+          <View style={styles.buttonRow}>
+            <Button
+              label="Report without photo"
+              onPress={() => {
+                selectionHaptic();
+                setStep('location');
+              }}
+              style={styles.rowButton}
+              variant="secondary"
+            />
+            <Button label="Choose photo" onPress={choosePhoto} style={styles.rowButton} variant="secondary" />
+          </View>
+          <Button label="Choose issue type" onPress={() => openCategory('location')} variant="secondary" />
         </View>
       ) : null}
 
       {step === 'location' ? (
         <View style={styles.stack}>
           <Header title="Confirm location" onBack={backFromLocation} />
-          {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
-          <Pressable style={styles.secondaryButton} onPress={useCurrentLocation} disabled={busy}>
-            <Text style={styles.secondaryButtonText}>Use current location</Text>
-          </Pressable>
+          {photoUri ? <Image source={{ uri: photoUri }} contentFit="cover" transition={150} style={styles.photo} /> : null}
+          <Button disabled={busy} label="Use current location" onPress={useCurrentLocation} variant="secondary" />
           <Field
             label="Address or nearest landmark"
             value={address}
@@ -698,7 +695,7 @@ export default function ReportScreen() {
                 onRegionChangeComplete={updatePinFromMap}
               />
               <View pointerEvents="none" style={styles.centerPin}>
-                <FontAwesome name="map-marker" size={38} color="#d43f2f" />
+                <FontAwesome name="map-marker" size={38} color={colors.danger} />
               </View>
               <Text style={styles.mapHelp}>Move the map under the pin. The view is zoomed to about one block.</Text>
             </View>
@@ -714,9 +711,13 @@ export default function ReportScreen() {
             onChangeText={setLocationNote}
             placeholder="Example: south curb, beside the park entrance"
           />
-          <Pressable style={styles.primaryButton} onPress={() => setStep('details')}>
-            <Text style={styles.primaryButtonText}>Use this spot</Text>
-          </Pressable>
+          <Button
+            label="Use this spot"
+            onPress={() => {
+              selectionHaptic();
+              setStep('details');
+            }}
+          />
         </View>
       ) : null}
 
@@ -785,15 +786,13 @@ export default function ReportScreen() {
               <Text style={styles.sectionTitle}>Useful observations</Text>
               {category.observations.map((observation) => (
                 <View key={observation} style={styles.observationRow}>
-                  <FontAwesome name="check-circle" size={16} color="#0a7ea4" />
+                  <FontAwesome name="check-circle" size={16} color={colors.primary} />
                   <Text style={styles.observationText}>{observation}</Text>
                 </View>
               ))}
             </>
           ) : null}
-          <Pressable style={styles.primaryButton} onPress={previewEmail} disabled={busy}>
-            <Text style={styles.primaryButtonText}>Preview email</Text>
-          </Pressable>
+          <Button disabled={busy} label="Preview email" onPress={previewEmail} />
         </View>
       ) : null}
 
@@ -814,7 +813,7 @@ export default function ReportScreen() {
                   hitSlop={10}
                   onPress={() => setDismissedContactPrompt(true)}
                   style={styles.dismissButton}>
-                  <FontAwesome name="times" size={16} color="#3a3a3c" />
+                  <FontAwesome name="times" size={16} color={colors.text} />
                 </Pressable>
               </View>
               <Text style={styles.muted}>311 may use it to follow up. You can still send this report without it.</Text>
@@ -843,9 +842,7 @@ export default function ReportScreen() {
             />
           </View>
           <Text style={styles.muted}>{photoUri ? 'Photo will be attached.' : 'No photo attached.'}</Text>
-          <Pressable style={styles.primaryButton} onPress={openMail}>
-            <Text style={styles.primaryButtonText}>Open Mail</Text>
-          </Pressable>
+          <Button label="Open Mail" onPress={openMail} />
         </View>
       ) : null}
 
@@ -856,12 +853,8 @@ export default function ReportScreen() {
             tone="warning"
             text="The iOS mail composer is unavailable. Copy the draft, then attach the photo manually if needed."
           />
-          <Pressable style={styles.secondaryButton} onPress={copyEmail}>
-            <Text style={styles.secondaryButtonText}>Copy email text</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={openMailto}>
-            <Text style={styles.secondaryButtonText}>Open mailto link</Text>
-          </Pressable>
+          <Button label="Copy email text" onPress={copyEmail} variant="secondary" />
+          <Button label="Open mailto link" onPress={openMailto} variant="secondary" />
         </View>
       ) : null}
 
@@ -870,7 +863,18 @@ export default function ReportScreen() {
           <ActivityIndicator />
         </View>
       ) : null}
-    </ScrollView>
+      </ScrollView>
+      <IssuePickerSheet
+        ref={categorySheetRef}
+        backdropComponent={renderCategoryBackdrop}
+        categories={filteredIssueCategories}
+        onChooseCategory={chooseCategory}
+        onSearchChange={setIssueSearchQuery}
+        searchQuery={issueSearchQuery}
+        selectedCategoryId={selectedCategoryId}
+        snapPoints={categorySnapPoints}
+      />
+    </>
   );
 }
 
@@ -878,13 +882,76 @@ function Header({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <View style={styles.headerRow}>
       <Pressable onPress={onBack} hitSlop={10}>
-        <FontAwesome name="chevron-left" size={18} color="#1d1d1f" />
+        <FontAwesome name="chevron-left" size={18} color={colors.text} />
       </Pressable>
       <Text style={styles.headerTitle}>{title}</Text>
       <View style={{ width: 18 }} />
     </View>
   );
 }
+
+const IssuePickerSheet = forwardRef<
+  BottomSheetModal,
+  {
+    backdropComponent: (props: BottomSheetBackdropProps) => ReactElement;
+    categories: IssueCategory[];
+    onChooseCategory: (categoryId: string | null) => void;
+    onSearchChange: (value: string) => void;
+    searchQuery: string;
+    selectedCategoryId: string | null;
+    snapPoints: string[];
+  }
+>(function IssuePickerSheet(
+  {
+    backdropComponent,
+    categories,
+    onChooseCategory,
+    onSearchChange,
+    searchQuery,
+    selectedCategoryId,
+    snapPoints,
+  },
+  ref
+) {
+  return (
+    <BottomSheetModal
+      ref={ref}
+      backdropComponent={backdropComponent}
+      backgroundStyle={styles.sheetBackground}
+      handleIndicatorStyle={styles.sheetHandle}
+      keyboardBehavior="extend"
+      keyboardBlurBehavior="restore"
+      snapPoints={snapPoints}>
+      <BottomSheetScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
+        <Text style={styles.sheetTitle}>Choose issue type</Text>
+        <Text style={styles.muted}>Search Toronto 311 topics or keep this as a general report.</Text>
+        <Field
+          label="Search"
+          value={searchQuery}
+          onChangeText={onSearchChange}
+          placeholder="Example: pothole, graffiti, sidewalk"
+        />
+        <Pressable onPress={() => onChooseCategory(null)}>
+          <Card selected={selectedCategoryId == null} style={styles.sheetCard}>
+            <Text style={styles.cardTitle}>General 311 report</Text>
+            <Text style={styles.muted}>Continue with a general 311 report.</Text>
+          </Card>
+        </Pressable>
+        {categories.map((item) => (
+          <Pressable key={item.id} onPress={() => onChooseCategory(item.id)}>
+            <Card selected={item.id === selectedCategoryId} style={styles.sheetCard}>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              <Text style={styles.muted}>{categorySourceMatchText(item)}</Text>
+            </Card>
+          </Pressable>
+        ))}
+        {categories.length === 0 ? (
+          <Text style={styles.muted}>No issue types found. Try a different search term.</Text>
+        ) : null}
+      </BottomSheetScrollView>
+    </BottomSheetModal>
+  );
+});
 
 function categorySourceMatchText(category: IssueCategory) {
   if (category.sourceMatchStatus === 'unmatched') {
@@ -981,16 +1048,13 @@ function Field({
   multiline?: boolean;
 }) {
   return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        multiline={multiline}
-        style={[styles.input, multiline && styles.multiline]}
-      />
-    </View>
+    <CivicField
+      label={label}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      multiline={multiline}
+    />
   );
 }
 
@@ -1066,11 +1130,7 @@ function QuestionField({
 }
 
 function Notice({ text, tone }: { text: string; tone: 'plain' | 'warning' }) {
-  return (
-    <View style={[styles.notice, tone === 'warning' && styles.warningNotice]}>
-      <Text style={styles.noticeText}>{text}</Text>
-    </View>
-  );
+  return <CivicNotice text={text} tone={tone} />;
 }
 
 function EvidencePhoto({
@@ -1087,7 +1147,7 @@ function EvidencePhoto({
 
   return (
     <View style={[styles.evidencePhotoFrame, { aspectRatio }]}>
-      <Image source={{ uri: photoUri }} resizeMode="stretch" style={styles.evidencePhoto} />
+      <Image source={{ uri: photoUri }} contentFit="fill" transition={150} style={styles.evidencePhoto} />
       {selectedCandidate.boundingBoxes.map((box) => (
         <View
           key={`${box.labelId}-${box.boundingBox.x}-${box.boundingBox.y}`}
@@ -1158,12 +1218,12 @@ function SuggestedTopicsPanel({
               <FontAwesome
                 name={selected ? 'check-circle' : 'circle-o'}
                 size={20}
-                color={selected ? '#0a7ea4' : '#8e8e93'}
+                color={selected ? colors.primary : colors.muted}
               />
             </View>
             <View style={styles.chipRow}>
               {topic.evidenceChips.map((chip) => (
-                <Text key={chip} style={styles.evidenceChip}>{chip}</Text>
+                <Chip key={chip}>{chip}</Chip>
               ))}
             </View>
             <Text style={styles.evidenceText}>{topic.reason}</Text>
@@ -1175,9 +1235,9 @@ function SuggestedTopicsPanel({
           <Text style={styles.promptTitle}>Detected evidence</Text>
           <View style={styles.chipRow}>
             {labels.map((label) => (
-              <Text key={label.id} style={styles.evidenceChip}>
+              <Chip key={label.id}>
                 {label.label} {Math.round(label.confidence * 100)}%
-              </Text>
+              </Chip>
             ))}
           </View>
         </View>
@@ -1199,7 +1259,7 @@ function SuggestedTopicsPanel({
         </View>
       ) : null}
       <Pressable style={styles.inlineButton} onPress={onOpenIssueSearch}>
-        <FontAwesome name="search" size={15} color="#1d1d1f" />
+        <FontAwesome name="search" size={15} color={colors.text} />
         <Text style={styles.inlineButtonText}>Search all issue types</Text>
       </Pressable>
     </View>
@@ -1224,7 +1284,7 @@ function ManualIssuePanel({
         </View>
       </View>
       <Pressable style={styles.inlineButton} onPress={onOpenIssueSearch}>
-        <FontAwesome name="search" size={15} color="#1d1d1f" />
+        <FontAwesome name="search" size={15} color={colors.text} />
         <Text style={styles.inlineButtonText}>Search all issue types</Text>
       </Pressable>
     </View>
@@ -1239,7 +1299,7 @@ function PromptGroup({ title, prompts }: { title: string; prompts: string[] }) {
       <Text style={styles.promptTitle}>{title}</Text>
       {prompts.map((prompt) => (
         <View key={prompt} style={styles.promptRow}>
-          <FontAwesome name="lightbulb-o" size={15} color="#0a7ea4" />
+          <FontAwesome name="lightbulb-o" size={15} color={colors.primary} />
           <Text style={styles.promptText}>{prompt}</Text>
         </View>
       ))}
@@ -1277,22 +1337,22 @@ function profilesEqual(left: Profile, right: Profile) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingBottom: 48,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: colors.background,
     flexGrow: 1,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxxl,
   },
   stack: {
-    gap: 16,
+    gap: spacing.lg,
   },
   progressCard: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 8,
-    marginBottom: 16,
-    padding: 12,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    borderWidth: hairline,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
   },
   progressDotsRow: {
     flexDirection: 'row',
@@ -1304,8 +1364,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   progressConnector: {
-    backgroundColor: '#e5e5ea',
-    borderRadius: 999,
+    backgroundColor: colors.border,
+    borderRadius: radius.pill,
     height: 3,
     position: 'absolute',
     top: 12,
@@ -1319,42 +1379,42 @@ const styles = StyleSheet.create({
     right: 0,
   },
   progressConnectorActive: {
-    backgroundColor: '#0a7ea4',
+    backgroundColor: colors.primary,
   },
   progressLabelRow: {
     flexDirection: 'row',
   },
   progressDot: {
     alignItems: 'center',
-    backgroundColor: '#f2f2f7',
-    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.pill,
     height: 26,
     justifyContent: 'center',
     width: 26,
   },
   progressDotActive: {
-    backgroundColor: '#0a7ea4',
+    backgroundColor: colors.primary,
   },
   progressNumber: {
-    color: '#636366',
-    fontSize: 12,
+    color: colors.muted,
+    fontSize: typography.caption,
     fontWeight: '800',
   },
   progressNumberActive: {
-    color: '#fff',
+    color: colors.surface,
   },
   progressLabel: {
-    color: '#636366',
+    color: colors.muted,
     flex: 1,
-    fontSize: 12,
+    fontSize: typography.caption,
     fontWeight: '700',
     textAlign: 'center',
   },
   progressLabelActive: {
-    color: '#1d1d1f',
+    color: colors.text,
   },
   eyebrow: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -1373,83 +1433,33 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   title: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 32,
     fontWeight: '800',
     lineHeight: 36,
     marginTop: 8,
   },
   subtitle: {
-    color: '#636366',
-    fontSize: 17,
+    color: colors.muted,
+    fontSize: typography.subtitle,
     lineHeight: 24,
     marginTop: 10,
   },
-  primaryButton: {
-    minHeight: 56,
-    borderRadius: 14,
-    backgroundColor: '#0a7ea4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  secondaryButton: {
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  secondaryButtonText: {
-    color: '#1d1d1f',
-    fontSize: 16,
-    fontWeight: '700',
-  },
   buttonRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
   },
-  card: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-  },
-  selectedCard: {
-    borderColor: '#0a7ea4',
+  rowButton: {
+    flex: 1,
   },
   cardTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '800',
     marginBottom: 4,
   },
   muted: {
-    color: '#636366',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  notice: {
-    backgroundColor: '#e9f5f9',
-    borderRadius: 14,
-    padding: 14,
-  },
-  warningNotice: {
-    backgroundColor: '#fff4df',
-  },
-  noticeText: {
-    color: '#2f3a40',
+    color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -1459,21 +1469,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 18,
     fontWeight: '800',
   },
   photo: {
-    width: '100%',
+    backgroundColor: colors.border,
+    borderRadius: radius.card,
     height: 220,
-    borderRadius: 16,
-    backgroundColor: '#d1d1d6',
+    width: '100%',
   },
   pinCard: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    borderWidth: hairline,
     overflow: 'hidden',
   },
   pinMap: {
@@ -1492,7 +1502,7 @@ const styles = StyleSheet.create({
     width: 48,
   },
   mapHelp: {
-    color: '#636366',
+    color: colors.muted,
     fontSize: 13,
     lineHeight: 18,
     padding: 12,
@@ -1501,32 +1511,19 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   label: {
-    color: '#636366',
-    fontSize: 12,
+    color: colors.muted,
+    fontSize: typography.label,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
-  input: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    color: '#1d1d1f',
-    fontSize: 16,
-    padding: 14,
-  },
-  multiline: {
-    minHeight: 86,
-    textAlignVertical: 'top',
-  },
   categoryTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 22,
     fontWeight: '800',
   },
   sectionTitle: {
-    color: '#1d1d1f',
-    fontSize: 16,
+    color: colors.text,
+    fontSize: typography.section,
     fontWeight: '800',
   },
   observationRow: {
@@ -1535,15 +1532,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   observationText: {
-    color: '#3a3a3c',
+    color: colors.text,
     flex: 1,
     fontSize: 15,
   },
   warningCard: {
-    backgroundColor: '#fff4df',
-    borderRadius: 14,
-    padding: 14,
-    gap: 10,
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.card,
+    gap: spacing.sm,
+    padding: spacing.md,
   },
   warningCardHeader: {
     alignItems: 'flex-start',
@@ -1566,22 +1563,22 @@ const styles = StyleSheet.create({
   },
   smallButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#1d1d1f',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    backgroundColor: colors.text,
+    borderRadius: radius.control,
+    paddingHorizontal: spacing.md,
     paddingVertical: 9,
   },
   smallButtonText: {
-    color: '#fff',
+    color: colors.surface,
     fontWeight: '800',
   },
   emailBox: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-    padding: 14,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    borderWidth: hairline,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   emailToRow: {
     alignItems: 'center',
@@ -1589,23 +1586,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emailToLabel: {
-    color: '#636366',
+    color: colors.muted,
     fontSize: 14,
     fontWeight: '800',
   },
   emailTo: {
-    color: '#1d1d1f',
+    color: colors.text,
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
   },
   suggestionCard: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-    padding: 14,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    borderWidth: hairline,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   suggestionHeader: {
     alignItems: 'center',
@@ -1614,15 +1611,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   topicCard: {
-    backgroundColor: '#f9fbfc',
-    borderColor: '#d1d1d6',
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 10,
-    padding: 12,
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    borderWidth: hairline,
+    gap: spacing.sm,
+    padding: spacing.md,
   },
   topicCardSelected: {
-    borderColor: '#0a7ea4',
+    borderColor: colors.primary,
   },
   topicRow: {
     alignItems: 'center',
@@ -1630,12 +1627,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   topicTitle: {
-    color: '#1d1d1f',
-    fontSize: 16,
+    color: colors.text,
+    fontSize: typography.section,
     fontWeight: '800',
   },
   matchText: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -1643,13 +1640,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   evidenceText: {
-    color: '#3a3a3c',
+    color: colors.text,
     fontSize: 14,
     lineHeight: 20,
   },
   evidencePhotoFrame: {
-    backgroundColor: '#d1d1d6',
-    borderRadius: 14,
+    backgroundColor: colors.border,
+    borderRadius: radius.card,
     overflow: 'hidden',
     position: 'relative',
     width: '100%',
@@ -1659,43 +1656,33 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   evidenceBox: {
-    borderColor: '#0a7ea4',
+    borderColor: colors.primary,
     borderRadius: 6,
     borderWidth: 2,
     position: 'absolute',
   },
   evidenceBoxLabel: {
     alignSelf: 'flex-start',
-    backgroundColor: '#0a7ea4',
+    backgroundColor: colors.primary,
     borderBottomRightRadius: 5,
-    color: '#fff',
+    color: colors.surface,
     fontSize: 11,
     fontWeight: '800',
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
   suggestedSentence: {
-    backgroundColor: '#f9fbfc',
-    borderColor: '#b8dce8',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 8,
-    padding: 14,
+    backgroundColor: colors.background,
+    borderColor: colors.primarySoft,
+    borderRadius: radius.card,
+    borderWidth: hairline,
+    gap: spacing.sm,
+    padding: spacing.md,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-  },
-  evidenceChip: {
-    backgroundColor: '#e9f5f9',
-    borderRadius: 999,
-    color: '#0a5f7a',
-    fontSize: 12,
-    fontWeight: '800',
-    overflow: 'hidden',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
   },
   optionWrap: {
     flexDirection: 'row',
@@ -1703,30 +1690,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   optionChip: {
-    backgroundColor: '#fff',
-    borderColor: '#d1d1d6',
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
+    paddingHorizontal: spacing.md,
     paddingVertical: 9,
   },
   optionChipSelected: {
-    backgroundColor: '#0a7ea4',
-    borderColor: '#0a7ea4',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   optionChipSuggested: {
-    borderColor: '#0a7ea4',
+    borderColor: colors.primary,
   },
   optionChipText: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '700',
   },
   optionChipTextSelected: {
-    color: '#fff',
+    color: colors.surface,
   },
   suggestionText: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -1734,7 +1721,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   promptTitle: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -1744,7 +1731,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   promptText: {
-    color: '#3a3a3c',
+    color: colors.text,
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
@@ -1759,56 +1746,76 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     alignSelf: 'flex-start',
-    borderColor: '#b8dce8',
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
+    borderColor: colors.primarySoft,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
+    paddingHorizontal: spacing.md,
     paddingVertical: 8,
   },
   inlineActionText: {
-    color: '#0a7ea4',
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '800',
   },
   inlineButton: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    borderColor: '#d1d1d6',
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: hairline,
     flexDirection: 'row',
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
   inlineButtonText: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '800',
   },
   banner: {
     alignItems: 'center',
-    backgroundColor: '#e9f5f9',
-    borderRadius: 14,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.card,
     flexDirection: 'row',
     gap: 12,
     marginBottom: 16,
     padding: 14,
   },
   bannerTitle: {
-    color: '#1d1d1f',
-    fontSize: 16,
+    color: colors.text,
+    fontSize: typography.section,
     fontWeight: '800',
   },
   bannerButton: {
-    backgroundColor: '#0a7ea4',
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    borderRadius: radius.control,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   bannerButtonText: {
-    color: '#fff',
+    color: colors.surface,
     fontWeight: '800',
+  },
+  sheetBackground: {
+    backgroundColor: colors.surface,
+  },
+  sheetHandle: {
+    backgroundColor: colors.border,
+    width: 44,
+  },
+  sheetContent: {
+    gap: spacing.md,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxxl,
+  },
+  sheetTitle: {
+    color: colors.text,
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  sheetCard: {
+    gap: spacing.xs,
   },
   busyOverlay: {
     ...StyleSheet.absoluteFillObject,

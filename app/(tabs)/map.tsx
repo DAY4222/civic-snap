@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import MapView, { Marker } from '@/components/CivicMap';
+import { colors, hairline, spacing } from '@/constants/ui';
 import { listReports } from '@/lib/reports';
 import { Report } from '@/lib/types';
 
@@ -61,25 +62,25 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#f5f5f7',
+    backgroundColor: colors.background,
     flex: 1,
   },
   map: {
     flex: 1,
   },
   panel: {
-    backgroundColor: '#fff',
-    borderTopColor: '#d1d1d6',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderTopColor: colors.border,
+    borderTopWidth: hairline,
+    padding: spacing.lg,
   },
   title: {
-    color: '#1d1d1f',
+    color: colors.text,
     fontSize: 20,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#636366',
+    color: colors.muted,
     fontSize: 14,
     lineHeight: 20,
     marginTop: 4,
