@@ -8,16 +8,16 @@ const ROOT = path.resolve(__dirname, '..');
 const MAX_IMAGES = 5;
 const DEFAULT_CHECKS = [
   {
-    path: 'docs/toronto-311-spot-checks/01-high-ranked-child-residential-bin.png',
-    expectedIssueId: 'residential-bin-lid-damaged',
+    path: 'docs/toronto-311-spot-checks/01-road-sinkhole.png',
+    expectedIssueId: 'sink-hole',
   },
   {
-    path: 'docs/toronto-311-spot-checks/02-direct-clean-up-debris-road.png',
-    expectedIssueId: 'clean-up-debris-on-road',
+    path: 'docs/toronto-311-spot-checks/02-road-pothole.png',
+    expectedIssueId: 'road-pothole-road-damage',
   },
   {
-    path: 'docs/toronto-311-spot-checks/03-conditional-property-standards.png',
-    expectedIssueId: 'property-standards-and-maintenance-violations',
+    path: 'docs/toronto-311-spot-checks/03-oversized-items.png',
+    expectedIssueId: 'residential-oversized-electronics-item-day-collection-not-picked-up',
   },
 ];
 
