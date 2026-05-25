@@ -238,7 +238,20 @@ describe('report wizard reducer', () => {
 
   it('classifies photo vision status from normalized results', () => {
     expect(getPhotoVisionStatus(null)).toBe('idle');
-    expect(getPhotoVisionStatus({ ...photoVisionResult, suggestedLabels: [] })).toBe('empty');
+    expect(getPhotoVisionStatus(photoVisionResult)).toBe('ready');
+    expect(
+      getPhotoVisionStatus({
+        ...photoVisionResult,
+        issueCandidates: [],
+      })
+    ).toBe('empty');
+    expect(
+      getPhotoVisionStatus({
+        ...photoVisionResult,
+        issueCandidates: [topic],
+        suggestedLabels: [],
+      })
+    ).toBe('ready');
   });
 
   it('maps photo vision errors to user-facing statuses', () => {

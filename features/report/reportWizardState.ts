@@ -279,7 +279,7 @@ export function reportWizardReducer(
 
 export function getPhotoVisionStatus(result: PhotoVisionResult | null): PhotoVisionStatus {
   if (!result) return 'idle';
-  return result.suggestedLabels.length > 0 ? 'ready' : 'empty';
+  return result.issueCandidates.length > 0 ? 'ready' : 'empty';
 }
 
 export function getPhotoVisionErrorStatus(error: unknown): PhotoVisionStatus {

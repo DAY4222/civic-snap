@@ -1,7 +1,9 @@
 import { PhotoIssueCandidate, CategoryQuestion, CategoryQuestionOption, PhotoVisionResult } from './types';
 
+const MAX_SUGGESTED_ISSUE_CANDIDATES = 3;
+
 export function getSuggestedIssueCandidates(result: PhotoVisionResult | null) {
-  return result?.issueCandidates ?? [];
+  return result?.issueCandidates.slice(0, MAX_SUGGESTED_ISSUE_CANDIDATES) ?? [];
 }
 
 export function getSuggestedAnswerOptions(

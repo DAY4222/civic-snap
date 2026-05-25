@@ -5,7 +5,7 @@ import {
   getSuggestedIssueCandidates,
   toggleMultiAnswer,
 } from '../issueSuggestions';
-import { makePhotoVisionResult } from '../testUtils/photoVisionFixtures';
+import { makePhotoIssueCandidate, makePhotoVisionResult } from '../testUtils/photoVisionFixtures';
 import type { PhotoIssueCandidate, PhotoVisionResult } from '../types';
 
 const selectedCandidate: PhotoIssueCandidate = {
@@ -28,6 +28,24 @@ describe('issue suggestions', () => {
     });
 
     expect(getSuggestedIssueCandidates(result)).toEqual([selectedCandidate]);
+  });
+
+  it('returns no candidates for null results and caps suggestions at three', () => {
+    const result = makePhotoVisionResult({
+      issueCandidates: ['one', 'two', 'three', 'four'].map((id) =>
+        makePhotoIssueCandidate({
+          issueId: `issue-${id}`,
+          title: `Issue ${id}`,
+        })
+      ),
+    });
+
+    expect(getSuggestedIssueCandidates(null)).toEqual([]);
+    expect(getSuggestedIssueCandidates(result).map((candidate) => candidate.issueId)).toEqual([
+      'issue-one',
+      'issue-two',
+      'issue-three',
+    ]);
   });
 
   it('suggests checklist answers from supporting labels without filling them', () => {
