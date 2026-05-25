@@ -2,6 +2,11 @@ import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
 
 import { buildEmail } from '@/lib/email';
+import {
+  canRewriteEmailDraft,
+  rewriteEmailDraft,
+  type EmailRewriteResult,
+} from '@/lib/emailRewriteClient';
 import { persistReportPhoto } from '@/lib/photos';
 import {
   createDraftReport,
@@ -9,7 +14,7 @@ import {
   updateReportEmail,
   updateReportStatus,
 } from '@/lib/reports';
-import type { IssueCategory } from '@/lib/types';
+import type { DraftReportInput, IssueCategory } from '@/lib/types';
 
 import { GENERAL_CATEGORY, type ReportWizardState } from './reportWizardState';
 
@@ -54,18 +59,8 @@ export async function saveReportDraft({
   savedReportId: string | null;
   state: ReportWizardState;
 }) {
-  const email = buildEmail({
-    category,
-    description: state.description,
-    answers: state.answers,
-    address: state.address,
-    locationNote: state.locationNote,
-    latitude: state.latitude,
-    longitude: state.longitude,
-    photoUri: state.photoUri,
-    photoIssueTopic: state.selectedPhotoIssueTopic,
-    profile: state.profile,
-  });
+  const emailInput = buildEmailInput(category, state);
+  const email = await buildPreviewEmail(emailInput);
 
   const draftInput = {
     categoryId: category.id === GENERAL_CATEGORY.id ? null : category.id,
@@ -89,6 +84,40 @@ export async function saveReportDraft({
   }
 
   return { email, id };
+}
+
+export async function buildPreviewEmail(
+  input: DraftReportInput,
+  rewriteDraft: (
+    input: DraftReportInput,
+    options: { defaultEmailBody: string }
+  ) => Promise<Pick<EmailRewriteResult, 'body'>> = rewriteEmailDraft,
+  buildLocalEmail: (input: DraftReportInput) => ReturnType<typeof buildEmail> = buildEmail
+) {
+  const email = buildLocalEmail(input);
+  if (rewriteDraft === rewriteEmailDraft && !canRewriteEmailDraft()) return email;
+
+  try {
+    const rewritten = await rewriteDraft(input, { defaultEmailBody: email.body });
+    return { ...email, body: rewritten.body };
+  } catch {
+    return email;
+  }
+}
+
+function buildEmailInput(category: IssueCategory, state: ReportWizardState): DraftReportInput {
+  return {
+    category,
+    description: state.description,
+    answers: state.answers,
+    address: state.address,
+    locationNote: state.locationNote,
+    latitude: state.latitude,
+    longitude: state.longitude,
+    photoUri: state.photoUri,
+    photoIssueTopic: state.selectedPhotoIssueTopic,
+    profile: state.profile,
+  };
 }
 
 export async function openSavedReportMail({
