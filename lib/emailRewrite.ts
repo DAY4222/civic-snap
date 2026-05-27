@@ -1,6 +1,6 @@
 import type { DraftReportInput } from './types';
 
-export const EMAIL_REWRITE_PROMPT_VERSION = 'toronto-311-email-rewrite-v1';
+export const EMAIL_REWRITE_PROMPT_VERSION = 'toronto-311-email-rewrite-v2';
 
 export type EmailRewritePromptPayload = {
   default_email: string;

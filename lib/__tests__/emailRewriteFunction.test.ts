@@ -57,6 +57,7 @@ describe('rewrite-email Edge Function logic', () => {
 
     const prompt = buildGeminiEmailRewritePrompt(validation);
     expect(prompt).toContain('Return JSON only with this shape');
+    expect(prompt).toContain('Use plain-text section labels with blank lines');
     expect(prompt).toContain('Do not invent dates, durations, hazards');
     expect(prompt).toContain('"issueLabel":"Road Pothole / Road Damage"');
     expect(prompt).toContain('"guidedAnswers":["Is this on a City road?: Road"]');
@@ -95,7 +96,7 @@ describe('rewrite-email Edge Function logic', () => {
       endOfDay: new Date('2026-05-26T00:00:00.000Z'),
       installIdHash: 'hash-1',
       model: 'gemini-3.1-flash-lite',
-      promptVersion: 'toronto-311-email-rewrite-v1',
+      promptVersion: 'toronto-311-email-rewrite-v2',
       provider: 'gemini',
       startOfDay: new Date('2026-05-25T00:00:00.000Z'),
     });
@@ -105,7 +106,7 @@ describe('rewrite-email Edge Function logic', () => {
       createdAtStart: '2026-05-25T00:00:00.000Z',
       installIdHash: 'hash-1',
       model: 'gemini-3.1-flash-lite',
-      promptVersion: 'toronto-311-email-rewrite-v1',
+      promptVersion: 'toronto-311-email-rewrite-v2',
       provider: 'gemini',
     });
   });
@@ -120,7 +121,7 @@ describe('rewrite-email Edge Function logic', () => {
       latencyMs: 250,
       model: 'gemini-3.1-flash-lite',
       outputChars: 900,
-      promptVersion: 'toronto-311-email-rewrite-v1',
+      promptVersion: 'toronto-311-email-rewrite-v2',
       provider: 'gemini',
       status: 'ok',
     });
@@ -130,7 +131,7 @@ describe('rewrite-email Edge Function logic', () => {
       default_email_chars: 1200,
       install_id_hash: 'hash-1',
       output_chars: 900,
-      prompt_version: 'toronto-311-email-rewrite-v1',
+      prompt_version: 'toronto-311-email-rewrite-v2',
       status: 'ok',
     });
     expect(Object.keys(row)).not.toEqual(

@@ -51,7 +51,7 @@ describe('email rewrite client', () => {
           body: 'Improved email body',
           provider: 'gemini',
           model: 'gemini-3.1-flash-lite',
-          promptVersion: 'toronto-311-email-rewrite-v1',
+          promptVersion: 'toronto-311-email-rewrite-v2',
           rewrittenAt: '2026-05-25T00:00:00.000Z',
           latencyMs: 123,
         })
@@ -81,7 +81,7 @@ describe('email rewrite client', () => {
       ],
       installId: 'install-1',
       issueLabel: 'Residential Bin Lid Damaged',
-      promptVersion: 'toronto-311-email-rewrite-v1',
+      promptVersion: 'toronto-311-email-rewrite-v2',
     });
   });
 

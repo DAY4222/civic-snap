@@ -35,7 +35,7 @@ const photoIssueTopic: PhotoIssueCandidate = {
 
 describe('buildEmailRewritePromptPayload', () => {
   it('exposes the client payload version used by the rewrite backend', () => {
-    expect(EMAIL_REWRITE_PROMPT_VERSION).toBe('toronto-311-email-rewrite-v1');
+    expect(EMAIL_REWRITE_PROMPT_VERSION).toBe('toronto-311-email-rewrite-v2');
   });
 
   it('builds structured rewrite context from the deterministic email draft', () => {

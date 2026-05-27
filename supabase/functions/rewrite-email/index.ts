@@ -22,7 +22,7 @@ const corsHeaders = {
 
 const MODEL = 'gemini-3.1-flash-lite';
 const PROVIDER = 'gemini';
-const PROMPT_VERSION = 'toronto-311-email-rewrite-v1';
+const PROMPT_VERSION = 'toronto-311-email-rewrite-v2';
 const GEMINI_TIMEOUT_MS = 20_000;
 const LIMIT_CONFIG = readRewriteLimitConfigFromEnv((name) => Deno.env.get(name));
 
