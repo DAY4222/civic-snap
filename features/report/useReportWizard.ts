@@ -224,9 +224,16 @@ export function useReportWizard(resumeId?: string) {
   useEffect(() => {
     if (!resumeId || resumeId === state.resumedReportId) return;
 
-    getReport(resumeId).then((report) => {
-      if (report) dispatch({ type: 'resumeReport', report });
-    });
+    let active = true;
+    getReport(resumeId)
+      .then((report) => {
+        if (active && report) dispatch({ type: 'resumeReport', report });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
   }, [resumeId, state.resumedReportId]);
 
   const analyzeCurrentPhoto = useCallback(async () => {

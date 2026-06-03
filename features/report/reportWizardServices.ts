@@ -60,27 +60,17 @@ export async function saveReportDraft({
   state: ReportWizardState;
 }) {
   const emailInput = buildEmailInput(category, state);
-  const email = await buildPreviewEmail(emailInput);
+  const localEmail = buildEmail(emailInput);
+  const localDraftInput = buildReportDraftInput(category, state, localEmail);
 
-  const draftInput = {
-    categoryId: category.id === GENERAL_CATEGORY.id ? null : category.id,
-    category: category.title,
-    description: state.description,
-    answers: state.answers,
-    address: state.address,
-    latitude: state.latitude,
-    longitude: state.longitude,
-    photoUri: state.photoUri,
-    thumbnailUri: state.thumbnailUri,
-    photoVisionResult: state.photoVisionResult,
-    photoIssueTopic: state.selectedPhotoIssueTopic,
-    emailSubject: email.subject,
-    emailBody: email.body,
-  };
-
-  const id = savedReportId ?? (await createDraftReport(draftInput));
+  const id = savedReportId ?? (await createDraftReport(localDraftInput));
   if (savedReportId) {
-    await updateDraftReport(savedReportId, draftInput);
+    await updateDraftReport(savedReportId, localDraftInput);
+  }
+
+  const email = await buildPreviewEmail(emailInput, rewriteEmailDraft, () => localEmail);
+  if (email.body !== localEmail.body || email.subject !== localEmail.subject) {
+    await updateDraftReport(id, buildReportDraftInput(category, state, email));
   }
 
   return { email, id };
@@ -117,6 +107,28 @@ function buildEmailInput(category: IssueCategory, state: ReportWizardState): Dra
     photoUri: state.photoUri,
     photoIssueTopic: state.selectedPhotoIssueTopic,
     profile: state.profile,
+  };
+}
+
+function buildReportDraftInput(
+  category: IssueCategory,
+  state: ReportWizardState,
+  email: ReturnType<typeof buildEmail>
+) {
+  return {
+    categoryId: category.id === GENERAL_CATEGORY.id ? null : category.id,
+    category: category.title,
+    description: state.description,
+    answers: state.answers,
+    address: state.address,
+    latitude: state.latitude,
+    longitude: state.longitude,
+    photoUri: state.photoUri,
+    thumbnailUri: state.thumbnailUri,
+    photoVisionResult: state.photoVisionResult,
+    photoIssueTopic: state.selectedPhotoIssueTopic,
+    emailSubject: email.subject,
+    emailBody: email.body,
   };
 }
 

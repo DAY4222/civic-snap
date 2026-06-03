@@ -1,8 +1,31 @@
+const mockCreateDraftReport = jest.fn();
+const mockUpdateDraftReport = jest.fn();
+const mockUpdateReportEmail = jest.fn();
+const mockUpdateReportStatus = jest.fn();
+const mockRewriteEmailDraft = jest.fn();
+
+jest.mock('@/lib/reports', () => ({
+  createDraftReport: (...args: unknown[]) => mockCreateDraftReport(...args),
+  updateDraftReport: (...args: unknown[]) => mockUpdateDraftReport(...args),
+  updateReportEmail: (...args: unknown[]) => mockUpdateReportEmail(...args),
+  updateReportStatus: (...args: unknown[]) => mockUpdateReportStatus(...args),
+}));
+
+jest.mock('@/lib/emailRewriteClient', () => {
+  const actual = jest.requireActual('@/lib/emailRewriteClient');
+  return {
+    ...actual,
+    canRewriteEmailDraft: () => true,
+    rewriteEmailDraft: (...args: unknown[]) => mockRewriteEmailDraft(...args),
+  };
+});
+
 import { ISSUE_CATEGORIES } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
 import type { DraftReportInput } from '@/lib/types';
 
-import { buildPreviewEmail } from '../reportWizardServices';
+import { buildPreviewEmail, saveReportDraft } from '../reportWizardServices';
+import { createInitialReportWizardState } from '../reportWizardState';
 
 const baseInput: DraftReportInput = {
   category: ISSUE_CATEGORIES[0],
@@ -24,6 +47,17 @@ const baseInput: DraftReportInput = {
 };
 
 describe('report wizard services', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateDraftReport.mockResolvedValue('report-1');
+    mockUpdateDraftReport.mockResolvedValue(undefined);
+    mockUpdateReportEmail.mockResolvedValue(undefined);
+    mockUpdateReportStatus.mockResolvedValue(undefined);
+    mockRewriteEmailDraft.mockResolvedValue({
+      body: 'Improved 311 email body',
+    });
+  });
+
   it('uses the rewritten body while preserving the local subject', async () => {
     const buildLocalEmail = jest.fn((input: DraftReportInput) => buildEmail(input));
     const rewriteDraft = jest.fn(async () => ({
@@ -46,5 +80,40 @@ describe('report wizard services', () => {
     });
 
     expect(email).toEqual(localEmail);
+  });
+
+  it('creates the local draft before applying an optional rewritten body', async () => {
+    const state = {
+      ...createInitialReportWizardState(),
+      address: baseInput.address,
+      answers: baseInput.answers,
+      description: baseInput.description,
+      latitude: baseInput.latitude,
+      locationNote: baseInput.locationNote,
+      longitude: baseInput.longitude,
+      profile: baseInput.profile,
+    };
+
+    const result = await saveReportDraft({
+      category: baseInput.category,
+      savedReportId: null,
+      state,
+    });
+
+    expect(mockCreateDraftReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailBody: expect.stringContaining('Hello 311 Toronto,'),
+      })
+    );
+    expect(mockUpdateDraftReport).toHaveBeenCalledWith(
+      'report-1',
+      expect.objectContaining({
+        emailBody: 'Improved 311 email body',
+      })
+    );
+    expect(result).toMatchObject({
+      email: { body: 'Improved 311 email body' },
+      id: 'report-1',
+    });
   });
 });
