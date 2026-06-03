@@ -1,4 +1,6 @@
 import {
+  SUPPORTED_TAXONOMY_VERSION,
+  buildServerAllowedLabels,
   DEFAULT_LIMIT_CONFIG,
   hybridRerankIssueCandidates,
   normalizeGeminiResult,
@@ -20,7 +22,7 @@ const allowedLabels = [
 ];
 
 const validRequest: AnalysisRequest = {
-  installId: 'install-1',
+  installId: 'install-1234567890abcdef',
   imageBase64: 'AAAA',
   image: {
     height: 10,
@@ -28,7 +30,7 @@ const validRequest: AnalysisRequest = {
   },
   mimeType: 'image/jpeg',
   allowedLabels,
-  taxonomyVersion: 'photo-label-taxonomy-v1',
+  taxonomyVersion: SUPPORTED_TAXONOMY_VERSION,
 };
 
 function labelsFor(labelIds: string[]) {
@@ -66,21 +68,55 @@ describe('photo label Edge Function logic', () => {
       ok: false,
       error: 'missing_install_id',
     });
+    expect(validateRequest({ ...validRequest, installId: 'short' })).toEqual({
+      ok: false,
+      error: 'invalid_install_id',
+    });
     expect(validateRequest({ ...validRequest, mimeType: 'image/gif' })).toEqual({
       ok: false,
       error: 'unsupported_mime_type',
+    });
+    expect(validateRequest({ ...validRequest, taxonomyVersion: 'photo-label-taxonomy-v1' })).toEqual({
+      ok: false,
+      error: 'unsupported_taxonomy_version',
     });
     expect(validateRequest(validRequest, { maxImageBase64Bytes: 2 })).toEqual({
       ok: false,
       error: 'image_too_large',
     });
+    expect(validateRequest(validRequest)).toEqual({
+      ok: false,
+      error: 'server_label_catalog_unavailable',
+    });
 
-    const result = validateRequest(validRequest);
+    const result = validateRequest(validRequest, DEFAULT_LIMIT_CONFIG, EDGE_ISSUE_CATALOG);
     expect(result).toMatchObject({
       ok: true,
       imageBytes: 3,
       imageHeight: 10,
       imageWidth: 12,
+    });
+  });
+
+  it('builds allowed labels from the server issue catalog instead of trusting client labels', () => {
+    const labels = buildServerAllowedLabels(EDGE_ISSUE_CATALOG);
+    const labelIds = new Set(labels.map((label) => label.id));
+
+    expect(labelIds.has('road-pothole')).toBe(true);
+    expect(labelIds.has('unknown-client-label')).toBe(false);
+    expect(labels.find((label) => label.id === 'road-pothole')).toMatchObject({
+      label: 'Road Pothole',
+    });
+  });
+
+  it('normalizes non-object Gemini output to empty safe arrays', () => {
+    expect(normalizeGeminiResult(null, allowedLabels, EDGE_ISSUE_CATALOG)).toEqual({
+      suggestedLabels: [],
+      issueCandidates: [],
+    });
+    expect(normalizeGeminiResult([], allowedLabels, EDGE_ISSUE_CATALOG)).toEqual({
+      suggestedLabels: [],
+      issueCandidates: [],
     });
   });
 

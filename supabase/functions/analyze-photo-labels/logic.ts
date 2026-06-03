@@ -106,8 +106,9 @@ export const MAX_ISSUE_CANDIDATES = 3;
 export const MAX_EVIDENCE_CHARS = 240;
 export const MAX_REASON_CHARS = 180;
 export const MAX_DESCRIPTION_CHARS = 180;
+export const SUPPORTED_TAXONOMY_VERSION = 'photo-label-taxonomy-v3';
 
-const MAX_ALLOWED_LABELS = 100;
+const MIN_INSTALL_ID_CHARS = 20;
 
 export function parsePositiveIntegerEnvValue(raw: string | undefined, fallback: number) {
   const trimmed = raw?.trim();
@@ -153,7 +154,8 @@ export function readLimitConfigFromEnv(getEnv: (name: string) => string | undefi
 
 export function validateRequest(
   body: AnalysisRequest,
-  limits: Pick<LimitConfig, 'maxImageBase64Bytes'> = DEFAULT_LIMIT_CONFIG
+  limits: Pick<LimitConfig, 'maxImageBase64Bytes'> = DEFAULT_LIMIT_CONFIG,
+  issueCatalog: readonly EdgeIssueCatalogItem[] = []
 ) {
   const installId = typeof body.installId === 'string' ? body.installId.trim() : '';
   const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
@@ -162,9 +164,15 @@ export function validateRequest(
     typeof body.taxonomyVersion === 'string' ? body.taxonomyVersion.trim() : '';
 
   if (!installId) return { ok: false as const, error: 'missing_install_id' };
+  if (installId.length < MIN_INSTALL_ID_CHARS) {
+    return { ok: false as const, error: 'invalid_install_id' };
+  }
   if (!imageBase64) return { ok: false as const, error: 'missing_image' };
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
     return { ok: false as const, error: 'unsupported_mime_type' };
+  }
+  if (taxonomyVersion !== SUPPORTED_TAXONOMY_VERSION) {
+    return { ok: false as const, error: 'unsupported_taxonomy_version' };
   }
 
   const imageBytes = getBase64ByteSize(imageBase64);
@@ -172,14 +180,10 @@ export function validateRequest(
     return { ok: false as const, error: 'image_too_large' };
   }
 
-  const allowedLabels = Array.isArray(body.allowedLabels)
-    ? body.allowedLabels
-        .filter((label) => typeof label.id === 'string' && typeof label.label === 'string')
-        .slice(0, MAX_ALLOWED_LABELS)
-    : [];
+  const allowedLabels = buildServerAllowedLabels(issueCatalog);
 
   if (allowedLabels.length === 0) {
-    return { ok: false as const, error: 'missing_allowed_labels' };
+    return { ok: false as const, error: 'server_label_catalog_unavailable' };
   }
 
   return {
@@ -202,9 +206,10 @@ export function normalizeGeminiResult(
   allowedLabels: AllowedLabel[],
   issueCatalog: readonly EdgeIssueCatalogItem[] = []
 ) {
+  const resultBody = asRecord(body);
   const allowedById = new Map(allowedLabels.map((label) => [label.id, label]));
-  const suggestedLabels = Array.isArray((body as { suggestedLabels?: unknown }).suggestedLabels)
-    ? ((body as { suggestedLabels: GeminiLabel[] }).suggestedLabels ?? [])
+  const suggestedLabels = Array.isArray(resultBody?.suggestedLabels)
+    ? ((resultBody.suggestedLabels as GeminiLabel[]) ?? [])
         .map((label) => normalizeLabel(label, allowedById))
         .filter(isNormalizedGeminiLabel)
         .filter((label) => label.confidence >= MIN_CONFIDENCE)
@@ -212,8 +217,8 @@ export function normalizeGeminiResult(
         .slice(0, MAX_LABELS)
     : [];
 
-  const modelCandidates = Array.isArray((body as { issueCandidates?: unknown }).issueCandidates)
-    ? ((body as { issueCandidates: GeminiIssueCandidate[] }).issueCandidates ?? [])
+  const modelCandidates = Array.isArray(resultBody?.issueCandidates)
+    ? ((resultBody.issueCandidates as GeminiIssueCandidate[]) ?? [])
         .map(normalizeModelIssueCandidate)
         .filter(isModelIssueCandidate)
     : [];
@@ -225,6 +230,25 @@ export function normalizeGeminiResult(
   );
 
   return { suggestedLabels, issueCandidates };
+}
+
+export function buildServerAllowedLabels(issueCatalog: readonly EdgeIssueCatalogItem[]) {
+  const labelIds = new Set<string>();
+
+  for (const issue of issueCatalog) {
+    for (const labelId of [
+      ...issue.visualCueLabelIds,
+      ...issue.requiredAnyLabelIds,
+      ...(issue.requiredAllLabelIds ?? []),
+    ]) {
+      labelIds.add(labelId);
+    }
+  }
+
+  return [...labelIds].map((id) => ({
+    id,
+    label: humanizeLabelId(id),
+  }));
 }
 
 function normalizeLabel(
@@ -503,6 +527,20 @@ function normalizeBoundingBox(box: GeminiLabel['boundingBox']) {
 
   if (width <= 0 || height <= 0) return undefined;
   return { x, y, width, height };
+}
+
+function humanizeLabelId(id: string) {
+  return id
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function getBase64ByteSize(base64: string) {

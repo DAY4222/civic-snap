@@ -26,6 +26,8 @@ export const MAX_GUIDED_ANSWERS = 40;
 export const MAX_GUIDED_ANSWER_CHARS = 1_000;
 export const MAX_REWRITTEN_BODY_CHARS = 3_000;
 
+const MIN_INSTALL_ID_CHARS = 20;
+
 export type RewriteRunCountFilterInput = {
   endOfDay: Date;
   installIdHash?: string;
@@ -89,6 +91,9 @@ export function validateEmailRewriteRequest(body: EmailRewriteRequest) {
   const defaultEmail = truncateText(stringValue(body.defaultEmail).trim(), MAX_DEFAULT_EMAIL_CHARS);
 
   if (!installId) return { ok: false as const, error: 'missing_install_id' };
+  if (installId.length < MIN_INSTALL_ID_CHARS) {
+    return { ok: false as const, error: 'invalid_install_id' };
+  }
   if (!defaultEmail) return { ok: false as const, error: 'missing_default_email' };
 
   const guidedAnswers = Array.isArray(body.guidedAnswers)

@@ -55,7 +55,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'invalid_json' }, 400);
   }
 
-  const validation = validateRequest(body, LIMIT_CONFIG.config);
+  const validation = validateRequest(body, LIMIT_CONFIG.config, EDGE_ISSUE_CATALOG);
   if (!validation.ok) {
     return jsonResponse({ error: validation.error }, 400);
   }

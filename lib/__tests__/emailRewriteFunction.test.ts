@@ -17,13 +17,17 @@ describe('rewrite-email Edge Function logic', () => {
     });
     expect(validateEmailRewriteRequest({ installId: 'install-1' })).toEqual({
       ok: false,
+      error: 'invalid_install_id',
+    });
+    expect(validateEmailRewriteRequest({ installId: 'install-1234567890abcdef' })).toEqual({
+      ok: false,
       error: 'missing_default_email',
     });
   });
 
   it('normalizes and truncates request context for Gemini', () => {
     const validation = validateEmailRewriteRequest({
-      installId: ' install-1 ',
+      installId: ' install-1234567890abcdef ',
       defaultEmail: 'A'.repeat(MAX_DEFAULT_EMAIL_CHARS + 10),
       guidedAnswers: ['  First answer  ', '', 'Second answer'],
       issueDescription: 'Damaged bin lid',
@@ -35,7 +39,7 @@ describe('rewrite-email Edge Function logic', () => {
     expect(validation.ok).toBe(true);
     if (!validation.ok) return;
 
-    expect(validation.installId).toBe('install-1');
+    expect(validation.installId).toBe('install-1234567890abcdef');
     expect(validation.defaultEmail).toHaveLength(MAX_DEFAULT_EMAIL_CHARS);
     expect(validation.guidedAnswers).toEqual(['First answer', 'Second answer']);
     expect(validation.clientPromptVersion).toBe('client-v1');
@@ -44,7 +48,7 @@ describe('rewrite-email Edge Function logic', () => {
 
   it('builds a server-owned Gemini prompt with output guardrails', () => {
     const validation = validateEmailRewriteRequest({
-      installId: 'install-1',
+      installId: 'install-1234567890abcdef',
       defaultEmail: 'Hello 311 Toronto,\n\nIssue:\nRoad Pothole / Road Damage',
       guidedAnswers: ['Is this on a City road?: Road'],
       issueDescription: 'Large pothole in curb lane',
