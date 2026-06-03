@@ -15,7 +15,7 @@ export async function loadProfile(): Promise<Profile> {
   if (!raw) return EMPTY_PROFILE;
 
   try {
-    return { ...EMPTY_PROFILE, ...JSON.parse(raw) };
+    return normalizeProfile(JSON.parse(raw));
   } catch {
     return EMPTY_PROFILE;
   }
@@ -31,4 +31,19 @@ export async function hasCompletedOnboarding() {
 
 export async function completeOnboarding() {
   await setDeviceItem(ONBOARDING_COMPLETE_KEY, 'true');
+}
+
+function normalizeProfile(value: unknown): Profile {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return EMPTY_PROFILE;
+
+  const item = value as Partial<Record<keyof Profile, unknown>>;
+  return {
+    email: stringValue(item.email),
+    name: stringValue(item.name),
+    phone: stringValue(item.phone),
+  };
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' ? value : '';
 }

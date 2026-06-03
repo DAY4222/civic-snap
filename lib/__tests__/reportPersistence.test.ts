@@ -51,6 +51,17 @@ describe('report persistence helpers', () => {
     expect(report.status).toBe('Draft');
   });
 
+  it('drops malformed stored coordinates instead of leaking NaN into reports', () => {
+    const report = rowToReport({
+      ...baseRow,
+      latitude: 'not-a-number' as unknown as number,
+      longitude: Number.NaN,
+    });
+
+    expect(report.latitude).toBeNull();
+    expect(report.longitude).toBeNull();
+  });
+
   it('normalizes status and photo topic JSON', () => {
     expect(parseReportStatus('Case added')).toBe('Case added');
     expect(parseReportStatus('unknown')).toBe('Draft');

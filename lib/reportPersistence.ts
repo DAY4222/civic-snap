@@ -176,7 +176,10 @@ function stringArray(value: unknown) {
 }
 
 function nullableNumber(value: unknown) {
-  return value == null ? null : Number(value);
+  if (value == null) return null;
+
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
 }
 
 function stringValue(value: unknown) {
