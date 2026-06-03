@@ -32,3 +32,12 @@ npm run check
 ```
 
 `npm run check` runs the typecheck, Jest tests, and a web export. Supabase Edge Function checks are intentionally separate because they require a Deno/Supabase CLI environment.
+
+## Supabase deploys
+
+```sh
+npm run supabase:deploy:photo-labels
+npm run supabase:deploy:rewrite-email
+```
+
+Configure function secrets from `supabase/.env.example` before deploying a new backend.

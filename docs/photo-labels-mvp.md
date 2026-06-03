@@ -12,7 +12,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=<shared public anon key>
 
 These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend. Photo analysis defaults off, so users must opt in from Settings or from the report flow before the app sends a resized photo for labels and issue candidates. Once enabled, analysis starts in the background after a report photo is saved. For this direct `fetch` integration, use the legacy public `anon` key from Supabase as the bearer token. Do not use the `service_role` key in the app.
 
-The app request includes a per-install ID, a resized JPEG analysis copy, image metadata, the allowed photo-label taxonomy, and the taxonomy version. It does not include address, GPS, location notes, user-written descriptions, profile fields, or email text.
+The app request includes a per-install ID, a resized JPEG analysis copy, image metadata, the allowed photo-label taxonomy, and the taxonomy version. The Edge Function validates the taxonomy version and uses its deployed issue catalog as the source of truth for allowed labels. The request does not include address, GPS, location notes, user-written descriptions, profile fields, or email text.
 
 The function response is normalized in the app before use. It can include visible photo labels and up to three issue candidates. Local drafts can persist the normalized analysis result in `photo_vision_result_json` and the user-selected photo issue in `photo_issue_topic_json`.
 
@@ -48,12 +48,15 @@ npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_ke
 npx supabase secrets set MAX_ANALYSES_PER_INSTALL_PER_DAY=50
 npx supabase secrets set MAX_ANALYSES_GLOBAL_PER_DAY=300
 npx supabase secrets set MAX_IMAGE_BASE64_BYTES=2000000
+npx supabase secrets set MAX_EMAIL_REWRITES_PER_INSTALL_PER_DAY=50
+npx supabase secrets set MAX_EMAIL_REWRITES_GLOBAL_PER_DAY=300
 ```
 
 Deploy the JWT-verified, rate-limited function:
 
 ```sh
 npx supabase functions deploy analyze-photo-labels
+npx supabase functions deploy rewrite-email
 ```
 
 Do not commit Gemini API keys or Supabase service-role keys. They belong in Supabase Edge Function secrets only.
