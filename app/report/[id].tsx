@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, Field, Screen, colors } from '@/components/ui';
+import { getReportTrackingLabel } from '@/lib/reportTracking';
 import { deleteReport, getReport, updateCaseNumber } from '@/lib/reports';
 import { Report } from '@/lib/types';
 
@@ -111,6 +112,9 @@ export default function ReportDetailScreen() {
     );
   }
 
+  const savedCaseNumber = report.caseNumber.trim();
+  const trackingLabel = getReportTrackingLabel(report);
+
   return (
     <Screen contentContainerStyle={styles.container}>
       {report.photoUri ? <Image source={{ uri: report.photoUri }} style={styles.photo} /> : null}
@@ -119,7 +123,7 @@ export default function ReportDetailScreen() {
         <Text style={styles.subtitle}>{report.address || 'No address'}</Text>
         <View style={styles.statusPill}>
           <FontAwesome name="circle" size={8} color={colors.primary} />
-          <Text style={styles.statusText}>{report.status}</Text>
+          <Text style={styles.statusText}>{report.status === 'Draft' ? 'Draft' : trackingLabel}</Text>
         </View>
         {report.status === 'Draft' ? (
           <Button
@@ -146,17 +150,41 @@ export default function ReportDetailScreen() {
           ) : null}
         </Card>
       ) : null}
-      <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>Case number</Text>
-        <Text style={styles.subtitle}>Add the 311 case number if one is returned by email.</Text>
-        <Field
-          label="Case number"
-          onChangeText={setCaseNumber}
-          placeholder="Example: SR-2026-000123"
-          value={caseNumber}
-        />
-        <Button disabled={saving} loading={saving} onPress={saveCaseNumber} title="Save case number" />
-      </Card>
+      {report.status !== 'Draft' ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Local tracking</Text>
+          <View style={styles.statusPill}>
+            <FontAwesome
+              name={savedCaseNumber ? 'check-circle' : 'circle-o'}
+              size={14}
+              color={colors.primary}
+            />
+            <Text style={styles.statusText}>{trackingLabel}</Text>
+          </View>
+          {savedCaseNumber ? (
+            <>
+              <Text style={styles.caseNumberValue}>{savedCaseNumber}</Text>
+              <Text style={styles.subtitle}>Saved on this device for follow-up.</Text>
+            </>
+          ) : (
+            <Text style={styles.subtitle}>
+              When 311 replies, add the case number here for local tracking.
+            </Text>
+          )}
+          <Field
+            label="Case number"
+            onChangeText={setCaseNumber}
+            placeholder="Example: SR-2026-000123"
+            value={caseNumber}
+          />
+          <Button
+            disabled={saving}
+            loading={saving}
+            onPress={saveCaseNumber}
+            title={savedCaseNumber ? 'Update case number' : 'Save case number'}
+          />
+        </Card>
+      ) : null}
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Email draft</Text>
         <Text style={styles.emailText}>Subject: {report.emailSubject}</Text>
@@ -221,6 +249,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: colors.text,
     fontSize: 17,
+    fontWeight: '800',
+  },
+  caseNumberValue: {
+    color: colors.text,
+    fontSize: 22,
     fontWeight: '800',
   },
   matchText: {

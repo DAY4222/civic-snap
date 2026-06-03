@@ -19,11 +19,16 @@ export function ReportWizard() {
   const { resumeId } = useLocalSearchParams<{ resumeId?: string }>();
   const wizard = useReportWizard(resumeId);
   const { actions, category, email, manualCategory, state } = wizard;
+  const previewRequirementText = !state.description.trim()
+    ? 'Add a short description to preview the email.'
+    : !wizard.canContinueLocation
+      ? 'Add an address or GPS pin before previewing the email.'
+      : '';
   const stickyFooter =
     state.step === 'details' ? (
       <StickyActionBar>
         <Button
-          disabled={state.busy}
+          disabled={state.busy || !wizard.canPreviewEmail}
           loading={state.busy}
           onPress={actions.previewEmail}
           title="Preview email"
@@ -87,6 +92,7 @@ export function ReportWizard() {
           <LocationStep
             address={state.address}
             busy={state.busy}
+            canContinue={wizard.canContinueLocation}
             locationNote={state.locationNote}
             onAddressChange={actions.setAddress}
             onBack={actions.backFromLocation}
@@ -120,6 +126,7 @@ export function ReportWizard() {
             photoUri={state.photoUri}
             photoVisionResult={state.photoVisionResult}
             photoVisionStatus={state.photoVisionStatus}
+            previewRequirementText={previewRequirementText}
             selectedPhotoIssueTopic={state.selectedPhotoIssueTopic}
             topics={wizard.photoIssueSuggestions}
           />

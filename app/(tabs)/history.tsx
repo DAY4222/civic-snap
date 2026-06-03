@@ -3,7 +3,8 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Image, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
-import { Card, colors } from '@/components/ui';
+import { Button, Card, colors } from '@/components/ui';
+import { getReportTrackingLabel } from '@/lib/reportTracking';
 import { deleteReport } from '@/lib/reports';
 import { useReportsOnFocus } from '@/lib/useReportsOnFocus';
 import { Report } from '@/lib/types';
@@ -81,6 +82,13 @@ export default function HistoryScreen() {
           <FontAwesome name="inbox" size={28} color="#8e8e93" />
           <Text style={styles.emptyTitle}>No reports yet</Text>
           <Text style={styles.subtitle}>Create a report from the Report tab.</Text>
+          <Button
+            onPress={() => router.push('/')}
+            style={styles.emptyButton}
+            textStyle={styles.emptyButtonText}
+            title="Start report"
+            variant="secondary"
+          />
         </View>
       }
       renderSectionHeader={({ section }) => (
@@ -107,7 +115,7 @@ export default function HistoryScreen() {
               <View style={styles.cardBody}>
                 <Text style={styles.cardTitle}>{item.category}</Text>
                 <Text style={styles.subtitle} numberOfLines={1}>{item.address || 'No address'}</Text>
-                <Text style={styles.status}>{isDraft ? 'Resume draft' : item.status}</Text>
+                <Text style={styles.status}>{getReportTrackingLabel(item)}</Text>
               </View>
               {isDraft ? null : <FontAwesome name="chevron-right" size={14} color="#8e8e93" />}
             </Pressable>
@@ -218,6 +226,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingTop: 80,
+  },
+  emptyButton: {
+    marginTop: 8,
+    minHeight: 44,
+    paddingHorizontal: 18,
+  },
+  emptyButtonText: {
+    fontSize: 15,
   },
   emptyTitle: {
     color: colors.text,

@@ -35,6 +35,15 @@ export const GENERAL_CATEGORY: IssueCategory = {
   emailGuidanceChecklist: [],
 };
 
+const COMMON_ISSUE_CATEGORY_IDS = [
+  'road-pothole-road-damage',
+  'clean-up-illegal-dumping-on-city-road-allowance',
+  'traffic-signal-repair',
+  'missing-damaged-street-or-traffic-signs',
+  'catch-basin-blocked-flooding',
+  'damaged-concrete-sidewalk',
+];
+
 export type ReportWizardState = {
   address: string;
   answers: Record<string, string>;
@@ -321,7 +330,7 @@ export function getWizardCategory(state: ReportWizardState) {
 
 export function filterIssueCategories(queryValue: string) {
   const query = queryValue.trim().toLowerCase();
-  if (!query) return ISSUE_CATEGORIES;
+  if (!query) return getCommonIssueCategories();
 
   return ISSUE_CATEGORIES.filter((item) =>
     [item.title, item.subjectLabel, ...item.questions.map((question) => question.label)]
@@ -329,6 +338,24 @@ export function filterIssueCategories(queryValue: string) {
       .toLowerCase()
       .includes(query)
   );
+}
+
+export function getCommonIssueCategories() {
+  return COMMON_ISSUE_CATEGORY_IDS.map((id) =>
+    ISSUE_CATEGORIES.find((category) => category.id === id)
+  ).filter((category): category is IssueCategory => category != null);
+}
+
+export function canContinueFromLocation(
+  state: Pick<ReportWizardState, 'address' | 'latitude' | 'longitude'>
+) {
+  return Boolean(state.address.trim() || (state.latitude != null && state.longitude != null));
+}
+
+export function canPreviewReport(
+  state: Pick<ReportWizardState, 'address' | 'description' | 'latitude' | 'longitude'>
+) {
+  return Boolean(state.description.trim() && canContinueFromLocation(state));
 }
 
 export function profilesEqual(left: Profile, right: Profile) {

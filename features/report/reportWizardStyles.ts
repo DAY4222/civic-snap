@@ -65,6 +65,9 @@ export const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 48,
   },
+  categorySectionHeader: {
+    gap: 4,
+  },
   centerPin: {
     alignItems: 'center',
     height: 48,
@@ -385,6 +388,12 @@ export const styles = StyleSheet.create({
   },
   rowButton: {
     flex: 1,
+  },
+  requirementText: {
+    color: colors.mutedStrong,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
   },
   sectionTitle: {
     color: colors.text,

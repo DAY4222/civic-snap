@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import MapView, { Marker } from '@/components/CivicMap';
-import { colors } from '@/components/ui';
+import { Button, colors } from '@/components/ui';
 import { useReportsOnFocus } from '@/lib/useReportsOnFocus';
 
 export default function MapScreen() {
@@ -38,11 +38,26 @@ export default function MapScreen() {
       </MapView>
       <View style={styles.panel}>
         <Text style={styles.title}>Private map</Text>
-        <Text style={styles.subtitle}>
-          {error
-            ? 'Report pins could not be loaded.'
-            : `Showing ${pinnedReports.length} report pin${pinnedReports.length === 1 ? '' : 's'} with GPS coordinates.`}
-        </Text>
+        {error ? (
+          <Text style={styles.subtitle}>Report pins could not be loaded.</Text>
+        ) : pinnedReports.length === 0 ? (
+          <>
+            <Text style={styles.subtitle}>
+              Reports appear here when they have saved GPS coordinates.
+            </Text>
+            <Button
+              onPress={() => router.push('/')}
+              style={styles.panelButton}
+              textStyle={styles.panelButtonText}
+              title="Start report"
+              variant="secondary"
+            />
+          </>
+        ) : (
+          <Text style={styles.subtitle}>
+            Showing {pinnedReports.length} report pin{pinnedReports.length === 1 ? '' : 's'} with GPS coordinates.
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -61,6 +76,15 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
     padding: 16,
+  },
+  panelButton: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    minHeight: 44,
+    paddingHorizontal: 18,
+  },
+  panelButtonText: {
+    fontSize: 15,
   },
   title: {
     color: colors.text,

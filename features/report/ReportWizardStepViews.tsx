@@ -102,6 +102,8 @@ export function CategoryStep({
   onSearchChange: (value: string) => void;
   selectedCategoryId: string | null;
 }) {
+  const showingCommonIssues = !issueSearchQuery.trim();
+
   return (
     <FlatList
       contentContainerStyle={styles.categoryListContent}
@@ -128,6 +130,14 @@ export function CategoryStep({
               <Text style={styles.muted}>Continue with a general 311 report.</Text>
             </Card>
           </Pressable>
+          <View style={styles.categorySectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {showingCommonIssues ? 'Common issues' : 'Search results'}
+            </Text>
+            {showingCommonIssues ? (
+              <Text style={styles.muted}>Search to browse all issue types.</Text>
+            ) : null}
+          </View>
         </View>
       }
       ListEmptyComponent={
@@ -153,6 +163,7 @@ export function CategoryStep({
 export function LocationStep({
   address,
   busy,
+  canContinue,
   locationNote,
   onAddressChange,
   onBack,
@@ -166,6 +177,7 @@ export function LocationStep({
 }: {
   address: string;
   busy: boolean;
+  canContinue: boolean;
   locationNote: string;
   onAddressChange: (value: string) => void;
   onBack: () => void;
@@ -211,7 +223,10 @@ export function LocationStep({
         placeholder="Example: south curb, beside the park entrance"
         value={locationNote}
       />
-      <Button onPress={onContinue} title="Use this spot" />
+      {!canContinue ? (
+        <Text style={styles.requirementText}>Add an address or use current location to continue.</Text>
+      ) : null}
+      <Button disabled={busy || !canContinue} onPress={onContinue} title="Use this spot" />
     </View>
   );
 }
@@ -235,6 +250,7 @@ export function DetailsStep({
   photoUri,
   photoVisionResult,
   photoVisionStatus,
+  previewRequirementText,
   selectedPhotoIssueTopic,
   topics,
 }: {
@@ -256,6 +272,7 @@ export function DetailsStep({
   photoUri: string | null;
   photoVisionResult: PhotoVisionResult | null;
   photoVisionStatus: PhotoVisionStatus;
+  previewRequirementText: string;
   selectedPhotoIssueTopic: PhotoIssueCandidate | null;
   topics: PhotoIssueCandidate[];
 }) {
@@ -301,6 +318,9 @@ export function DetailsStep({
         placeholder={descriptionPlaceholder}
         value={description}
       />
+      {previewRequirementText ? (
+        <Text style={styles.requirementText}>{previewRequirementText}</Text>
+      ) : null}
       {category.id !== GENERAL_CATEGORY.id ? (
         <>
           {category.questions.length > 0 ? <Text style={styles.sectionTitle}>Checklist</Text> : null}

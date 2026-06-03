@@ -1,5 +1,8 @@
 import {
+  canContinueFromLocation,
+  canPreviewReport,
   createInitialReportWizardState,
+  filterIssueCategories,
   getPhotoVisionErrorStatus,
   getPhotoVisionStatus,
   reportWizardReducer,
@@ -251,6 +254,49 @@ describe('report wizard reducer', () => {
       result: photoVisionResult,
     });
     expect(shouldStartPhotoAnalysis(state, true)).toBe(false);
+  });
+
+  it('uses common issue categories before the user searches', () => {
+    expect(filterIssueCategories('').map((category) => category.id)).toEqual([
+      'road-pothole-road-damage',
+      'clean-up-illegal-dumping-on-city-road-allowance',
+      'traffic-signal-repair',
+      'missing-damaged-street-or-traffic-signs',
+      'catch-basin-blocked-flooding',
+      'damaged-concrete-sidewalk',
+    ]);
+
+    expect(
+      filterIssueCategories('pothole').some(
+        (category) => category.id === 'road-pothole-road-damage'
+      )
+    ).toBe(true);
+  });
+
+  it('checks location and preview readiness', () => {
+    const state = createInitialReportWizardState();
+    expect(canContinueFromLocation(state)).toBe(false);
+    expect(canPreviewReport(state)).toBe(false);
+
+    const withAddress = reportWizardReducer(state, {
+      type: 'setAddress',
+      address: '123 Queen St W',
+    });
+    expect(canContinueFromLocation(withAddress)).toBe(true);
+    expect(canPreviewReport(withAddress)).toBe(false);
+
+    const withDescription = reportWizardReducer(withAddress, {
+      type: 'setDescription',
+      description: 'Large pothole in curb lane.',
+    });
+    expect(canPreviewReport(withDescription)).toBe(true);
+
+    const withPin = reportWizardReducer(state, {
+      type: 'setPinLocation',
+      latitude: 43.65,
+      longitude: -79.38,
+    });
+    expect(canContinueFromLocation(withPin)).toBe(true);
   });
 
   it('classifies photo vision status from normalized results', () => {

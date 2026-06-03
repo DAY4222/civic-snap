@@ -20,6 +20,8 @@ import {
   GENERAL_CATEGORY,
   CategoryReturnStep,
   ReportWizardStep,
+  canContinueFromLocation,
+  canPreviewReport,
   createInitialReportWizardState,
   filterIssueCategories,
   getWizardCategory,
@@ -66,6 +68,8 @@ export function useReportWizard(resumeId?: string) {
     () => filterIssueCategories(state.issueSearchQuery),
     [state.issueSearchQuery]
   );
+  const canContinueLocation = canContinueFromLocation(state);
+  const canPreviewEmail = canPreviewReport(state);
   const descriptionPlaceholder =
     manualCategory || photoIssueCategory
       ? `Describe the ${category.subjectLabel}, exact location, and what crews should know.`
@@ -396,13 +400,13 @@ export function useReportWizard(resumeId?: string) {
   }
 
   async function previewEmail() {
-    if (!state.description.trim()) {
-      Alert.alert('Add a short description', 'One sentence is enough for the MVP.');
+    if (!canContinueFromLocation(state)) {
+      Alert.alert('Add a location', 'Enter an address or nearest landmark.');
       return;
     }
 
-    if (!state.address.trim()) {
-      Alert.alert('Add a location', 'Enter an address or nearest landmark.');
+    if (!state.description.trim()) {
+      Alert.alert('Add a short description', 'One sentence is enough for the MVP.');
       return;
     }
 
@@ -541,6 +545,8 @@ export function useReportWizard(resumeId?: string) {
       backFromCategory: () => dispatch({ type: 'backFromCategory' }),
     },
     category,
+    canContinueLocation,
+    canPreviewEmail,
     currentIssueTitle,
     descriptionPlaceholder,
     email,
