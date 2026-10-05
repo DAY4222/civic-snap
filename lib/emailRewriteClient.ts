@@ -61,7 +61,8 @@ export async function rewriteEmailDraft(
   const installId = options.installId ?? (await getInstallId());
   const payload = buildEmailRewritePromptPayload(
     input,
-    options.defaultEmailBody ?? buildEmail(input).body
+    options.defaultEmailBody ??
+      buildEmail(input, { includeContact: false, includeCoordinates: false }).body
   );
   const abortSignal = createTimeoutSignal(options.signal, options.timeoutMs ?? DEFAULT_REWRITE_TIMEOUT_MS);
 

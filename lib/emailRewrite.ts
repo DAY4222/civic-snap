@@ -23,7 +23,8 @@ export function buildEmailRewritePromptPayload(
     location: buildLocationSummary(input),
     guided_answers: buildGuidedAnswers(input),
     photo_evidence: buildPhotoEvidence(input),
-    contact_details: buildContactDetails(input),
+    // Name, email, phone and exact GPS never go to the model; the app adds them back afterwards.
+    contact_details: '',
   };
 }
 
@@ -40,9 +41,6 @@ function buildLocationSummary(input: DraftReportInput) {
   return [
     input.address.trim(),
     input.locationNote.trim() ? `Location note: ${input.locationNote.trim()}` : null,
-    input.latitude != null && input.longitude != null
-      ? `GPS: ${input.latitude.toFixed(6)}, ${input.longitude.toFixed(6)}`
-      : null,
   ]
     .filter((line): line is string => line != null && line.length > 0)
     .join('\n');
@@ -60,14 +58,4 @@ function buildPhotoEvidence(input: DraftReportInput) {
   ]
     .filter((line): line is string => line != null && line.length > 0)
     .join(' ');
-}
-
-function buildContactDetails(input: DraftReportInput) {
-  return [
-    input.profile.name.trim() ? `Name: ${input.profile.name.trim()}` : null,
-    input.profile.email.trim() ? `Email: ${input.profile.email.trim()}` : null,
-    input.profile.phone.trim() ? `Phone: ${input.profile.phone.trim()}` : null,
-  ]
-    .filter((line): line is string => line != null)
-    .join('\n');
 }

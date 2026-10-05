@@ -2,7 +2,7 @@ import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
 
 import { GENERAL_CATEGORY } from '@/lib/categories';
-import { buildEmail } from '@/lib/email';
+import { addLocalDetailsToRewrittenBody, buildEmail } from '@/lib/email';
 import {
   canRewriteEmailDraft,
   rewriteEmailDraft,
@@ -89,8 +89,11 @@ export async function buildPreviewEmail(
   if (rewriteDraft === rewriteEmailDraft && !canRewriteEmailDraft()) return email;
 
   try {
-    const rewritten = await rewriteDraft(input, { defaultEmailBody: email.body });
-    return { ...email, body: rewritten.body };
+    const rewritten = await rewriteDraft(input, {
+      defaultEmailBody: buildEmail(input, { includeContact: false, includeCoordinates: false })
+        .body,
+    });
+    return { ...email, body: addLocalDetailsToRewrittenBody(rewritten.body, input) };
   } catch {
     return email;
   }
