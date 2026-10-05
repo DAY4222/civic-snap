@@ -72,7 +72,7 @@ Deno.serve(async (request) => {
       clientPromptVersion: validation.clientPromptVersion,
       defaultEmailChars: validation.defaultEmailChars,
       errorCode: 'gemini_request_failed',
-      errorMessage: truncateText(String(error), 240),
+      errorMessage: truncateText(error instanceof Error ? error.message : String(error), 240),
       guidedAnswerCount: validation.guidedAnswerCount,
       inputChars: validation.inputChars,
       installIdHash,
@@ -188,11 +188,14 @@ async function callGemini(apiKey: string, request: ValidEmailRewriteRequest) {
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Keep the key out of the URL: fetch errors can include the URL, and error
+          // messages are written to the runs table.
+          'x-goog-api-key': apiKey,
         },
         signal: controller.signal,
         body: JSON.stringify({

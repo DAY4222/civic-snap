@@ -15,7 +15,11 @@ import {
   type LimitConfig,
   type ValidAnalysisRequest,
 } from './logic.ts';
-import { EDGE_ISSUE_CATALOG, EDGE_ISSUE_CATALOG_VERSION } from './issueCatalog.ts';
+import {
+  EDGE_ISSUE_CATALOG,
+  EDGE_ISSUE_CATALOG_VERSION,
+  EDGE_PHOTO_LABELS,
+} from './issueCatalog.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -55,7 +59,12 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'invalid_json' }, 400);
   }
 
-  const validation = validateRequest(body, LIMIT_CONFIG.config, EDGE_ISSUE_CATALOG);
+  const validation = validateRequest(
+    body,
+    LIMIT_CONFIG.config,
+    EDGE_ISSUE_CATALOG,
+    EDGE_PHOTO_LABELS
+  );
   if (!validation.ok) {
     return jsonResponse({ error: validation.error }, 400);
   }
@@ -74,7 +83,7 @@ Deno.serve(async (request) => {
     await logAnalysisRun(supabase, {
       analyzedAt,
       errorCode: 'gemini_request_failed',
-      errorMessage: truncateText(String(error), 240),
+      errorMessage: truncateText(error instanceof Error ? error.message : String(error), 240),
       installIdHash,
       latencyMs: Date.now() - startedAt,
       request: validation,
@@ -180,11 +189,14 @@ async function callGemini(apiKey: string, request: ValidAnalysisRequest) {
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Keep the key out of the URL: fetch errors can include the URL, and error
+          // messages are written to the runs table.
+          'x-goog-api-key': apiKey,
         },
         signal: controller.signal,
         body: JSON.stringify({
