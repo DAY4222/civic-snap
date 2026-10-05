@@ -10,7 +10,7 @@ import {
   ReportAnswerValue,
   ReportDraft,
 } from '@/lib/types';
-import { PhotoVisionError } from '@/lib/vision';
+import { BackendError } from '@/lib/backend/client';
 
 export type ReportWizardStep = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
 export type CategoryReturnStep = 'location' | 'details';
@@ -264,7 +264,7 @@ export function getPhotoVisionStatus(result: PhotoVisionResult | null): PhotoVis
 }
 
 export function getPhotoVisionErrorStatus(error: unknown): PhotoVisionStatus {
-  if (error instanceof PhotoVisionError) {
+  if (error instanceof BackendError) {
     if (error.code === 'offline') return 'offline';
     if (error.code === 'rate-limited') return 'rate-limited';
     if (error.code === 'payload-too-large') return 'payload-too-large';

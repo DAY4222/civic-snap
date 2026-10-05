@@ -14,7 +14,7 @@ import {
   makePhotoVisionResult,
 } from '@/lib/testUtils/photoVisionFixtures';
 import type { PhotoIssueCandidate, PhotoVisionResult, Report } from '@/lib/types';
-import { PhotoVisionError } from '@/lib/vision';
+import { BackendError } from '@/lib/backend/client';
 
 const topic: PhotoIssueCandidate = makePhotoIssueCandidate();
 
@@ -390,15 +390,15 @@ describe('report wizard reducer', () => {
 
   it('maps photo vision errors to user-facing statuses', () => {
     expect(
-      getPhotoVisionErrorStatus(new PhotoVisionError('Photo label limit reached.', 'rate-limited'))
+      getPhotoVisionErrorStatus(new BackendError('Photo label limit reached.', 'rate-limited'))
     ).toBe('rate-limited');
     expect(
       getPhotoVisionErrorStatus(
-        new PhotoVisionError('Photo analysis image is too large.', 'payload-too-large')
+        new BackendError('Photo analysis image is too large.', 'payload-too-large')
       )
     ).toBe('payload-too-large');
     expect(
-      getPhotoVisionErrorStatus(new PhotoVisionError('Photo labels could not connect.', 'offline'))
+      getPhotoVisionErrorStatus(new BackendError('Photo labels could not connect.', 'offline'))
     ).toBe('offline');
     expect(getPhotoVisionErrorStatus(new Error('network failed'))).toBe('error');
   });

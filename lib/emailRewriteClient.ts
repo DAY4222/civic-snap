@@ -1,3 +1,5 @@
+import { BackendError, postJson, type FetchImpl } from './backend/client';
+import { backendConfig, isEmailPolishConfigured, type BackendConfig } from './backend/config';
 import {
   EMAIL_REWRITE_PROMPT_VERSION,
   buildEmailRewritePromptPayload,
@@ -8,18 +10,9 @@ import { getInstallId } from './installId';
 import type { EmailInput } from './types';
 
 export const DEFAULT_REWRITE_TIMEOUT_MS = 8_000;
-const REWRITE_EMAIL_URL = process.env.EXPO_PUBLIC_SUPABASE_REWRITE_EMAIL_URL ?? '';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-
-type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
-export type EmailRewriteConfig = {
-  rewriteEmailUrl?: string;
-  supabaseAnonKey?: string;
-};
 
 export type RewriteEmailDraftOptions = {
-  config?: EmailRewriteConfig;
+  config?: BackendConfig;
   defaultEmailBody?: string;
   fetchImpl?: FetchImpl;
   installId?: string;
@@ -36,26 +29,14 @@ export type EmailRewriteResult = {
   latencyMs: number;
 };
 
-export class EmailRewriteError extends Error {
-  constructor(
-    message: string,
-    readonly code: 'disabled' | 'network' | 'rate-limited' | 'server' | 'invalid-response'
-  ) {
-    super(message);
-  }
+export function canRewriteEmailDraft(config: BackendConfig = backendConfig) {
+  return isEmailPolishConfigured(config);
 }
 
-export function canRewriteEmailDraft(config: EmailRewriteConfig = getEmailRewriteConfig()) {
-  return Boolean(config.rewriteEmailUrl && config.supabaseAnonKey);
-}
-
-export async function rewriteEmailDraft(
-  input: EmailInput,
-  options: RewriteEmailDraftOptions = {}
-) {
-  const config = options.config ?? getEmailRewriteConfig();
+export async function rewriteEmailDraft(input: EmailInput, options: RewriteEmailDraftOptions = {}) {
+  const config = options.config ?? backendConfig;
   if (!canRewriteEmailDraft(config)) {
-    throw new EmailRewriteError('Email rewriting is not configured.', 'disabled');
+    throw new BackendError('Email rewriting is not configured.', 'disabled');
   }
 
   const installId = options.installId ?? (await getInstallId());
@@ -64,47 +45,25 @@ export async function rewriteEmailDraft(
     options.defaultEmailBody ??
       buildEmail(input, { includeContact: false, includeCoordinates: false }).body
   );
-  const abortSignal = createTimeoutSignal(options.signal, options.timeoutMs ?? DEFAULT_REWRITE_TIMEOUT_MS);
 
-  let response: Response;
-  try {
-    response = await (options.fetchImpl ?? fetch)(config.rewriteEmailUrl ?? '', {
-      method: 'POST',
-      headers: getRewriteEmailHeaders(config.supabaseAnonKey ?? ''),
-      signal: abortSignal.signal,
-      body: JSON.stringify({
-        installId,
-        promptVersion: EMAIL_REWRITE_PROMPT_VERSION,
-        ...toServerPayload(payload),
-      }),
-    });
-  } catch {
-    if (abortSignal.didTimeout()) {
-      throw new EmailRewriteError('Email rewrite took too long.', 'network');
+  const result = await postJson(
+    config.rewriteEmailUrl,
+    {
+      installId,
+      promptVersion: EMAIL_REWRITE_PROMPT_VERSION,
+      ...toServerPayload(payload),
+    },
+    {
+      anonKey: config.anonKey,
+      fetchImpl: options.fetchImpl,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs ?? DEFAULT_REWRITE_TIMEOUT_MS,
     }
-    throw new EmailRewriteError('Email rewrite is unavailable.', 'network');
-  } finally {
-    abortSignal.cleanup();
-  }
-
-  if (response.status === 429) {
-    throw new EmailRewriteError('Email rewrite limit reached for today.', 'rate-limited');
-  }
-
-  if (!response.ok) {
-    throw new EmailRewriteError('Email rewrite is unavailable.', 'server');
-  }
-
-  let result: unknown;
-  try {
-    result = await response.json();
-  } catch {
-    throw new EmailRewriteError('Email rewrite returned invalid JSON.', 'invalid-response');
-  }
+  );
 
   const rewrite = normalizeEmailRewriteResponse(result);
   if (!rewrite) {
-    throw new EmailRewriteError('Email rewrite returned an invalid body.', 'invalid-response');
+    throw new BackendError('Email rewrite returned an invalid body.', 'invalid-response');
   }
 
   return rewrite;
@@ -127,21 +86,6 @@ export function normalizeEmailRewriteResponse(result: unknown): EmailRewriteResu
   };
 }
 
-function getEmailRewriteConfig(): EmailRewriteConfig {
-  return {
-    rewriteEmailUrl: REWRITE_EMAIL_URL,
-    supabaseAnonKey: SUPABASE_ANON_KEY,
-  };
-}
-
-function getRewriteEmailHeaders(supabaseAnonKey: string) {
-  return {
-    Authorization: `Bearer ${supabaseAnonKey}`,
-    'Content-Type': 'application/json',
-    apikey: supabaseAnonKey,
-  };
-}
-
 function toServerPayload(payload: EmailRewritePromptPayload) {
   return {
     contactDetails: payload.contact_details,
@@ -151,29 +95,5 @@ function toServerPayload(payload: EmailRewritePromptPayload) {
     issueLabel: payload.issue_label,
     location: payload.location,
     photoEvidence: payload.photo_evidence,
-  };
-}
-
-function createTimeoutSignal(parentSignal: AbortSignal | undefined, timeoutMs: number) {
-  const controller = new AbortController();
-  let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, timeoutMs);
-  const abort = () => controller.abort();
-
-  parentSignal?.addEventListener('abort', abort);
-  if (parentSignal?.aborted) {
-    controller.abort();
-  }
-
-  return {
-    cleanup: () => {
-      clearTimeout(timeout);
-      parentSignal?.removeEventListener('abort', abort);
-    },
-    didTimeout: () => timedOut,
-    signal: controller.signal,
   };
 }

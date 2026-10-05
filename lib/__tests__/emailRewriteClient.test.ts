@@ -1,8 +1,9 @@
 import { ISSUE_CATEGORIES } from '../categories';
 import { EMPTY_DRAFT } from '../reportDraft';
+import { BackendError } from '../backend/client';
+import type { BackendConfig } from '../backend/config';
 import {
   DEFAULT_REWRITE_TIMEOUT_MS,
-  EmailRewriteError,
   canRewriteEmailDraft,
   normalizeEmailRewriteResponse,
   rewriteEmailDraft,
@@ -29,17 +30,21 @@ const baseInput: EmailInput = {
   },
 };
 
-const config = {
+const config: BackendConfig = {
+  anonKey: 'anon-key',
+  analyzePhotoUrl: '',
   rewriteEmailUrl: 'https://example.supabase.co/functions/v1/rewrite-email',
-  supabaseAnonKey: 'anon-key',
+  photoLabelsEnabled: false,
+  emailRewriteEnabled: true,
 };
 
 describe('email rewrite client', () => {
   it('detects whether rewriting is configured', () => {
     expect(DEFAULT_REWRITE_TIMEOUT_MS).toBe(8_000);
     expect(canRewriteEmailDraft(config)).toBe(true);
-    expect(canRewriteEmailDraft({ rewriteEmailUrl: '', supabaseAnonKey: 'anon-key' })).toBe(false);
-    expect(canRewriteEmailDraft({ rewriteEmailUrl: config.rewriteEmailUrl })).toBe(false);
+    expect(canRewriteEmailDraft({ ...config, rewriteEmailUrl: '' })).toBe(false);
+    expect(canRewriteEmailDraft({ ...config, anonKey: '' })).toBe(false);
+    expect(canRewriteEmailDraft({ ...config, emailRewriteEnabled: false })).toBe(false);
   });
 
   it('posts structured report context and normalizes a successful rewrite', async () => {
@@ -90,7 +95,7 @@ describe('email rewrite client', () => {
   it('maps unavailable rewrite states to typed errors', async () => {
     await expect(
       rewriteEmailDraft(baseInput, {
-        config: {},
+        config: { ...config, rewriteEmailUrl: '' },
         installId: 'install-1',
       })
     ).rejects.toMatchObject({ code: 'disabled' });
@@ -109,7 +114,25 @@ describe('email rewrite client', () => {
         fetchImpl: async () => new Response('{}', { status: 503 }),
         installId: 'install-1',
       })
+    ).rejects.toMatchObject({ code: 'offline' });
+
+    await expect(
+      rewriteEmailDraft(baseInput, {
+        config,
+        fetchImpl: async () => new Response('{}', { status: 502 }),
+        installId: 'install-1',
+      })
     ).rejects.toMatchObject({ code: 'server' });
+
+    await expect(
+      rewriteEmailDraft(baseInput, {
+        config,
+        fetchImpl: async () => {
+          throw new TypeError('Network request failed');
+        },
+        installId: 'install-1',
+      })
+    ).rejects.toMatchObject({ code: 'offline' });
   });
 
   it('rejects invalid response bodies', () => {
@@ -119,6 +142,6 @@ describe('email rewrite client', () => {
     });
     expect(normalizeEmailRewriteResponse({ body: '' })).toBeNull();
     expect(normalizeEmailRewriteResponse(null)).toBeNull();
-    expect(new EmailRewriteError('x', 'network').code).toBe('network');
+    expect(new BackendError('x', 'timeout').code).toBe('timeout');
   });
 });
