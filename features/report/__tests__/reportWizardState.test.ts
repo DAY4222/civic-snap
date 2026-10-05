@@ -33,6 +33,7 @@ const report: Report = {
   thumbnailUri: 'file:///photo-thumb.jpg',
   emailSubject: '311 service request: Road Pothole / Road Damage',
   emailBody: 'Hello',
+  emailSource: 'generated',
   status: 'draft',
   caseNumber: '',
   createdAt: '2026-05-20T00:00:00.000Z',
@@ -103,6 +104,39 @@ describe('report wizard reducer', () => {
     expect(state.draft.locationNote).toBe('south curb');
   });
 
+  it('restores an edited email as written, and a generated one as generated', () => {
+    const edited = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'resumeReport',
+      report: { ...report, emailSource: 'user', emailBody: 'My own words' },
+    });
+    expect(edited.email.source).toBe('user');
+    expect(edited.email.override?.body).toBe('My own words');
+
+    const generated = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'resumeReport',
+      report,
+    });
+    expect(generated.email.source).toBe('generated');
+    expect(generated.email.override).toBeNull();
+  });
+
+  it('keeps user edits through profile changes and clears them on rebuild', () => {
+    const generatedEmail = { subject: 'Subject', body: 'Generated' };
+    let state = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'editEmail',
+      content: { subject: 'Subject', body: 'Edited' },
+      generated: generatedEmail,
+    });
+    state = reportWizardReducer(state, {
+      type: 'profileLoaded',
+      profile: { name: 'Ada', email: '', phone: '' },
+    });
+    expect(state.email.override?.body).toBe('Edited');
+
+    state = reportWizardReducer(state, { type: 'rebuildEmail' });
+    expect(state.email.source).toBe('generated');
+  });
+
   it('turns legacy joined multi-choice answers into lists when resuming', () => {
     const multiQuestion = getDraftCategory({
       categoryId: 'construction-noise',
@@ -141,12 +175,7 @@ describe('report wizard reducer', () => {
       type: 'profileLoaded',
       profile: { name: 'Ada', email: '', phone: '555-0100' },
     });
-    state = reportWizardReducer(state, {
-      type: 'previewReady',
-      emailBody: 'Body',
-      emailSubject: 'Subject',
-      savedReportId: 'report-1',
-    });
+    state = reportWizardReducer(state, { type: 'previewReady', savedReportId: 'report-1' });
     expect(state.step).toBe('preview');
 
     state = reportWizardReducer(state, { type: 'setStep', step: 'fallback' });
@@ -197,12 +226,7 @@ describe('report wizard reducer', () => {
     });
     state = reportWizardReducer(state, { type: 'setDescription', description: 'Large pothole.' });
     state = reportWizardReducer(state, { type: 'setAnswer', questionId: 'q1', value: 'yes' });
-    state = reportWizardReducer(state, {
-      type: 'previewReady',
-      emailBody: 'Body',
-      emailSubject: 'Subject',
-      savedReportId: 'report-1',
-    });
+    state = reportWizardReducer(state, { type: 'previewReady', savedReportId: 'report-1' });
 
     state = reportWizardReducer(state, { type: 'resetReport' });
 
@@ -210,8 +234,7 @@ describe('report wizard reducer', () => {
     expect(state.savedReportId).toBeNull();
     expect(state.savedBannerId).toBeNull();
     expect(state.draft).toEqual(EMPTY_DRAFT);
-    expect(state.emailBody).toBe('');
-    expect(state.emailSubject).toBe('');
+    expect(state.email.source).toBe('generated');
     expect(state.photoAnalysisUserEnabled).toBe(true);
     expect(state.profile.name).toBe('Ada');
   });

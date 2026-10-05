@@ -1,6 +1,6 @@
 import { CATEGORY_TITLE_IDS } from './generated/categoryTitleIds';
 import { parseStoredPhotoVisionResult } from './photoAnalysisContract';
-import { PhotoIssueCandidate, Report, ReportAnswers, ReportStatus } from './types';
+import { EmailSource, PhotoIssueCandidate, Report, ReportAnswers, ReportStatus } from './types';
 
 export type ReportRow = {
   id: string;
@@ -18,6 +18,7 @@ export type ReportRow = {
   photo_issue_topic_json: string | null;
   email_subject: string;
   email_body: string;
+  email_source: string | null;
   status: string;
   case_number: string;
   created_at: string;
@@ -86,6 +87,7 @@ export function rowToReport(row: ReportRow, photoDirectory: string | null = null
     photoIssueTopic: parsePhotoIssueTopic(row.photo_issue_topic_json),
     emailSubject: stringValue(row.email_subject),
     emailBody: stringValue(row.email_body),
+    emailSource: parseEmailSource(row.email_source),
     status: parseReportStatus(row.status),
     caseNumber: stringValue(row.case_number),
     createdAt: stringValue(row.created_at),
@@ -140,6 +142,10 @@ export const LEGACY_STATUSES: Record<string, ReportStatus> = {
   'Mail opened': 'handed_off',
   'Case added': 'case_added',
 };
+
+export function parseEmailSource(raw: string | null): EmailSource {
+  return raw === 'user' || raw === 'ai' ? raw : 'generated';
+}
 
 export function parseReportStatus(raw: string): ReportStatus {
   if (raw === 'draft' || raw === 'handed_off' || raw === 'sent' || raw === 'case_added') return raw;

@@ -12,6 +12,18 @@ import {
 } from '@/lib/types';
 import { BackendError } from '@/lib/backend/client';
 
+import {
+  INITIAL_EMAIL_DRAFT,
+  acceptPendingAiEmail,
+  dismissPendingAiEmail,
+  editEmail,
+  emailDraftFromSaved,
+  receiveAiEmail,
+  undoAiEmail,
+  type EmailContent,
+  type EmailDraftState,
+} from './emailDraft';
+
 export type ReportWizardStep = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
 export type CategoryReturnStep = 'location' | 'details';
 export type PhotoVisionStatus =
@@ -39,8 +51,7 @@ export type ReportWizardState = {
   busy: boolean;
   categoryReturnStep: CategoryReturnStep;
   dismissedContactPrompt: boolean;
-  emailBody: string;
-  emailSubject: string;
+  email: EmailDraftState;
   issueSearchQuery: string;
   photoAnalysisUserEnabled: boolean;
   photoVisionPhotoUri: string | null;
@@ -60,16 +71,14 @@ export type ReportWizardAction =
   | { type: 'draftCreated'; reportId: string }
   | { type: 'openCategory'; returnStep: CategoryReturnStep }
   | { type: 'photoStored'; photoUri: string; thumbnailUri?: string | null }
-  | { type: 'previewReady'; emailBody: string; emailSubject: string; savedReportId: string }
-  | { type: 'profileLoaded'; profile: Profile; emailBody?: string; emailSubject?: string }
+  | { type: 'previewReady'; savedReportId: string }
+  | { type: 'profileLoaded'; profile: Profile }
   | { type: 'resetReport'; savedBannerId?: string | null }
   | { type: 'resumeReport'; report: Report }
   | { type: 'setAddress'; address: string }
   | { type: 'setAnswer'; questionId: string; value: ReportAnswerValue }
   | { type: 'setBusy'; busy: boolean }
   | { type: 'setDescription'; description: string }
-  | { type: 'setEmailBody'; emailBody: string }
-  | { type: 'setEmailSubject'; emailSubject: string }
   | { type: 'setIssueSearchQuery'; issueSearchQuery: string }
   | { type: 'setLocationNote'; locationNote: string }
   | { type: 'setPhotoAnalysisUserEnabled'; enabled: boolean }
@@ -79,7 +88,13 @@ export type ReportWizardAction =
   | { type: 'setPinLocation'; latitude: number; longitude: number }
   | { type: 'setStep'; step: ReportWizardStep }
   | { type: 'setResolvedAddress'; address: string }
-  | { type: 'togglePhotoIssueTopic'; topic: PhotoIssueCandidate };
+  | { type: 'togglePhotoIssueTopic'; topic: PhotoIssueCandidate }
+  | { type: 'editEmail'; content: EmailContent; generated: EmailContent }
+  | { type: 'aiEmailReady'; content: EmailContent; generated: EmailContent }
+  | { type: 'acceptPendingAiEmail'; generated: EmailContent }
+  | { type: 'dismissPendingAiEmail' }
+  | { type: 'undoAiEmail' }
+  | { type: 'rebuildEmail' };
 
 export function createInitialReportWizardState(): ReportWizardState {
   return {
@@ -87,8 +102,7 @@ export function createInitialReportWizardState(): ReportWizardState {
     busy: false,
     categoryReturnStep: 'location',
     dismissedContactPrompt: false,
-    emailBody: '',
-    emailSubject: '',
+    email: INITIAL_EMAIL_DRAFT,
     issueSearchQuery: '',
     photoAnalysisUserEnabled: false,
     photoVisionPhotoUri: null,
@@ -164,18 +178,11 @@ export function reportWizardReducer(
       return {
         ...state,
         dismissedContactPrompt: false,
-        emailBody: action.emailBody,
-        emailSubject: action.emailSubject,
         savedReportId: action.savedReportId,
         step: 'preview',
       };
     case 'profileLoaded':
-      return {
-        ...state,
-        emailBody: action.emailBody ?? state.emailBody,
-        emailSubject: action.emailSubject ?? state.emailSubject,
-        profile: action.profile,
-      };
+      return { ...state, profile: action.profile };
     case 'resetReport':
       return {
         ...createInitialReportWizardState(),
@@ -188,8 +195,10 @@ export function reportWizardReducer(
         ...state,
         draft: draftFromReport(action.report),
         dismissedContactPrompt: false,
-        emailBody: action.report.emailBody,
-        emailSubject: action.report.emailSubject,
+        email: emailDraftFromSaved(action.report.emailSource, {
+          subject: action.report.emailSubject,
+          body: action.report.emailBody,
+        }),
         issueSearchQuery: '',
         photoVisionPhotoUri: action.report.photoVisionResult ? action.report.photoUri : null,
         photoVisionStatus: getPhotoVisionStatus(action.report.photoVisionResult),
@@ -207,10 +216,6 @@ export function reportWizardReducer(
       return { ...state, busy: action.busy };
     case 'setDescription':
       return updateDraft(state, { description: action.description });
-    case 'setEmailBody':
-      return { ...state, emailBody: action.emailBody };
-    case 'setEmailSubject':
-      return { ...state, emailSubject: action.emailSubject };
     case 'setIssueSearchQuery':
       return { ...state, issueSearchQuery: action.issueSearchQuery };
     case 'setLocationNote':
@@ -253,6 +258,18 @@ export function reportWizardReducer(
         photoIssueTopic: deselecting ? null : action.topic,
       });
     }
+    case 'editEmail':
+      return { ...state, email: editEmail(action.content, action.generated) };
+    case 'aiEmailReady':
+      return { ...state, email: receiveAiEmail(state.email, action.content, action.generated) };
+    case 'acceptPendingAiEmail':
+      return { ...state, email: acceptPendingAiEmail(state.email, action.generated) };
+    case 'dismissPendingAiEmail':
+      return { ...state, email: dismissPendingAiEmail(state.email) };
+    case 'undoAiEmail':
+      return { ...state, email: undoAiEmail(state.email) };
+    case 'rebuildEmail':
+      return { ...state, email: INITIAL_EMAIL_DRAFT };
     default:
       return state;
   }
@@ -315,6 +332,3 @@ export function canPreviewReport(
   return Boolean(draft.description.trim() && canContinueFromLocation(draft));
 }
 
-export function profilesEqual(left: Profile, right: Profile) {
-  return left.name === right.name && left.email === right.email && left.phone === right.phone;
-}

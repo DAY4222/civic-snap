@@ -25,6 +25,7 @@ const baseRow: ReportRow = {
   photo_issue_topic_json: null,
   email_subject: 'Subject',
   email_body: 'Body',
+  email_source: null,
   status: 'Definitely sent',
   case_number: '',
   created_at: '2026-05-20T00:00:00.000Z',

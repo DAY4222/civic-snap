@@ -24,9 +24,9 @@ export async function createDraftReport(input: CreateReportInput) {
   await db.runAsync(
     `INSERT INTO reports (
       id, category_id, category, description, answers_json, address, location_note, latitude, longitude,
-      photo_uri, thumbnail_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, status, case_number,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      photo_uri, thumbnail_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, email_source,
+      status, case_number, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.categoryId,
     input.category,
@@ -42,6 +42,7 @@ export async function createDraftReport(input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
+    input.emailSource,
     'draft',
     '',
     now,
@@ -73,6 +74,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       photo_issue_topic_json = ?,
       email_subject = ?,
       email_body = ?,
+      email_source = ?,
       updated_at = ?
     WHERE id = ? AND status = 'draft'`,
     input.categoryId,
@@ -89,6 +91,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
+    input.emailSource,
     new Date().toISOString(),
     id
   );

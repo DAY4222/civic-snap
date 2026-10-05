@@ -351,6 +351,7 @@ export function DetailsStep({
 export function PreviewStep({
   dismissedContactPrompt,
   emailBody,
+  emailOutOfDate,
   emailRecipient,
   emailSubject,
   onBack,
@@ -358,11 +359,13 @@ export function PreviewStep({
   onEmailBodyChange,
   onEmailSubjectChange,
   onExitToStart,
+  onRebuildEmail,
   photoUri,
   profile,
 }: {
   dismissedContactPrompt: boolean;
   emailBody: string;
+  emailOutOfDate: boolean;
   emailRecipient: string;
   emailSubject: string;
   onBack: () => void;
@@ -370,12 +373,27 @@ export function PreviewStep({
   onEmailBodyChange: (value: string) => void;
   onEmailSubjectChange: (value: string) => void;
   onExitToStart: () => void;
+  onRebuildEmail: () => void;
   photoUri: string | null;
   profile: { name: string; phone: string };
 }) {
   return (
     <View style={styles.stack}>
       <Header title="Email preview" onBack={onBack} onExitToStart={onExitToStart} />
+      {emailOutOfDate ? (
+        <Card style={styles.warningCard} tone="warning">
+          <Text style={styles.muted}>
+            You changed the report after this email was written, so it may be missing those changes.
+          </Text>
+          <Button
+            onPress={onRebuildEmail}
+            style={styles.smallButton}
+            textStyle={styles.smallButtonText}
+            title="Rebuild email"
+            variant="secondary"
+          />
+        </Card>
+      ) : null}
       <Notice text="This draft is saved locally as Draft. You still send it from your own email." />
       {(!profile.name.trim() || !profile.phone.trim()) && !dismissedContactPrompt ? (
         <Card style={styles.warningCard} tone="warning">

@@ -4,6 +4,9 @@
  */
 export type ReportStatus = 'draft' | 'handed_off' | 'sent' | 'case_added';
 
+/** Whether the saved email is the generated one, the user's edit, or an accepted AI version. */
+export type EmailSource = 'generated' | 'user' | 'ai';
+
 export type Profile = {
   name: string;
   email: string;
@@ -149,6 +152,7 @@ export type Report = ReportDraft & {
   category: string;
   emailSubject: string;
   emailBody: string;
+  emailSource: EmailSource;
   status: ReportStatus;
   caseNumber: string;
   createdAt: string;

@@ -91,7 +91,11 @@ describe('report wizard services', () => {
   it('saves the whole draft with its issue title and current email', () => {
     const { category, profile: _profile, ...draft } = baseInput;
 
-    const input = toCreateReportInput(draft, category, { subject: 'Subject', body: 'Body' });
+    const input = toCreateReportInput(draft, category, {
+      subject: 'Subject',
+      body: 'Body',
+      source: 'user',
+    });
 
     expect(input).toMatchObject({
       categoryId: category.id,
@@ -99,6 +103,7 @@ describe('report wizard services', () => {
       locationNote: 'north curb',
       emailSubject: 'Subject',
       emailBody: 'Body',
+      emailSource: 'user',
     });
   });
 
@@ -109,6 +114,7 @@ describe('report wizard services', () => {
       toCreateReportInput(draft, { ...baseInput.category, id: 'general', title: 'General 311 report' }, {
         subject: 'Subject',
         body: 'Body',
+        source: 'generated',
       }).categoryId
     ).toBeNull();
   });

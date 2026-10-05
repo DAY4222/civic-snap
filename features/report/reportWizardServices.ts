@@ -10,7 +10,7 @@ import {
 } from '@/lib/emailRewriteClient';
 import { persistReportPhoto } from '@/lib/photos';
 import { updateReportEmail, updateReportStatus, type CreateReportInput } from '@/lib/reports';
-import type { EmailInput, IssueCategory, ReportDraft } from '@/lib/types';
+import type { EmailInput, EmailSource, IssueCategory, ReportDraft } from '@/lib/types';
 
 export async function persistWizardPhoto(uri: string) {
   return persistReportPhoto(uri);
@@ -69,7 +69,7 @@ export async function buildPreviewEmail(
 export function toCreateReportInput(
   draft: ReportDraft,
   category: IssueCategory,
-  email: Pick<ReturnType<typeof buildEmail>, 'subject' | 'body'>
+  email: { subject: string; body: string; source: EmailSource }
 ): CreateReportInput {
   return {
     ...draft,
@@ -77,6 +77,7 @@ export function toCreateReportInput(
     category: category.title,
     emailSubject: email.subject,
     emailBody: email.body,
+    emailSource: email.source,
   };
 }
 

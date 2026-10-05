@@ -27,7 +27,6 @@ import {
   canPreviewReport,
   createInitialReportWizardState,
   filterIssueCategories,
-  profilesEqual,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from './reportWizardState';
@@ -38,6 +37,7 @@ import {
   persistWizardPhoto,
   reverseGeocodeReportAddress,
 } from './reportWizardServices';
+import { getDisplayedEmail, isEmailOutOfDate } from './emailDraft';
 import { useDraftPersistence } from './useDraftPersistence';
 import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
 
@@ -76,10 +76,20 @@ export function useReportWizard(resumeId?: string) {
   const descriptionPlaceholder = hasIssue
     ? `Describe the ${category.subjectLabel}, exact location, and what crews should know.`
     : 'Example: pothole in the curb lane near the crosswalk';
-  const email = useMemo(
+  // The generated email always reflects the report; edits and AI versions live in state.email.
+  const generatedEmail = useMemo(
     () => buildEmail({ ...draft, category, profile: state.profile }),
     [category, draft, state.profile]
   );
+  const email = useMemo(
+    () => ({
+      ...getDisplayedEmail(state.email, generatedEmail),
+      recipient: generatedEmail.recipient,
+      source: state.email.source,
+    }),
+    [generatedEmail, state.email]
+  );
+  const emailOutOfDate = isEmailOutOfDate(state.email, generatedEmail);
   const pinRegion = useMemo<Region | null>(() => {
     if (draft.latitude == null || draft.longitude == null) return null;
 
@@ -90,67 +100,23 @@ export function useReportWizard(resumeId?: string) {
       longitudeDelta: BLOCK_LEVEL_DELTA,
     };
   }, [draft.latitude, draft.longitude]);
-  const emailToSave = useMemo(
-    () =>
-      state.emailBody ? { subject: state.emailSubject, body: state.emailBody } : email,
-    [email, state.emailBody, state.emailSubject]
-  );
   const persistence = useDraftPersistence({
     category,
     draft,
-    email: emailToSave,
+    email,
     enabled: true,
     onCreated: (reportId) => dispatch({ type: 'draftCreated', reportId }),
     savedReportId: state.savedReportId,
   });
-  const draftSnapshot = useRef({ category, state });
-  draftSnapshot.current = { category, state };
-
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
+      // A profile change rebuilds the generated email on its own; an edited or AI email is
+      // flagged as out of date instead of being changed under the user.
       loadProfile()
         .then((nextProfile) => {
-          if (!active) return;
-
-          const current = draftSnapshot.current;
-          const currentProfile = current.state.profile;
-          if (profilesEqual(currentProfile, nextProfile)) {
-            dispatch({ type: 'profileLoaded', profile: nextProfile });
-            return;
-          }
-
-          let nextEmailBody: string | undefined;
-          let nextEmailSubject: string | undefined;
-          if (current.state.step === 'preview') {
-            const currentEmail = buildEmail({
-              ...current.state.draft,
-              category: current.category,
-              profile: currentProfile,
-            });
-            const updatedEmail = buildEmail({
-              ...current.state.draft,
-              category: current.category,
-              profile: nextProfile,
-            });
-
-            nextEmailSubject =
-              current.state.emailSubject === currentEmail.subject
-                ? updatedEmail.subject
-                : current.state.emailSubject;
-            nextEmailBody =
-              current.state.emailBody === currentEmail.body
-                ? updatedEmail.body
-                : current.state.emailBody;
-          }
-
-          dispatch({
-            type: 'profileLoaded',
-            emailBody: nextEmailBody,
-            emailSubject: nextEmailSubject,
-            profile: nextProfile,
-          });
+          if (active) dispatch({ type: 'profileLoaded', profile: nextProfile });
         })
         .catch(() => {
           if (active) dispatch({ type: 'profileLoaded', profile: EMPTY_PROFILE });
@@ -410,12 +376,10 @@ export function useReportWizard(resumeId?: string) {
       if (!reportId) throw new Error('Draft was not saved.');
 
       const nextEmail = await buildPreviewEmail({ ...draft, category, profile: state.profile });
-      dispatch({
-        type: 'previewReady',
-        emailBody: nextEmail.body,
-        emailSubject: nextEmail.subject,
-        savedReportId: reportId,
-      });
+      if (nextEmail.body !== generatedEmail.body) {
+        dispatch({ type: 'aiEmailReady', content: nextEmail, generated: generatedEmail });
+      }
+      dispatch({ type: 'previewReady', savedReportId: reportId });
     } catch {
       Alert.alert('Draft not saved', 'Try again. Your current report is still on this screen.');
     } finally {
@@ -429,9 +393,9 @@ export function useReportWizard(resumeId?: string) {
     dispatch({ type: 'setBusy', busy: true });
     try {
       const result = await openSavedReportMail({
-        emailBody: state.emailBody,
+        emailBody: email.body,
         emailRecipient: email.recipient,
-        emailSubject: state.emailSubject,
+        emailSubject: email.subject,
         photoUri: draft.photoUri,
         reportId: state.savedReportId,
       });
@@ -451,14 +415,14 @@ export function useReportWizard(resumeId?: string) {
   }
 
   async function copyEmail() {
-    await Clipboard.setStringAsync(`${state.emailSubject}\n\n${state.emailBody}`);
+    await Clipboard.setStringAsync(`${email.subject}\n\n${email.body}`);
     Alert.alert('Copied', 'Email subject and body copied.');
   }
 
   function openMailto() {
     const url = `mailto:${email.recipient}?subject=${encodeURIComponent(
-      state.emailSubject
-    )}&body=${encodeURIComponent(state.emailBody)}`;
+      email.subject
+    )}&body=${encodeURIComponent(email.body)}`;
     Linking.openURL(url);
   }
 
@@ -530,9 +494,19 @@ export function useReportWizard(resumeId?: string) {
       setAnswer: (questionId: string, value: ReportAnswerValue) =>
         dispatch({ type: 'setAnswer', questionId, value }),
       setDescription: (description: string) => dispatch({ type: 'setDescription', description }),
-      setEmailBody: (emailBody: string) => dispatch({ type: 'setEmailBody', emailBody }),
-      setEmailSubject: (emailSubject: string) =>
-        dispatch({ type: 'setEmailSubject', emailSubject }),
+      setEmailBody: (body: string) =>
+        dispatch({
+          type: 'editEmail',
+          content: { subject: email.subject, body },
+          generated: generatedEmail,
+        }),
+      setEmailSubject: (subject: string) =>
+        dispatch({
+          type: 'editEmail',
+          content: { subject, body: email.body },
+          generated: generatedEmail,
+        }),
+      rebuildEmail: () => dispatch({ type: 'rebuildEmail' }),
       setIssueSearchQuery: (issueSearchQuery: string) =>
         dispatch({ type: 'setIssueSearchQuery', issueSearchQuery }),
       setLocationNote: (locationNote: string) => dispatch({ type: 'setLocationNote', locationNote }),
@@ -548,6 +522,7 @@ export function useReportWizard(resumeId?: string) {
     canPreviewEmail,
     descriptionPlaceholder,
     email,
+    emailOutOfDate,
     filteredIssueCategories,
     hasIssue,
     photoAnalysisAvailable,

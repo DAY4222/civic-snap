@@ -135,13 +135,15 @@ export function ReportWizard() {
         {state.step === 'preview' ? (
           <PreviewStep
             dismissedContactPrompt={state.dismissedContactPrompt}
-            emailBody={state.emailBody}
+            emailBody={email.body}
+            emailOutOfDate={wizard.emailOutOfDate}
             emailRecipient={email.recipient}
-            emailSubject={state.emailSubject}
+            emailSubject={email.subject}
             onBack={() => actions.setStep('details')}
             onDismissContactPrompt={actions.dismissContactPrompt}
             onEmailBodyChange={actions.setEmailBody}
             onEmailSubjectChange={actions.setEmailSubject}
+            onRebuildEmail={actions.rebuildEmail}
             onExitToStart={actions.confirmExitToStart}
             photoUri={draft.photoUri}
             profile={state.profile}
