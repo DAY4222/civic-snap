@@ -57,6 +57,7 @@ export type ReportWizardAction =
   | { type: 'chooseCategory'; categoryId: string | null }
   | { type: 'dismissContactPrompt' }
   | { type: 'dismissSavedBanner' }
+  | { type: 'draftCreated'; reportId: string }
   | { type: 'openCategory'; returnStep: CategoryReturnStep }
   | { type: 'photoStored'; photoUri: string; thumbnailUri?: string | null }
   | { type: 'previewReady'; emailBody: string; emailSubject: string; savedReportId: string }
@@ -134,6 +135,8 @@ export function reportWizardReducer(
       return { ...state, dismissedContactPrompt: true };
     case 'dismissSavedBanner':
       return { ...state, savedBannerId: null };
+    case 'draftCreated':
+      return { ...state, savedReportId: state.savedReportId ?? action.reportId };
     case 'openCategory':
       return {
         ...state,

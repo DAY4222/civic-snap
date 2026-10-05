@@ -1,5 +1,9 @@
 import { openDatabase } from './db';
-import { deleteReportPhotos, getReportPhotoBaseDirectory } from './photos';
+import {
+  deleteOrphanReportPhotos,
+  deleteReportPhotos,
+  getReportPhotoBaseDirectory,
+} from './photos';
 import {
   createReportId,
   rowToReport,
@@ -47,6 +51,10 @@ export async function createDraftReport(input: CreateReportInput) {
   return id;
 }
 
+/**
+ * Saves the wizard's latest content. Only drafts are updated, so a save that lands after the
+ * report was handed off can't overwrite it or turn it back into a draft.
+ */
 export async function updateDraftReport(id: string, input: CreateReportInput) {
   const db = await openDatabase();
   await db.runAsync(
@@ -65,9 +73,8 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       photo_issue_topic_json = ?,
       email_subject = ?,
       email_body = ?,
-      status = ?,
       updated_at = ?
-    WHERE id = ?`,
+    WHERE id = ? AND status = 'draft'`,
     input.categoryId,
     input.category,
     input.description,
@@ -82,7 +89,6 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
-    'draft',
     new Date().toISOString(),
     id
   );
@@ -139,4 +145,15 @@ export async function deleteReport(id: string) {
 
   await db.runAsync('DELETE FROM reports WHERE id = ?', id);
   await deleteReportPhotos([report?.photoUri, report?.thumbnailUri]);
+}
+
+/** Removes photo files no report uses: leftovers from crashes or abandoned retakes. */
+export async function sweepOrphanReportPhotos() {
+  if (!getReportPhotoBaseDirectory()) return 0;
+
+  const db = await openDatabase();
+  const rows = await db.getAllAsync<{ photo_uri: string | null; thumbnail_uri: string | null }>(
+    'SELECT photo_uri, thumbnail_uri FROM reports'
+  );
+  return deleteOrphanReportPhotos(rows.flatMap((row) => [row.photo_uri, row.thumbnail_uri]));
 }

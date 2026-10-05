@@ -9,16 +9,8 @@ import {
   type EmailRewriteResult,
 } from '@/lib/emailRewriteClient';
 import { persistReportPhoto } from '@/lib/photos';
-import {
-  createDraftReport,
-  updateDraftReport,
-  updateReportEmail,
-  updateReportStatus,
-  type CreateReportInput,
-} from '@/lib/reports';
+import { updateReportEmail, updateReportStatus, type CreateReportInput } from '@/lib/reports';
 import type { EmailInput, IssueCategory, ReportDraft } from '@/lib/types';
-
-import { type ReportWizardState } from './reportWizardState';
 
 export async function persistWizardPhoto(uri: string) {
   return persistReportPhoto(uri);
@@ -50,32 +42,6 @@ export async function reverseGeocodeReportAddress(latitude: number, longitude: n
   } catch {
     return null;
   }
-}
-
-export async function saveReportDraft({
-  category,
-  savedReportId,
-  state,
-}: {
-  category: IssueCategory;
-  savedReportId: string | null;
-  state: ReportWizardState;
-}) {
-  const emailInput: EmailInput = { ...state.draft, category, profile: state.profile };
-  const localEmail = buildEmail(emailInput);
-  const localDraftInput = toCreateReportInput(state.draft, category, localEmail);
-
-  const id = savedReportId ?? (await createDraftReport(localDraftInput));
-  if (savedReportId) {
-    await updateDraftReport(savedReportId, localDraftInput);
-  }
-
-  const email = await buildPreviewEmail(emailInput, rewriteEmailDraft, () => localEmail);
-  if (email.body !== localEmail.body || email.subject !== localEmail.subject) {
-    await updateDraftReport(id, toCreateReportInput(state.draft, category, email));
-  }
-
-  return { email, id };
 }
 
 export async function buildPreviewEmail(

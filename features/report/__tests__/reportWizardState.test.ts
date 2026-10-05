@@ -123,6 +123,17 @@ describe('report wizard reducer', () => {
     expect(state.draft.answers[multiQuestion.id]).toEqual([first, second]);
   });
 
+  it('records the autosaved draft id once, without replacing an existing one', () => {
+    let state = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'draftCreated',
+      reportId: 'report-1',
+    });
+    expect(state.savedReportId).toBe('report-1');
+
+    state = reportWizardReducer(state, { type: 'draftCreated', reportId: 'report-2' });
+    expect(state.savedReportId).toBe('report-1');
+  });
+
   it('moves through preview, fallback, and reset without losing stable settings', () => {
     let state = createInitialReportWizardState();
     state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });

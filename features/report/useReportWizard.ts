@@ -14,7 +14,8 @@ import {
 } from '@/lib/issueSuggestions';
 import { loadPhotoAnalysisEnabled, savePhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
-import { getDraftCategory } from '@/lib/reportDraft';
+import { deleteReportPhotos } from '@/lib/photos';
+import { getDraftCategory, isDraftEmpty } from '@/lib/reportDraft';
 import { getReport } from '@/lib/reports';
 import { PhotoIssueCandidate, ReportAnswerValue } from '@/lib/types';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
@@ -31,12 +32,13 @@ import {
   shouldStartPhotoAnalysis,
 } from './reportWizardState';
 import {
+  buildPreviewEmail,
   getCurrentLocationReportData,
   openSavedReportMail,
   persistWizardPhoto,
   reverseGeocodeReportAddress,
-  saveReportDraft,
 } from './reportWizardServices';
+import { useDraftPersistence } from './useDraftPersistence';
 import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
 
 const BLOCK_LEVEL_DELTA = 0.0012;
@@ -88,6 +90,19 @@ export function useReportWizard(resumeId?: string) {
       longitudeDelta: BLOCK_LEVEL_DELTA,
     };
   }, [draft.latitude, draft.longitude]);
+  const emailToSave = useMemo(
+    () =>
+      state.emailBody ? { subject: state.emailSubject, body: state.emailBody } : email,
+    [email, state.emailBody, state.emailSubject]
+  );
+  const persistence = useDraftPersistence({
+    category,
+    draft,
+    email: emailToSave,
+    enabled: true,
+    onCreated: (reportId) => dispatch({ type: 'draftCreated', reportId }),
+    savedReportId: state.savedReportId,
+  });
   const draftSnapshot = useRef({ category, state });
   draftSnapshot.current = { category, state };
 
@@ -255,6 +270,9 @@ export function useReportWizard(resumeId?: string) {
   }
 
   async function storePhoto(uri: string) {
+    // A retaken photo that no saved draft points to can go now; saved ones are cleaned up by
+    // the startup sweep once the draft has been re-saved with the new photo.
+    const replacedPhotos = state.savedReportId ? [] : [draft.photoUri, draft.thumbnailUri];
     dispatch({ type: 'setBusy', busy: true });
     try {
       const persisted = await persistWizardPhoto(uri);
@@ -263,6 +281,7 @@ export function useReportWizard(resumeId?: string) {
         photoUri: persisted.photoUri,
         thumbnailUri: persisted.thumbnailUri,
       });
+      void deleteReportPhotos(replacedPhotos);
     } catch {
       Alert.alert('Photo not saved', 'The report can continue without a saved photo.');
     } finally {
@@ -387,16 +406,15 @@ export function useReportWizard(resumeId?: string) {
 
     dispatch({ type: 'setBusy', busy: true });
     try {
-      const { email: nextEmail, id } = await saveReportDraft({
-        category,
-        savedReportId: state.savedReportId,
-        state,
-      });
+      const reportId = await persistence.flush();
+      if (!reportId) throw new Error('Draft was not saved.');
+
+      const nextEmail = await buildPreviewEmail({ ...draft, category, profile: state.profile });
       dispatch({
         type: 'previewReady',
         emailBody: nextEmail.body,
         emailSubject: nextEmail.subject,
-        savedReportId: id,
+        savedReportId: reportId,
       });
     } catch {
       Alert.alert('Draft not saved', 'Try again. Your current report is still on this screen.');
@@ -422,6 +440,7 @@ export function useReportWizard(resumeId?: string) {
         return;
       }
 
+      persistence.detach();
       dispatch({ type: 'resetReport', savedBannerId: state.savedReportId });
     } catch {
       dispatch({ type: 'setStep', step: 'fallback' });
@@ -468,18 +487,22 @@ export function useReportWizard(resumeId?: string) {
     });
   }
 
-  function confirmExitToStart() {
-    const message = state.savedReportId
-      ? 'This will return to the start screen. Your saved draft will stay in History.'
-      : 'This will return to the start screen and clear the current report progress.';
+  function returnToStart() {
+    void persistence.flush().finally(() => {
+      persistence.detach();
+      dispatch({ type: 'resetReport' });
+    });
+  }
 
-    Alert.alert('Return to start?', message, [
+  function confirmExitToStart() {
+    if (isDraftEmpty(draft)) {
+      returnToStart();
+      return;
+    }
+
+    Alert.alert('Return to start?', 'Your draft is saved in History, so you can finish it later.', [
       { text: 'Keep editing', style: 'cancel' },
-      {
-        text: 'Return to start',
-        style: 'destructive',
-        onPress: () => dispatch({ type: 'resetReport' }),
-      },
+      { text: 'Return to start', onPress: returnToStart },
     ]);
   }
 

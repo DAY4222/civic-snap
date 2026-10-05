@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { hasCompletedOnboarding } from '@/lib/profile';
+import { sweepOrphanReportPhotos } from '@/lib/reports';
 
 export {
   ErrorBoundary,
@@ -60,6 +61,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [checkedOnboarding, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+
+    // Photo files left behind by crashes or abandoned retakes.
+    sweepOrphanReportPhotos().catch(() => undefined);
+  }, [loaded]);
 
   if (!loaded || !checkedOnboarding) {
     return null;

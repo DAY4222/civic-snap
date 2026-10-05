@@ -25,8 +25,7 @@ import { buildEmail } from '@/lib/email';
 import { EMPTY_DRAFT } from '@/lib/reportDraft';
 import type { EmailInput } from '@/lib/types';
 
-import { buildPreviewEmail, saveReportDraft } from '../reportWizardServices';
-import { createInitialReportWizardState } from '../reportWizardState';
+import { buildPreviewEmail, toCreateReportInput } from '../reportWizardServices';
 
 const baseInput: EmailInput = {
   ...EMPTY_DRAFT,
@@ -89,34 +88,28 @@ describe('report wizard services', () => {
     expect(email).toEqual(localEmail);
   });
 
-  it('creates the local draft before applying an optional rewritten body', async () => {
-    const { category: _category, profile, ...draft } = baseInput;
-    const state = {
-      ...createInitialReportWizardState(),
-      draft,
-      profile,
-    };
+  it('saves the whole draft with its issue title and current email', () => {
+    const { category, profile: _profile, ...draft } = baseInput;
 
-    const result = await saveReportDraft({
-      category: baseInput.category,
-      savedReportId: null,
-      state,
-    });
+    const input = toCreateReportInput(draft, category, { subject: 'Subject', body: 'Body' });
 
-    expect(mockCreateDraftReport).toHaveBeenCalledWith(
-      expect.objectContaining({
-        emailBody: expect.stringContaining('Hello 311 Toronto,'),
-      })
-    );
-    expect(mockUpdateDraftReport).toHaveBeenCalledWith(
-      'report-1',
-      expect.objectContaining({
-        emailBody: expect.stringContaining('Improved 311 email body'),
-      })
-    );
-    expect(result).toMatchObject({
-      email: { body: expect.stringContaining('Improved 311 email body') },
-      id: 'report-1',
+    expect(input).toMatchObject({
+      categoryId: category.id,
+      category: 'Residential Bin Lid Damaged',
+      locationNote: 'north curb',
+      emailSubject: 'Subject',
+      emailBody: 'Body',
     });
+  });
+
+  it('saves a general report without a category id', () => {
+    const { profile: _profile, category: _category, ...draft } = baseInput;
+
+    expect(
+      toCreateReportInput(draft, { ...baseInput.category, id: 'general', title: 'General 311 report' }, {
+        subject: 'Subject',
+        body: 'Body',
+      }).categoryId
+    ).toBeNull();
   });
 });
