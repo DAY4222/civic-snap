@@ -230,7 +230,7 @@ export function useReportWizard(resumeId?: string) {
     let active = true;
     getReport(resumeId)
       .then((report) => {
-        if (active && report?.status === 'Draft') dispatch({ type: 'resumeReport', report });
+        if (active && report?.status === 'draft') dispatch({ type: 'resumeReport', report });
       })
       .catch(() => undefined)
       .finally(() => {

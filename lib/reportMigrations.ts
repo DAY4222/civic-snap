@@ -1,4 +1,4 @@
-import { toStoredPhotoPath } from './reportPersistence';
+import { LEGACY_STATUSES, toStoredPhotoPath } from './reportPersistence';
 
 /** The subset of expo-sqlite's async API the migrations use, so tests can run them on node:sqlite. */
 export type MigrationDatabase = {
@@ -95,6 +95,15 @@ export const REPORT_MIGRATIONS: Migration[] = [
           thumbnailPath,
           row.id
         );
+      }
+    },
+  },
+  {
+    version: 3,
+    description: 'store report status as codes instead of UI labels',
+    up: async (db) => {
+      for (const [label, status] of Object.entries(LEGACY_STATUSES)) {
+        await db.runAsync('UPDATE reports SET status = ? WHERE status = ?', status, label);
       }
     },
   },

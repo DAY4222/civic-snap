@@ -91,8 +91,8 @@ describe('report migrations', () => {
     await runMigrations(db);
 
     expect(await columnNames(db)).toEqual(expect.arrayContaining(['category_id', 'thumbnail_uri']));
-    expect(await db.getAllAsync('SELECT id, photo_uri, description FROM reports')).toEqual([
-      { id: 'old-1', photo_uri: 'reports/report-1.jpg', description: 'Pothole' },
+    expect(await db.getAllAsync('SELECT id, photo_uri, description, status FROM reports')).toEqual([
+      { id: 'old-1', photo_uri: 'reports/report-1.jpg', description: 'Pothole', status: 'draft' },
     ]);
   });
 

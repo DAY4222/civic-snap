@@ -16,16 +16,16 @@ export default function HistoryScreen() {
 
   const sections = useMemo(() => {
     const visibleReports = reports.filter((report) => !deletedDraftIds.has(report.id));
-    const drafts = visibleReports.filter((report) => report.status === 'Draft');
-    const opened = visibleReports.filter((report) => report.status !== 'Draft');
+    const drafts = visibleReports.filter((report) => report.status === 'draft');
+    const sent = visibleReports.filter((report) => report.status !== 'draft');
     return [
       { title: 'Drafts', data: drafts },
-      { title: 'Tracking', data: opened },
+      { title: 'Sent', data: sent },
     ].filter((section) => section.data.length > 0);
   }, [deletedDraftIds, reports]);
 
   function openReport(report: Report) {
-    if (report.status === 'Draft') {
+    if (report.status === 'draft') {
       router.push({ pathname: '/', params: { resumeId: report.id } });
       return;
     }
@@ -95,7 +95,7 @@ export default function HistoryScreen() {
         <Text style={styles.sectionTitle}>{section.title}</Text>
       )}
       renderItem={({ item }) => {
-        const isDraft = item.status === 'Draft';
+        const isDraft = item.status === 'draft';
         const deleting = deletingDraftIds.has(item.id);
 
         return (

@@ -1,4 +1,8 @@
-export type ReportStatus = 'Draft' | 'Mail opened' | 'Case added';
+/**
+ * draft: still being written. handed_off: the mail composer or share sheet opened, but the user
+ * hasn't confirmed sending. sent: confirmed sent. case_added: 311's case number was saved.
+ */
+export type ReportStatus = 'draft' | 'handed_off' | 'sent' | 'case_added';
 
 export type Profile = {
   name: string;

@@ -50,7 +50,7 @@ describe('report persistence helpers', () => {
 
     expect(report.categoryId).toBe('road-pothole-road-damage');
     expect(report.answers).toEqual({ q1: 'yes' });
-    expect(report.status).toBe('Draft');
+    expect(report.status).toBe('draft');
   });
 
   it('drops malformed stored coordinates instead of leaking NaN into reports', () => {
@@ -106,8 +106,10 @@ describe('report persistence helpers', () => {
   });
 
   it('normalizes status and photo topic JSON', () => {
-    expect(parseReportStatus('Case added')).toBe('Case added');
-    expect(parseReportStatus('unknown')).toBe('Draft');
+    expect(parseReportStatus('case_added')).toBe('case_added');
+    expect(parseReportStatus('Case added')).toBe('case_added');
+    expect(parseReportStatus('Mail opened')).toBe('handed_off');
+    expect(parseReportStatus('unknown')).toBe('draft');
     expect(parsePhotoIssueTopic('not json')).toBeNull();
     expect(
       parsePhotoIssueTopic(

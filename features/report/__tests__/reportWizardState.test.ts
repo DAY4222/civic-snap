@@ -33,7 +33,7 @@ const report: Report = {
   photoIssueTopic: null,
   emailSubject: '311 service request: Road Pothole / Road Damage',
   emailBody: 'Hello',
-  status: 'Draft',
+  status: 'draft',
   caseNumber: '',
   createdAt: '2026-05-20T00:00:00.000Z',
   updatedAt: '2026-05-20T00:00:00.000Z',

@@ -37,7 +37,7 @@ export async function createDraftReport(input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
-    'Draft',
+    'draft',
     '',
     now,
     now
@@ -79,7 +79,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
-    'Draft',
+    'draft',
     new Date().toISOString(),
     id
   );
@@ -124,7 +124,7 @@ export async function updateCaseNumber(id: string, caseNumber: string) {
   await db.runAsync(
     'UPDATE reports SET case_number = ?, status = ?, updated_at = ? WHERE id = ?',
     caseNumber,
-    caseNumber ? 'Case added' : 'Mail opened',
+    caseNumber ? 'case_added' : 'sent',
     new Date().toISOString(),
     id
   );

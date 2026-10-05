@@ -159,7 +159,7 @@ export async function openSavedReportMail({
     body: emailBody,
     attachments: photoUri ? [photoUri] : [],
   });
-  await updateReportStatus(reportId, 'Mail opened');
+  await updateReportStatus(reportId, 'handed_off');
   return 'opened' as const;
 }
 

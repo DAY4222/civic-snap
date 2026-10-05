@@ -128,9 +128,16 @@ export function parsePhotoIssueTopic(raw: string | null): PhotoIssueCandidate | 
   };
 }
 
+/** Status labels stored before migration 3 replaced them with codes. */
+export const LEGACY_STATUSES: Record<string, ReportStatus> = {
+  Draft: 'draft',
+  'Mail opened': 'handed_off',
+  'Case added': 'case_added',
+};
+
 export function parseReportStatus(raw: string): ReportStatus {
-  if (raw === 'Draft' || raw === 'Mail opened' || raw === 'Case added') return raw;
-  return 'Draft';
+  if (raw === 'draft' || raw === 'handed_off' || raw === 'sent' || raw === 'case_added') return raw;
+  return LEGACY_STATUSES[raw] ?? 'draft';
 }
 
 function parseJson(raw: string | null): unknown {
