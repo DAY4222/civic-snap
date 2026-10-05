@@ -3,11 +3,7 @@ import * as MailComposer from 'expo-mail-composer';
 
 import { GENERAL_CATEGORY } from '@/lib/categories';
 import { addLocalDetailsToRewrittenBody, buildEmail } from '@/lib/email';
-import {
-  canRewriteEmailDraft,
-  rewriteEmailDraft,
-  type EmailRewriteResult,
-} from '@/lib/emailRewriteClient';
+import { rewriteEmailDraft, type EmailRewriteResult } from '@/lib/emailRewriteClient';
 import { persistReportPhoto } from '@/lib/photos';
 import { updateReportEmail, updateReportStatus, type CreateReportInput } from '@/lib/reports';
 import type { EmailInput, EmailSource, IssueCategory, ReportDraft } from '@/lib/types';
@@ -44,26 +40,34 @@ export async function reverseGeocodeReportAddress(latitude: number, longitude: n
   }
 }
 
-export async function buildPreviewEmail(
-  input: EmailInput,
-  rewriteDraft: (
-    input: EmailInput,
-    options: { defaultEmailBody: string }
-  ) => Promise<Pick<EmailRewriteResult, 'body'>> = rewriteEmailDraft,
-  buildLocalEmail: (input: EmailInput) => ReturnType<typeof buildEmail> = buildEmail
-) {
-  const email = buildLocalEmail(input);
-  if (rewriteDraft === rewriteEmailDraft && !canRewriteEmailDraft()) return email;
+/** Polish time includes a cold start on the shared backend; the function itself gives up at 20 s. */
+const EMAIL_POLISH_TIMEOUT_MS = 25_000;
 
-  try {
-    const rewritten = await rewriteDraft(input, {
-      defaultEmailBody: buildEmail(input, { includeContact: false, includeCoordinates: false })
-        .body,
-    });
-    return { ...email, body: addLocalDetailsToRewrittenBody(rewritten.body, input) };
-  } catch {
-    return email;
-  }
+type RewriteDraft = (
+  input: EmailInput,
+  options: { defaultEmailBody: string; signal?: AbortSignal; timeoutMs?: number }
+) => Promise<Pick<EmailRewriteResult, 'body'>>;
+
+/**
+ * Asks the AI for a polished body. The model only sees a privacy-safe draft (no name, email,
+ * phone or GPS); those are added back to its answer here, on the device.
+ */
+export async function requestPolishedEmail(
+  input: EmailInput,
+  { signal }: { signal?: AbortSignal } = {},
+  rewriteDraft: RewriteDraft = rewriteEmailDraft
+) {
+  const generated = buildEmail(input);
+  const rewritten = await rewriteDraft(input, {
+    defaultEmailBody: buildEmail(input, { includeContact: false, includeCoordinates: false }).body,
+    signal,
+    timeoutMs: EMAIL_POLISH_TIMEOUT_MS,
+  });
+
+  return {
+    subject: generated.subject,
+    body: addLocalDetailsToRewrittenBody(rewritten.body, input),
+  };
 }
 
 export function toCreateReportInput(

@@ -3,7 +3,13 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Button, Card, Field, Screen, colors } from '@/components/ui';
-import { loadPhotoAnalysisEnabled, savePhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
+import {
+  loadEmailPolishEnabled,
+  loadPhotoAnalysisEnabled,
+  saveEmailPolishEnabled,
+  savePhotoAnalysisEnabled,
+} from '@/lib/aiSettings';
+import { canRewriteEmailDraft } from '@/lib/emailRewriteClient';
 import { EMPTY_PROFILE, loadProfile, saveProfile } from '@/lib/profile';
 import { Profile } from '@/lib/types';
 import { canAnalyzePhotoLabels } from '@/lib/vision';
@@ -13,13 +19,18 @@ export default function SettingsScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
   const [photoAnalysisEnabled, setPhotoAnalysisEnabled] = useState(false);
+  const [emailPolishEnabled, setEmailPolishEnabled] = useState(false);
   const photoAnalysisAvailable = canAnalyzePhotoLabels();
+  const emailPolishAvailable = canRewriteEmailDraft();
 
   useEffect(() => {
     loadProfile().then(setProfile).catch(() => setProfile(EMPTY_PROFILE));
     loadPhotoAnalysisEnabled()
       .then(setPhotoAnalysisEnabled)
       .catch(() => setPhotoAnalysisEnabled(false));
+    loadEmailPolishEnabled()
+      .then(setEmailPolishEnabled)
+      .catch(() => setEmailPolishEnabled(false));
   }, []);
 
   async function save() {
@@ -39,6 +50,17 @@ export default function SettingsScreen() {
       setErrorMessage('Profile was not saved. Try again.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function updateEmailPolishEnabled(enabled: boolean) {
+    setEmailPolishEnabled(enabled);
+    setErrorMessage('');
+    try {
+      await saveEmailPolishEnabled(enabled);
+    } catch {
+      setEmailPolishEnabled(!enabled);
+      setErrorMessage('AI email polish setting was not saved. Try again.');
     }
   }
 
@@ -109,6 +131,25 @@ export default function SettingsScreen() {
         </View>
         {!photoAnalysisAvailable ? (
           <Text style={styles.subtitle}>Photo analysis is unavailable in this build.</Text>
+        ) : null}
+      </Card>
+      <Card style={styles.card}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>AI email polish</Text>
+            <Text style={styles.subtitle}>
+              Lets you ask AI to tidy up the email before you send it. Your description, address and
+              checklist answers are sent; your name, phone, email, GPS location and photo are not.
+            </Text>
+          </View>
+          <Switch
+            value={emailPolishAvailable && emailPolishEnabled}
+            onValueChange={updateEmailPolishEnabled}
+            disabled={!emailPolishAvailable || busy}
+          />
+        </View>
+        {!emailPolishAvailable ? (
+          <Text style={styles.subtitle}>AI email polish is unavailable in this build.</Text>
         ) : null}
       </Card>
       <Button onPress={() => router.back()} title="Done" variant="secondary" />

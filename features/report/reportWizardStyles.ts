@@ -3,6 +3,14 @@ import { StyleSheet } from 'react-native';
 import { colors, radius } from '@/components/ui';
 
 export const styles = StyleSheet.create({
+  polishRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  polishRowText: {
+    flex: 1,
+  },
   analysisCard: {
     alignItems: 'center',
     flexDirection: 'row',

@@ -16,6 +16,7 @@ import { formatAnswer, isOptionSelected, toggleMultiAnswer } from '@/lib/answers
 import { getSuggestedAnswerOptions } from '@/lib/issueSuggestions';
 import type {
   CategoryQuestion,
+  EmailSource,
   IssueCategory,
   PhotoIssueCandidate,
   PhotoVisionResult,
@@ -23,7 +24,11 @@ import type {
   ReportAnswers,
 } from '@/lib/types';
 
-import { type PhotoVisionStatus, type ReportWizardStep } from './reportWizardState';
+import {
+  type EmailPolishStatus,
+  type PhotoVisionStatus,
+  type ReportWizardStep,
+} from './reportWizardState';
 import { styles } from './reportWizardStyles';
 import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
 
@@ -361,6 +366,7 @@ export function PreviewStep({
   onExitToStart,
   onRebuildEmail,
   photoUri,
+  polish,
   profile,
 }: {
   dismissedContactPrompt: boolean;
@@ -375,6 +381,7 @@ export function PreviewStep({
   onExitToStart: () => void;
   onRebuildEmail: () => void;
   photoUri: string | null;
+  polish: EmailPolishPanelProps;
   profile: { name: string; phone: string };
 }) {
   return (
@@ -425,6 +432,7 @@ export function PreviewStep({
         <Field label="Subject" onChangeText={onEmailSubjectChange} value={emailSubject} />
         <Field label="Body" multiline onChangeText={onEmailBodyChange} value={emailBody} />
       </Card>
+      <EmailPolishPanel {...polish} />
       <Text style={styles.muted}>{photoUri ? 'Photo will be attached.' : 'No photo attached.'}</Text>
     </View>
   );
@@ -450,6 +458,97 @@ export function FallbackStep({
       />
       <Button onPress={onCopyEmail} title="Copy email text" variant="secondary" />
       <Button onPress={onOpenMailto} title="Open mailto link" variant="secondary" />
+    </View>
+  );
+}
+
+export type EmailPolishPanelProps = {
+  available: boolean;
+  hasPendingAi: boolean;
+  message: string | null;
+  onAcceptPendingAi: () => void;
+  onCancel: () => void;
+  onDismissPendingAi: () => void;
+  onPolish: () => void;
+  onUndoAi: () => void;
+  source: EmailSource;
+  status: EmailPolishStatus;
+};
+
+function EmailPolishPanel({
+  available,
+  hasPendingAi,
+  message,
+  onAcceptPendingAi,
+  onCancel,
+  onDismissPendingAi,
+  onPolish,
+  onUndoAi,
+  source,
+  status,
+}: EmailPolishPanelProps) {
+  if (!available) return null;
+
+  if (hasPendingAi) {
+    return (
+      <Card style={styles.suggestionCard}>
+        <Text style={styles.cardTitle}>AI version ready</Text>
+        <Text style={styles.muted}>
+          You edited the email, so the AI version wasn't applied. Use it instead?
+        </Text>
+        <View style={styles.buttonRow}>
+          <Button
+            onPress={onAcceptPendingAi}
+            style={styles.rowButton}
+            title="Use AI version"
+            variant="secondary"
+          />
+          <Button
+            onPress={onDismissPendingAi}
+            style={styles.rowButton}
+            title="Keep mine"
+            variant="secondary"
+          />
+        </View>
+      </Card>
+    );
+  }
+
+  if (status === 'loading') {
+    return (
+      <View style={styles.polishRow}>
+        <ActivityIndicator />
+        <Text style={[styles.muted, styles.polishRowText]}>Polishing your email…</Text>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onCancel}>
+          <Text style={styles.inlineActionText}>Cancel</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (source === 'ai') {
+    return (
+      <View style={styles.polishRow}>
+        <FontAwesome color={colors.primary} name="magic" size={16} />
+        <Text style={[styles.muted, styles.polishRowText]}>
+          AI-polished. Check the facts before you send it.
+        </Text>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onUndoAi}>
+          <Text style={styles.inlineActionText}>Undo</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.stack}>
+      {status === 'error' && message ? <Text style={styles.muted}>{message}</Text> : null}
+      <Button
+        icon={<FontAwesome color={colors.text} name="magic" size={18} />}
+        onPress={onPolish}
+        title={status === 'error' ? 'Try AI polish again' : 'Polish with AI'}
+        variant="secondary"
+      />
     </View>
   );
 }

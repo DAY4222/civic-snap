@@ -135,6 +135,15 @@ describe('buildEmail', () => {
     );
   });
 
+  it('moves a thank-you that shares the last line below the local details', () => {
+    const body = addLocalDetailsToRewrittenBody(
+      'Request: Please repair it. Thank you.',
+      { ...baseInput, latitude: null, longitude: null, profile: { name: 'Ada', email: '', phone: '' } }
+    );
+
+    expect(body).toBe('Request: Please repair it.\n\nContact:\nName: Ada\n\nThank you.');
+  });
+
   it('appends local details when the rewritten body has no sign-off', () => {
     const body = addLocalDetailsToRewrittenBody('Issue: Damaged bin lid', {
       ...baseInput,

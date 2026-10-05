@@ -79,10 +79,18 @@ export function addLocalDetailsToRewrittenBody(body: string, input: EmailInput) 
   if (blocks.length === 0) return body;
 
   const localDetails = blocks.join('\n\n');
-  const signOff = body.match(/\n+(thank you[^\n]*)\s*$/i);
-  if (!signOff || signOff.index == null) return `${body.trimEnd()}\n\n${localDetails}`;
+  const ownLine = body.match(/\n+(thank you[^\n]*)\s*$/i);
+  if (ownLine?.index != null) {
+    return `${body.slice(0, ownLine.index)}\n\n${localDetails}\n\n${ownLine[1]}`;
+  }
 
-  return `${body.slice(0, signOff.index)}\n\n${localDetails}\n\n${signOff[1]}`;
+  // "...for public use. Thank you." on one line: move the thank-you below the local details.
+  const sameLine = body.match(/([.!?])[ \t]+(thank you[^\n]*)\s*$/i);
+  if (sameLine?.index != null) {
+    return `${body.slice(0, sameLine.index + 1)}\n\n${localDetails}\n\n${sameLine[2]}`;
+  }
+
+  return `${body.trimEnd()}\n\n${localDetails}`;
 }
 
 function formatCoordinateLine(input: Pick<EmailInput, 'latitude' | 'longitude'>) {

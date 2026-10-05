@@ -9,7 +9,7 @@ import { buildEmail } from './email';
 import { getInstallId } from './installId';
 import type { EmailInput } from './types';
 
-export const DEFAULT_REWRITE_TIMEOUT_MS = 8_000;
+export const DEFAULT_REWRITE_TIMEOUT_MS = 25_000;
 
 export type RewriteEmailDraftOptions = {
   config?: BackendConfig;

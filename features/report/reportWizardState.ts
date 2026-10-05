@@ -26,6 +26,7 @@ import {
 
 export type ReportWizardStep = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
 export type CategoryReturnStep = 'location' | 'details';
+export type EmailPolishStatus = 'idle' | 'consent' | 'loading' | 'error';
 export type PhotoVisionStatus =
   | 'idle'
   | 'loading'
@@ -52,6 +53,9 @@ export type ReportWizardState = {
   categoryReturnStep: CategoryReturnStep;
   dismissedContactPrompt: boolean;
   email: EmailDraftState;
+  emailPolish: { status: EmailPolishStatus; message: string | null };
+  /** The user agreed to send report text (never contact details) for AI email polish. */
+  emailPolishEnabled: boolean;
   issueSearchQuery: string;
   photoAnalysisUserEnabled: boolean;
   photoVisionPhotoUri: string | null;
@@ -94,7 +98,12 @@ export type ReportWizardAction =
   | { type: 'acceptPendingAiEmail'; generated: EmailContent }
   | { type: 'dismissPendingAiEmail' }
   | { type: 'undoAiEmail' }
-  | { type: 'rebuildEmail' };
+  | { type: 'rebuildEmail' }
+  | { type: 'setEmailPolishEnabled'; enabled: boolean }
+  | { type: 'emailPolishConsentRequested' }
+  | { type: 'emailPolishStarted' }
+  | { type: 'emailPolishFinished' }
+  | { type: 'emailPolishFailed'; message: string };
 
 export function createInitialReportWizardState(): ReportWizardState {
   return {
@@ -103,6 +112,8 @@ export function createInitialReportWizardState(): ReportWizardState {
     categoryReturnStep: 'location',
     dismissedContactPrompt: false,
     email: INITIAL_EMAIL_DRAFT,
+    emailPolish: IDLE_EMAIL_POLISH,
+    emailPolishEnabled: false,
     issueSearchQuery: '',
     photoAnalysisUserEnabled: false,
     photoVisionPhotoUri: null,
@@ -113,6 +124,8 @@ export function createInitialReportWizardState(): ReportWizardState {
     step: 'start',
   };
 }
+
+const IDLE_EMAIL_POLISH: ReportWizardState['emailPolish'] = { status: 'idle', message: null };
 
 function updateDraft(state: ReportWizardState, patch: Partial<ReportDraft>): ReportWizardState {
   return { ...state, draft: { ...state.draft, ...patch } };
@@ -186,6 +199,7 @@ export function reportWizardReducer(
     case 'resetReport':
       return {
         ...createInitialReportWizardState(),
+        emailPolishEnabled: state.emailPolishEnabled,
         photoAnalysisUserEnabled: state.photoAnalysisUserEnabled,
         profile: state.profile,
         savedBannerId: action.savedBannerId ?? null,
@@ -261,7 +275,11 @@ export function reportWizardReducer(
     case 'editEmail':
       return { ...state, email: editEmail(action.content, action.generated) };
     case 'aiEmailReady':
-      return { ...state, email: receiveAiEmail(state.email, action.content, action.generated) };
+      return {
+        ...state,
+        email: receiveAiEmail(state.email, action.content, action.generated),
+        emailPolish: IDLE_EMAIL_POLISH,
+      };
     case 'acceptPendingAiEmail':
       return { ...state, email: acceptPendingAiEmail(state.email, action.generated) };
     case 'dismissPendingAiEmail':
@@ -270,6 +288,16 @@ export function reportWizardReducer(
       return { ...state, email: undoAiEmail(state.email) };
     case 'rebuildEmail':
       return { ...state, email: INITIAL_EMAIL_DRAFT };
+    case 'setEmailPolishEnabled':
+      return { ...state, emailPolishEnabled: action.enabled };
+    case 'emailPolishConsentRequested':
+      return { ...state, emailPolish: { status: 'consent', message: null } };
+    case 'emailPolishStarted':
+      return { ...state, emailPolish: { status: 'loading', message: null } };
+    case 'emailPolishFinished':
+      return { ...state, emailPolish: IDLE_EMAIL_POLISH };
+    case 'emailPolishFailed':
+      return { ...state, emailPolish: { status: 'error', message: action.message } };
     default:
       return state;
   }
@@ -332,3 +360,16 @@ export function canPreviewReport(
   return Boolean(draft.description.trim() && canContinueFromLocation(draft));
 }
 
+export function describeEmailPolishError(error: unknown) {
+  const code = error instanceof BackendError ? error.code : null;
+  if (code === 'rate-limited') {
+    return "AI polish has reached today's limit. Your email is ready to send as it is.";
+  }
+  if (code === 'offline') {
+    return "AI polish can't connect right now. Your email is ready to send as it is.";
+  }
+  if (code === 'timeout') {
+    return 'AI polish took too long. Try again, or send the email as it is.';
+  }
+  return "AI polish didn't work this time. Your email is ready to send as it is.";
+}

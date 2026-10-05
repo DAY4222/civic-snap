@@ -12,6 +12,7 @@ import {
   Progress,
   StartStep,
 } from './ReportWizardStepViews';
+import { EmailPolishConsentSheet } from './EmailPolishConsentSheet';
 import { styles } from './reportWizardStyles';
 import { useReportWizard } from './useReportWizard';
 
@@ -144,6 +145,18 @@ export function ReportWizard() {
             onEmailBodyChange={actions.setEmailBody}
             onEmailSubjectChange={actions.setEmailSubject}
             onRebuildEmail={actions.rebuildEmail}
+            polish={{
+              available: wizard.emailPolishAvailable,
+              hasPendingAi: Boolean(state.email.pendingAi),
+              message: state.emailPolish.message,
+              onAcceptPendingAi: actions.acceptPendingAiEmail,
+              onCancel: actions.cancelEmailPolish,
+              onDismissPendingAi: actions.dismissPendingAiEmail,
+              onPolish: actions.polishEmail,
+              onUndoAi: actions.undoAiEmail,
+              source: state.email.source,
+              status: state.emailPolish.status,
+            }}
             onExitToStart={actions.confirmExitToStart}
             photoUri={draft.photoUri}
             profile={state.profile}
@@ -159,6 +172,11 @@ export function ReportWizard() {
           />
         ) : null}
       </Screen>
+      <EmailPolishConsentSheet
+        onAllow={actions.allowEmailPolish}
+        onDismiss={actions.dismissEmailPolishConsent}
+        visible={state.emailPolish.status === 'consent'}
+      />
       {state.busy ? (
         <View pointerEvents="none" style={styles.busyOverlay}>
           <ActivityIndicator />

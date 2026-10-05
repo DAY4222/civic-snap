@@ -12,7 +12,13 @@ import {
   appendSuggestedDescription,
   getSuggestedIssueCandidates,
 } from '@/lib/issueSuggestions';
-import { loadPhotoAnalysisEnabled, savePhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
+import {
+  loadEmailPolishEnabled,
+  loadPhotoAnalysisEnabled,
+  saveEmailPolishEnabled,
+  savePhotoAnalysisEnabled,
+} from '@/lib/aiSettings';
+import { canRewriteEmailDraft } from '@/lib/emailRewriteClient';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
 import { deleteReportPhotos } from '@/lib/photos';
 import { getDraftCategory, isDraftEmpty } from '@/lib/reportDraft';
@@ -26,15 +32,16 @@ import {
   canContinueFromLocation,
   canPreviewReport,
   createInitialReportWizardState,
+  describeEmailPolishError,
   filterIssueCategories,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from './reportWizardState';
 import {
-  buildPreviewEmail,
   getCurrentLocationReportData,
   openSavedReportMail,
   persistWizardPhoto,
+  requestPolishedEmail,
   reverseGeocodeReportAddress,
 } from './reportWizardServices';
 import { getDisplayedEmail, isEmailOutOfDate } from './emailDraft';
@@ -53,6 +60,7 @@ export function useReportWizard(resumeId?: string) {
   const [raccoonFrameIndex, setRaccoonFrameIndex] = useState(0);
   const addressEditVersion = useRef(0);
   const photoAnalysisAbortController = useRef<AbortController | null>(null);
+  const emailPolishAbortController = useRef<AbortController | null>(null);
   const reverseGeocodeRequestId = useRef(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { draft } = state;
@@ -63,6 +71,7 @@ export function useReportWizard(resumeId?: string) {
   const hasIssue = category.id !== GENERAL_CATEGORY.id;
   const photoAnalysisAvailable = canAnalyzePhotoLabels();
   const photoLabelsEnabled = photoAnalysisAvailable && state.photoAnalysisUserEnabled;
+  const emailPolishAvailable = canRewriteEmailDraft();
   const photoIssueSuggestions = useMemo(
     () => getSuggestedIssueCandidates(draft.photoVisionResult),
     [draft.photoVisionResult]
@@ -130,6 +139,12 @@ export function useReportWizard(resumeId?: string) {
           if (active) dispatch({ type: 'setPhotoAnalysisUserEnabled', enabled: false });
         });
 
+      loadEmailPolishEnabled()
+        .then((enabled) => {
+          if (active) dispatch({ type: 'setEmailPolishEnabled', enabled });
+        })
+        .catch(() => undefined);
+
       return () => {
         active = false;
       };
@@ -162,8 +177,19 @@ export function useReportWizard(resumeId?: string) {
         clearTimeout(reverseGeocodeTimeout.current);
       }
       photoAnalysisAbortController.current?.abort();
+      emailPolishAbortController.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    // Leaving the preview cancels a polish that is still running.
+    if (state.step === 'preview') return;
+    if (emailPolishAbortController.current) {
+      emailPolishAbortController.current.abort();
+      emailPolishAbortController.current = null;
+      dispatch({ type: 'emailPolishFinished' });
+    }
+  }, [state.step]);
 
   useEffect(() => {
     if (!resumeId) return;
@@ -375,16 +401,58 @@ export function useReportWizard(resumeId?: string) {
       const reportId = await persistence.flush();
       if (!reportId) throw new Error('Draft was not saved.');
 
-      const nextEmail = await buildPreviewEmail({ ...draft, category, profile: state.profile });
-      if (nextEmail.body !== generatedEmail.body) {
-        dispatch({ type: 'aiEmailReady', content: nextEmail, generated: generatedEmail });
-      }
       dispatch({ type: 'previewReady', savedReportId: reportId });
     } catch {
       Alert.alert('Draft not saved', 'Try again. Your current report is still on this screen.');
     } finally {
       dispatch({ type: 'setBusy', busy: false });
     }
+  }
+
+  async function runEmailPolish() {
+    emailPolishAbortController.current?.abort();
+    const controller = new AbortController();
+    emailPolishAbortController.current = controller;
+
+    dispatch({ type: 'emailPolishStarted' });
+    try {
+      const content = await requestPolishedEmail(
+        { ...draft, category, profile: state.profile },
+        { signal: controller.signal }
+      );
+      if (controller.signal.aborted) return;
+      dispatch({ type: 'aiEmailReady', content, generated: generatedEmail });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      dispatch({ type: 'emailPolishFailed', message: describeEmailPolishError(error) });
+    } finally {
+      if (emailPolishAbortController.current === controller) {
+        emailPolishAbortController.current = null;
+      }
+    }
+  }
+
+  function polishEmail() {
+    if (!emailPolishAvailable) return;
+
+    if (!state.emailPolishEnabled) {
+      dispatch({ type: 'emailPolishConsentRequested' });
+      return;
+    }
+
+    void runEmailPolish();
+  }
+
+  function allowEmailPolish() {
+    dispatch({ type: 'setEmailPolishEnabled', enabled: true });
+    saveEmailPolishEnabled(true).catch(() => undefined);
+    void runEmailPolish();
+  }
+
+  function cancelEmailPolish() {
+    emailPolishAbortController.current?.abort();
+    emailPolishAbortController.current = null;
+    dispatch({ type: 'emailPolishFinished' });
   }
 
   async function openMail() {
@@ -507,6 +575,14 @@ export function useReportWizard(resumeId?: string) {
           generated: generatedEmail,
         }),
       rebuildEmail: () => dispatch({ type: 'rebuildEmail' }),
+      polishEmail,
+      allowEmailPolish,
+      cancelEmailPolish,
+      dismissEmailPolishConsent: () => dispatch({ type: 'emailPolishFinished' }),
+      undoAiEmail: () => dispatch({ type: 'undoAiEmail' }),
+      acceptPendingAiEmail: () =>
+        dispatch({ type: 'acceptPendingAiEmail', generated: generatedEmail }),
+      dismissPendingAiEmail: () => dispatch({ type: 'dismissPendingAiEmail' }),
       setIssueSearchQuery: (issueSearchQuery: string) =>
         dispatch({ type: 'setIssueSearchQuery', issueSearchQuery }),
       setLocationNote: (locationNote: string) => dispatch({ type: 'setLocationNote', locationNote }),
@@ -523,6 +599,7 @@ export function useReportWizard(resumeId?: string) {
     descriptionPlaceholder,
     email,
     emailOutOfDate,
+    emailPolishAvailable,
     filteredIssueCategories,
     hasIssue,
     photoAnalysisAvailable,

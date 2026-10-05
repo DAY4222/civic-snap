@@ -40,7 +40,7 @@ const config: BackendConfig = {
 
 describe('email rewrite client', () => {
   it('detects whether rewriting is configured', () => {
-    expect(DEFAULT_REWRITE_TIMEOUT_MS).toBe(8_000);
+    expect(DEFAULT_REWRITE_TIMEOUT_MS).toBe(25_000);
     expect(canRewriteEmailDraft(config)).toBe(true);
     expect(canRewriteEmailDraft({ ...config, rewriteEmailUrl: '' })).toBe(false);
     expect(canRewriteEmailDraft({ ...config, anonKey: '' })).toBe(false);
