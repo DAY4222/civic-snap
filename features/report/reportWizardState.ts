@@ -64,7 +64,6 @@ export type ReportWizardState = {
   photoVisionResult: PhotoVisionResult | null;
   photoVisionStatus: PhotoVisionStatus;
   profile: Profile;
-  resumedReportId: string | null;
   savedBannerId: string | null;
   savedReportId: string | null;
   selectedCategoryId: string | null;
@@ -122,7 +121,6 @@ export function createInitialReportWizardState(): ReportWizardState {
     photoVisionResult: null,
     photoVisionStatus: 'idle',
     profile: EMPTY_PROFILE,
-    resumedReportId: null,
     savedBannerId: null,
     savedReportId: null,
     selectedCategoryId: null,
@@ -214,7 +212,6 @@ export function reportWizardReducer(
         photoVisionPhotoUri: action.report.photoVisionResult ? action.report.photoUri : null,
         photoVisionResult: action.report.photoVisionResult,
         photoVisionStatus: getPhotoVisionStatus(action.report.photoVisionResult),
-        resumedReportId: action.report.id,
         savedBannerId: null,
         savedReportId: action.report.id,
         selectedCategoryId: action.report.photoIssueTopic ? null : action.report.categoryId,

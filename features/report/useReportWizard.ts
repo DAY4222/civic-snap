@@ -1,6 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, Linking } from 'react-native';
 
@@ -222,19 +223,24 @@ export function useReportWizard(resumeId?: string) {
   }, []);
 
   useEffect(() => {
-    if (!resumeId || resumeId === state.resumedReportId) return;
+    if (!resumeId) return;
 
+    // resumeId is a one-shot command: load the draft, then clear the param so a later
+    // reset (Return to start, successful handoff) doesn't reload the same report.
     let active = true;
     getReport(resumeId)
       .then((report) => {
-        if (active && report) dispatch({ type: 'resumeReport', report });
+        if (active && report?.status === 'Draft') dispatch({ type: 'resumeReport', report });
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) router.setParams({ resumeId: undefined });
+      });
 
     return () => {
       active = false;
     };
-  }, [resumeId, state.resumedReportId]);
+  }, [resumeId]);
 
   const analyzeCurrentPhoto = useCallback(async () => {
     const photoUri = state.photoUri;
