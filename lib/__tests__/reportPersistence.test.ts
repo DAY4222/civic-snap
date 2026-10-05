@@ -3,7 +3,9 @@ import {
   parseAnswers,
   parsePhotoIssueTopic,
   parseReportStatus,
+  resolveStoredPhotoPath,
   rowToReport,
+  toStoredPhotoPath,
 } from '../reportPersistence';
 import type { ReportRow } from '../reportPersistence';
 
@@ -60,6 +62,47 @@ describe('report persistence helpers', () => {
 
     expect(report.latitude).toBeNull();
     expect(report.longitude).toBeNull();
+  });
+
+  it('stores report photos relative to the document directory', () => {
+    expect(
+      toStoredPhotoPath('file:///var/Application/OLD-CONTAINER/Documents/reports/report-1.jpg')
+    ).toBe('reports/report-1.jpg');
+    expect(toStoredPhotoPath('reports/report-1.jpg')).toBe('reports/report-1.jpg');
+    expect(toStoredPhotoPath('blob:http://localhost/photo')).toBe('blob:http://localhost/photo');
+    expect(toStoredPhotoPath(null)).toBeNull();
+  });
+
+  it('resolves relative and legacy absolute photo paths against the current container', () => {
+    const documents = 'file:///var/Application/NEW-CONTAINER/Documents/';
+
+    expect(resolveStoredPhotoPath('reports/report-1.jpg', documents)).toBe(
+      `${documents}reports/report-1.jpg`
+    );
+    expect(
+      resolveStoredPhotoPath(
+        'file:///var/Application/OLD-CONTAINER/Documents/reports/report-1.jpg',
+        documents
+      )
+    ).toBe(`${documents}reports/report-1.jpg`);
+    expect(resolveStoredPhotoPath('blob:http://localhost/photo', documents)).toBe(
+      'blob:http://localhost/photo'
+    );
+    expect(resolveStoredPhotoPath('reports/report-1.jpg', null)).toBe('reports/report-1.jpg');
+  });
+
+  it('maps stored photo paths onto the current container when reading rows', () => {
+    const report = rowToReport(
+      {
+        ...baseRow,
+        photo_uri: 'file:///var/Application/OLD/Documents/reports/report-1.jpg',
+        thumbnail_uri: null,
+      },
+      'file:///var/Application/NEW/Documents/'
+    );
+
+    expect(report.photoUri).toBe('file:///var/Application/NEW/Documents/reports/report-1.jpg');
+    expect(report.thumbnailUri).toBe(report.photoUri);
   });
 
   it('normalizes status and photo topic JSON', () => {

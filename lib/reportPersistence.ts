@@ -89,7 +89,31 @@ export function serializeNullableJson(value: unknown) {
   return value == null ? null : JSON.stringify(value);
 }
 
-export function rowToReport(row: ReportRow): Report {
+const PHOTO_FOLDER = 'reports/';
+
+/**
+ * Report photos are stored relative to the document directory (`reports/<file>`), because
+ * iOS can move the app container on update or restore, which breaks absolute paths.
+ */
+export function toStoredPhotoPath(uri: string | null) {
+  if (!uri) return null;
+
+  const folderIndex = uri.lastIndexOf(`/${PHOTO_FOLDER}`);
+  return folderIndex >= 0 ? uri.slice(folderIndex + 1) : uri;
+}
+
+/** Resolves a stored photo path, including legacy absolute paths from an older container. */
+export function resolveStoredPhotoPath(stored: string | null, documentDirectory: string | null) {
+  const relativePath = toStoredPhotoPath(stored);
+  if (!relativePath) return null;
+  if (!documentDirectory || !relativePath.startsWith(PHOTO_FOLDER)) return relativePath;
+
+  return `${documentDirectory}${relativePath}`;
+}
+
+export function rowToReport(row: ReportRow, photoDirectory: string | null = null): Report {
+  const photoUri = resolveStoredPhotoPath(row.photo_uri || null, photoDirectory);
+
   return {
     id: stringValue(row.id),
     categoryId: row.category_id || CATEGORY_TITLE_IDS[row.category] || null,
@@ -99,8 +123,8 @@ export function rowToReport(row: ReportRow): Report {
     address: stringValue(row.address),
     latitude: nullableNumber(row.latitude),
     longitude: nullableNumber(row.longitude),
-    photoUri: row.photo_uri || null,
-    thumbnailUri: row.thumbnail_uri || row.photo_uri || null,
+    photoUri,
+    thumbnailUri: resolveStoredPhotoPath(row.thumbnail_uri || null, photoDirectory) ?? photoUri,
     photoVisionResult: parsePhotoVisionResult(row.photo_vision_result_json),
     photoIssueTopic: parsePhotoIssueTopic(row.photo_issue_topic_json),
     emailSubject: stringValue(row.email_subject),
