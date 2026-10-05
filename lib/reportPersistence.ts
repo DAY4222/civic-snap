@@ -28,52 +28,6 @@ export type CreateReportInput = Omit<
   'id' | 'status' | 'caseNumber' | 'createdAt' | 'updatedAt'
 >;
 
-export const REPORTS_SCHEMA_VERSION = 1;
-
-export const CREATE_REPORTS_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS reports (
-    id TEXT PRIMARY KEY NOT NULL,
-    category_id TEXT,
-    category TEXT NOT NULL,
-    description TEXT NOT NULL,
-    answers_json TEXT NOT NULL,
-    address TEXT NOT NULL,
-    latitude REAL,
-    longitude REAL,
-    photo_uri TEXT,
-    thumbnail_uri TEXT,
-    photo_vision_result_json TEXT,
-    photo_issue_topic_json TEXT,
-    email_subject TEXT NOT NULL,
-    email_body TEXT NOT NULL,
-    status TEXT NOT NULL,
-    case_number TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-`;
-
-const COLUMN_BACKFILLS = [
-  { name: 'category_id', sql: 'ALTER TABLE reports ADD COLUMN category_id TEXT;' },
-  {
-    name: 'thumbnail_uri',
-    sql: 'ALTER TABLE reports ADD COLUMN thumbnail_uri TEXT;',
-  },
-  {
-    name: 'photo_vision_result_json',
-    sql: 'ALTER TABLE reports ADD COLUMN photo_vision_result_json TEXT;',
-  },
-  {
-    name: 'photo_issue_topic_json',
-    sql: 'ALTER TABLE reports ADD COLUMN photo_issue_topic_json TEXT;',
-  },
-] as const;
-
-export function getMissingReportColumnMigrations(columnNames: string[]) {
-  const existing = new Set(columnNames);
-  return COLUMN_BACKFILLS.filter((column) => !existing.has(column.name)).map((column) => column.sql);
-}
-
 export function createReportId() {
   return (
     globalThis.crypto?.randomUUID?.() ??

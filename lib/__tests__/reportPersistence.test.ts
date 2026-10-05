@@ -1,5 +1,4 @@
 import {
-  getMissingReportColumnMigrations,
   parseAnswers,
   parsePhotoIssueTopic,
   parseReportStatus,
@@ -8,6 +7,7 @@ import {
   toStoredPhotoPath,
 } from '../reportPersistence';
 import type { ReportRow } from '../reportPersistence';
+import { getMissingReportColumnMigrations } from '../reportMigrations';
 
 const baseRow: ReportRow = {
   id: 'report-1',

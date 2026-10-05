@@ -1,11 +1,7 @@
-import * as SQLite from 'expo-sqlite';
-
+import { openDatabase } from './db';
 import { deleteReportPhotos, getReportPhotoBaseDirectory } from './photos';
 import {
-  CREATE_REPORTS_TABLE_SQL,
-  REPORTS_SCHEMA_VERSION,
   createReportId,
-  getMissingReportColumnMigrations,
   rowToReport,
   serializeAnswers,
   serializeNullableJson,
@@ -16,37 +12,8 @@ import type { ReportStatus } from './types';
 
 export type { CreateReportInput } from './reportPersistence';
 
-let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
-
-async function getDatabase() {
-  if (!databasePromise) {
-    databasePromise = SQLite.openDatabaseAsync('civic-snap.db');
-  }
-
-  const db = await databasePromise;
-  await migrateReportsSchema(db);
-  return db;
-}
-
-async function migrateReportsSchema(db: SQLite.SQLiteDatabase) {
-  await db.execAsync(CREATE_REPORTS_TABLE_SQL);
-
-  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(reports)');
-  for (const migrationSql of getMissingReportColumnMigrations(
-    columns.map((column) => column.name)
-  )) {
-    await db.execAsync(migrationSql);
-  }
-
-  const versionRows = await db.getAllAsync<{ user_version: number }>('PRAGMA user_version');
-  const userVersion = Number(versionRows[0]?.user_version) || 0;
-  if (userVersion < REPORTS_SCHEMA_VERSION) {
-    await db.execAsync(`PRAGMA user_version = ${REPORTS_SCHEMA_VERSION};`);
-  }
-}
-
 export async function createDraftReport(input: CreateReportInput) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   const id = createReportId();
   const now = new Date().toISOString();
 
@@ -80,7 +47,7 @@ export async function createDraftReport(input: CreateReportInput) {
 }
 
 export async function updateDraftReport(id: string, input: CreateReportInput) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   await db.runAsync(
     `UPDATE reports SET
       category_id = ?,
@@ -119,7 +86,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
 }
 
 export async function updateReportEmail(id: string, emailSubject: string, emailBody: string) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   await db.runAsync(
     'UPDATE reports SET email_subject = ?, email_body = ?, updated_at = ? WHERE id = ?',
     emailSubject,
@@ -130,20 +97,20 @@ export async function updateReportEmail(id: string, emailSubject: string, emailB
 }
 
 export async function listReports() {
-  const db = await getDatabase();
+  const db = await openDatabase();
   const rows = await db.getAllAsync<ReportRow>('SELECT * FROM reports ORDER BY created_at DESC');
   const photoDirectory = getReportPhotoBaseDirectory();
   return rows.map((row) => rowToReport(row, photoDirectory));
 }
 
 export async function getReport(id: string) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   const rows = await db.getAllAsync<ReportRow>('SELECT * FROM reports WHERE id = ?', id);
   return rows[0] ? rowToReport(rows[0], getReportPhotoBaseDirectory()) : null;
 }
 
 export async function updateReportStatus(id: string, status: ReportStatus) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   await db.runAsync(
     'UPDATE reports SET status = ?, updated_at = ? WHERE id = ?',
     status,
@@ -153,7 +120,7 @@ export async function updateReportStatus(id: string, status: ReportStatus) {
 }
 
 export async function updateCaseNumber(id: string, caseNumber: string) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   await db.runAsync(
     'UPDATE reports SET case_number = ?, status = ?, updated_at = ? WHERE id = ?',
     caseNumber,
@@ -165,7 +132,7 @@ export async function updateCaseNumber(id: string, caseNumber: string) {
 
 export async function deleteReport(id: string) {
   const report = await getReport(id);
-  const db = await getDatabase();
+  const db = await openDatabase();
 
   await db.runAsync('DELETE FROM reports WHERE id = ?', id);
   await deleteReportPhotos([report?.photoUri, report?.thumbnailUri]);
