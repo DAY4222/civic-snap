@@ -345,6 +345,9 @@ describe('report wizard reducer', () => {
         new PhotoVisionError('Photo analysis image is too large.', 'payload-too-large')
       )
     ).toBe('payload-too-large');
+    expect(
+      getPhotoVisionErrorStatus(new PhotoVisionError('Photo labels could not connect.', 'offline'))
+    ).toBe('offline');
     expect(getPhotoVisionErrorStatus(new Error('network failed'))).toBe('error');
   });
 });

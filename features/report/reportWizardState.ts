@@ -22,6 +22,7 @@ export type PhotoVisionStatus =
   | 'ready'
   | 'empty'
   | 'error'
+  | 'offline'
   | 'rate-limited'
   | 'payload-too-large';
 
@@ -283,6 +284,7 @@ export function getPhotoVisionStatus(result: PhotoVisionResult | null): PhotoVis
 
 export function getPhotoVisionErrorStatus(error: unknown): PhotoVisionStatus {
   if (error instanceof PhotoVisionError) {
+    if (error.code === 'offline') return 'offline';
     if (error.code === 'rate-limited') return 'rate-limited';
     if (error.code === 'payload-too-large') return 'payload-too-large';
   }

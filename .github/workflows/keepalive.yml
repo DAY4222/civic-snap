@@ -1,0 +1,24 @@
+name: Keep Supabase awake
+
+# Free Supabase projects pause after about a week without traffic, which silently turns off
+# photo suggestions and email polish for everyone. A tiny read through the REST API every
+# few days counts as activity. The anon key is public client config (already in .env), and
+# row level security returns an empty list, so this reads no data.
+on:
+  schedule:
+    - cron: '17 9 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query the database through the REST API
+        run: |
+          set -a; . ./.env; set +a
+          base="${EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL%%/functions/*}"
+          curl --fail --silent --show-error --max-time 30 \
+            "$base/rest/v1/ai_photo_analysis_runs?select=id&limit=1" \
+            -H "apikey: $EXPO_PUBLIC_SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $EXPO_PUBLIC_SUPABASE_ANON_KEY"

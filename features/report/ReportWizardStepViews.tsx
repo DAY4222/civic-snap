@@ -668,6 +668,7 @@ function SuggestedTopicsPanel({
   const showQuietFallback =
     status === 'empty' ||
     status === 'error' ||
+    status === 'offline' ||
     status === 'rate-limited' ||
     status === 'payload-too-large' ||
     (status === 'ready' && topics.length === 0);
@@ -721,7 +722,7 @@ function SuggestedTopicsPanel({
           <Text style={[styles.muted, styles.quietFallbackText]}>
             {photoSuggestionFallbackText(status)}
           </Text>
-          {status === 'error' ? (
+          {status === 'error' || status === 'offline' ? (
             <Pressable
               accessibilityLabel="Retry photo suggestions"
               accessibilityRole="button"
@@ -787,6 +788,10 @@ function photoSuggestionFallbackText(status: PhotoVisionStatus) {
 
   if (status === 'payload-too-large') {
     return 'This photo is too large for analysis. Search all issue types to continue.';
+  }
+
+  if (status === 'offline') {
+    return "Photo suggestions can't connect right now. You can still pick the issue type yourself.";
   }
 
   if (status === 'error') {
