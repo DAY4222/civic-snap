@@ -1,11 +1,18 @@
 import {
   ISSUE_CATEGORIES,
   TORONTO_311_TARGET_ISSUE_TITLES,
+  categoryFromPhotoTopic,
   findCategoryByTitle,
   getCategory,
-  getCategoryByTitle,
 } from '../categories';
 import { PHOTO_LABELS } from '../photoLabels';
+import { makePhotoIssueCandidate } from '../testUtils/photoVisionFixtures';
+
+function requireCategory(categoryId: string) {
+  const category = getCategory(categoryId);
+  if (!category) throw new Error(`Missing category ${categoryId}`);
+  return category;
+}
 
 describe('category lookup', () => {
   it('uses the scraped Toronto 311 target list in supplied order', () => {
@@ -19,13 +26,13 @@ describe('category lookup', () => {
   it('keeps stable ids unique and derived from target titles', () => {
     const ids = ISSUE_CATEGORIES.map((category) => category.id);
 
-    expect(getCategory('residential-bin-lid-damaged').title).toBe('Residential Bin Lid Damaged');
+    expect(requireCategory('residential-bin-lid-damaged').title).toBe('Residential Bin Lid Damaged');
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('generates catalog metadata, checklist questions, and discoverability flags', () => {
-    const binLid = getCategory('residential-bin-lid-damaged');
-    const sidewalkSnow = getCategory('sidewalk-snow-clearing-required');
+    const binLid = requireCategory('residential-bin-lid-damaged');
+    const sidewalkSnow = requireCategory('sidewalk-snow-clearing-required');
 
     expect(binLid.categoryPath).toEqual([
       'Waste Collection, Bins, Litter and Needle Cleanup',
@@ -68,20 +75,27 @@ describe('category lookup', () => {
   });
 
   it('finds a category by stable id', () => {
-    expect(getCategory('road-pothole-road-damage').title).toBe('Road Pothole / Road Damage');
+    expect(requireCategory('road-pothole-road-damage').title).toBe('Road Pothole / Road Damage');
   });
 
-  it('preserves the legacy title fallback for old reports', () => {
+  it('preserves the legacy title lookup for old reports', () => {
     const category = ISSUE_CATEGORIES[0];
 
     expect(findCategoryByTitle(category.title)?.id).toBe(category.id);
-    expect(getCategoryByTitle(category.title).id).toBe(category.id);
   });
 
-  it('keeps the existing default for unknown category ids and titles', () => {
-    expect(getCategory('unknown').id).toBe(ISSUE_CATEGORIES[0].id);
+  it('returns nothing for unknown category ids and titles instead of the first catalog entry', () => {
+    expect(getCategory('unknown')).toBeUndefined();
     expect(findCategoryByTitle('Unknown title')).toBeUndefined();
-    expect(getCategoryByTitle('Unknown title').id).toBe(ISSUE_CATEGORIES[0].id);
+  });
+
+  it('keeps the suggested title when a photo topic names an issue this build does not know', () => {
+    const category = categoryFromPhotoTopic(
+      makePhotoIssueCandidate({ issueId: 'new-server-issue', title: 'New Server Issue' })
+    );
+
+    expect(category).toMatchObject({ id: 'new-server-issue', title: 'New Server Issue' });
+    expect(category.questions).toEqual([]);
   });
 
   it('does not invent a stable id for legacy general reports', () => {

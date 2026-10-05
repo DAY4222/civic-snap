@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { Alert, Linking } from 'react-native';
 
 import { type Region } from '@/components/CivicMap';
+import { GENERAL_CATEGORY } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
 import {
   appendSuggestedDescription,
@@ -18,7 +19,6 @@ import { PhotoIssueCandidate } from '@/lib/types';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
 import {
-  GENERAL_CATEGORY,
   CategoryReturnStep,
   ReportWizardStep,
   canContinueFromLocation,

@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
 
+import { GENERAL_CATEGORY } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
 import {
   canRewriteEmailDraft,
@@ -16,7 +17,7 @@ import {
 } from '@/lib/reports';
 import type { DraftReportInput, IssueCategory } from '@/lib/types';
 
-import { GENERAL_CATEGORY, type ReportWizardState } from './reportWizardState';
+import { type ReportWizardState } from './reportWizardState';
 
 export async function persistWizardPhoto(uri: string) {
   return persistReportPhoto(uri);

@@ -5,6 +5,7 @@ import {
   filterIssueCategories,
   getPhotoVisionErrorStatus,
   getPhotoVisionStatus,
+  getWizardCategory,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from '../reportWizardState';
@@ -254,6 +255,24 @@ describe('report wizard reducer', () => {
       result: photoVisionResult,
     });
     expect(shouldStartPhotoAnalysis(state, true)).toBe(false);
+  });
+
+  it('falls back to general or the suggested title, never another catalog issue', () => {
+    expect(
+      getWizardCategory({ selectedCategoryId: 'retired-issue-id', selectedPhotoIssueTopic: null })
+        .category.id
+    ).toBe('general');
+
+    const unknownTopic = makePhotoIssueCandidate({
+      issueId: 'issue-from-newer-catalog',
+      title: 'Issue From Newer Catalog',
+    });
+    const { category } = getWizardCategory({
+      selectedCategoryId: null,
+      selectedPhotoIssueTopic: unknownTopic,
+    });
+    expect(category.title).toBe('Issue From Newer Catalog');
+    expect(category.questions).toEqual([]);
   });
 
   it('uses common issue categories before the user searches', () => {

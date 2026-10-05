@@ -11,6 +11,7 @@ import {
 
 import MapView, { type Region } from '@/components/CivicMap';
 import { Button, Card, Field, Notice, colors } from '@/components/ui';
+import { GENERAL_CATEGORY } from '@/lib/categories';
 import { getSuggestedAnswerOptions, toggleMultiAnswer } from '@/lib/issueSuggestions';
 import type {
   CategoryQuestion,
@@ -19,7 +20,7 @@ import type {
   PhotoVisionResult,
 } from '@/lib/types';
 
-import { GENERAL_CATEGORY, type PhotoVisionStatus, type ReportWizardStep } from './reportWizardState';
+import { type PhotoVisionStatus, type ReportWizardStep } from './reportWizardState';
 import { styles } from './reportWizardStyles';
 import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
 

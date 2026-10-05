@@ -1,4 +1,9 @@
-import { ISSUE_CATEGORIES, getCategory } from '@/lib/categories';
+import {
+  GENERAL_CATEGORY,
+  ISSUE_CATEGORIES,
+  categoryFromPhotoTopic,
+  getCategory,
+} from '@/lib/categories';
 import { EMPTY_PROFILE } from '@/lib/profile';
 import {
   IssueCategory,
@@ -19,21 +24,6 @@ export type PhotoVisionStatus =
   | 'error'
   | 'rate-limited'
   | 'payload-too-large';
-
-export const GENERAL_CATEGORY: IssueCategory = {
-  id: 'general',
-  title: 'General 311 report',
-  subjectLabel: 'local issue',
-  categoryPath: [],
-  description: '',
-  discoverability: 'not-discoverable',
-  visualCueLabelIds: [],
-  requiredAnyLabelIds: [],
-  requiredAllLabelIds: [],
-  observations: [],
-  questions: [],
-  emailGuidanceChecklist: [],
-};
 
 const COMMON_ISSUE_CATEGORY_IDS = [
   'road-pothole-road-damage',
@@ -312,10 +302,15 @@ export function shouldStartPhotoAnalysis(
   );
 }
 
-export function getWizardCategory(state: ReportWizardState) {
-  const manualCategory = state.selectedCategoryId ? getCategory(state.selectedCategoryId) : null;
-  const photoIssueCategory = state.selectedPhotoIssueTopic
-    ? getCategory(state.selectedPhotoIssueTopic.issueId)
+export function getWizardCategory(
+  state: Pick<ReportWizardState, 'selectedCategoryId' | 'selectedPhotoIssueTopic'>
+) {
+  const manualCategory = state.selectedCategoryId
+    ? getCategory(state.selectedCategoryId) ?? null
+    : null;
+  const topic = state.selectedPhotoIssueTopic;
+  const photoIssueCategory = topic
+    ? getCategory(topic.issueId) ?? categoryFromPhotoTopic(topic)
     : null;
 
   return {
