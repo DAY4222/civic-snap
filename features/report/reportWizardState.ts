@@ -1,16 +1,14 @@
-import {
-  GENERAL_CATEGORY,
-  ISSUE_CATEGORIES,
-  categoryFromPhotoTopic,
-  getCategory,
-} from '@/lib/categories';
+import { ISSUE_CATEGORIES } from '@/lib/categories';
 import { EMPTY_PROFILE } from '@/lib/profile';
+import { EMPTY_DRAFT, draftFromReport } from '@/lib/reportDraft';
 import {
   IssueCategory,
   PhotoIssueCandidate,
   PhotoVisionResult,
   Profile,
   Report,
+  ReportAnswerValue,
+  ReportDraft,
 } from '@/lib/types';
 import { PhotoVisionError } from '@/lib/vision';
 
@@ -36,29 +34,20 @@ const COMMON_ISSUE_CATEGORY_IDS = [
 ];
 
 export type ReportWizardState = {
-  address: string;
-  answers: Record<string, string>;
+  /** The report being written; everything else here is screen state. */
+  draft: ReportDraft;
   busy: boolean;
   categoryReturnStep: CategoryReturnStep;
-  description: string;
   dismissedContactPrompt: boolean;
   emailBody: string;
   emailSubject: string;
   issueSearchQuery: string;
-  latitude: number | null;
-  locationNote: string;
-  longitude: number | null;
   photoAnalysisUserEnabled: boolean;
-  thumbnailUri: string | null;
-  photoUri: string | null;
   photoVisionPhotoUri: string | null;
-  photoVisionResult: PhotoVisionResult | null;
   photoVisionStatus: PhotoVisionStatus;
   profile: Profile;
   savedBannerId: string | null;
   savedReportId: string | null;
-  selectedCategoryId: string | null;
-  selectedPhotoIssueTopic: PhotoIssueCandidate | null;
   step: ReportWizardStep;
 };
 
@@ -75,7 +64,7 @@ export type ReportWizardAction =
   | { type: 'resetReport'; savedBannerId?: string | null }
   | { type: 'resumeReport'; report: Report }
   | { type: 'setAddress'; address: string }
-  | { type: 'setAnswer'; questionId: string; value: string }
+  | { type: 'setAnswer'; questionId: string; value: ReportAnswerValue }
   | { type: 'setBusy'; busy: boolean }
   | { type: 'setDescription'; description: string }
   | { type: 'setEmailBody'; emailBody: string }
@@ -93,31 +82,30 @@ export type ReportWizardAction =
 
 export function createInitialReportWizardState(): ReportWizardState {
   return {
-    address: '',
-    answers: {},
+    draft: EMPTY_DRAFT,
     busy: false,
     categoryReturnStep: 'location',
-    description: '',
     dismissedContactPrompt: false,
     emailBody: '',
     emailSubject: '',
     issueSearchQuery: '',
-    latitude: null,
-    locationNote: '',
-    longitude: null,
     photoAnalysisUserEnabled: false,
-    thumbnailUri: null,
-    photoUri: null,
     photoVisionPhotoUri: null,
-    photoVisionResult: null,
     photoVisionStatus: 'idle',
     profile: EMPTY_PROFILE,
     savedBannerId: null,
     savedReportId: null,
-    selectedCategoryId: null,
-    selectedPhotoIssueTopic: null,
     step: 'start',
   };
+}
+
+function updateDraft(state: ReportWizardState, patch: Partial<ReportDraft>): ReportWizardState {
+  return { ...state, draft: { ...state.draft, ...patch } };
+}
+
+/** Checklist answers belong to one issue, so keep them only while the issue stays the same. */
+function answersForCategory(draft: ReportDraft, nextCategoryId: string | null) {
+  return nextCategoryId === draft.categoryId ? draft.answers : {};
 }
 
 export function reportWizardReducer(
@@ -126,7 +114,7 @@ export function reportWizardReducer(
 ): ReportWizardState {
   switch (action.type) {
     case 'appendDescription':
-      return { ...state, description: action.value };
+      return updateDraft(state, { description: action.value });
     case 'backFromCategory':
       return {
         ...state,
@@ -134,11 +122,12 @@ export function reportWizardReducer(
       };
     case 'chooseCategory':
       return {
-        ...state,
-        answers: {},
+        ...updateDraft(state, {
+          answers: answersForCategory(state.draft, action.categoryId),
+          categoryId: action.categoryId,
+          photoIssueTopic: null,
+        }),
         issueSearchQuery: '',
-        selectedCategoryId: action.categoryId,
-        selectedPhotoIssueTopic: null,
         step: state.categoryReturnStep,
       };
     case 'dismissContactPrompt':
@@ -152,16 +141,22 @@ export function reportWizardReducer(
         issueSearchQuery: '',
         step: 'category',
       };
-    case 'photoStored':
+    case 'photoStored': {
+      // A new photo invalidates suggestions from the old one, and any issue taken from them.
+      const categoryId = state.draft.photoIssueTopic ? null : state.draft.categoryId;
       return {
-        ...state,
-        photoUri: action.photoUri,
-        thumbnailUri: action.thumbnailUri ?? action.photoUri,
+        ...updateDraft(state, {
+          answers: answersForCategory(state.draft, categoryId),
+          categoryId,
+          photoIssueTopic: null,
+          photoUri: action.photoUri,
+          photoVisionResult: null,
+          thumbnailUri: action.thumbnailUri ?? action.photoUri,
+        }),
         photoVisionPhotoUri: null,
-        photoVisionResult: null,
         photoVisionStatus: 'idle',
-        selectedPhotoIssueTopic: null,
       };
+    }
     case 'previewReady':
       return {
         ...state,
@@ -188,38 +183,27 @@ export function reportWizardReducer(
     case 'resumeReport':
       return {
         ...state,
-        address: action.report.address,
-        answers: action.report.answers,
-        description: action.report.description,
+        draft: draftFromReport(action.report),
         dismissedContactPrompt: false,
         emailBody: action.report.emailBody,
         emailSubject: action.report.emailSubject,
         issueSearchQuery: '',
-        latitude: action.report.latitude,
-        locationNote: '',
-        longitude: action.report.longitude,
-        photoUri: action.report.photoUri,
-        thumbnailUri: action.report.thumbnailUri,
         photoVisionPhotoUri: action.report.photoVisionResult ? action.report.photoUri : null,
-        photoVisionResult: action.report.photoVisionResult,
         photoVisionStatus: getPhotoVisionStatus(action.report.photoVisionResult),
         savedBannerId: null,
         savedReportId: action.report.id,
-        selectedCategoryId: action.report.photoIssueTopic ? null : action.report.categoryId,
-        selectedPhotoIssueTopic: action.report.photoIssueTopic,
         step: 'details',
       };
     case 'setAddress':
-      return { ...state, address: action.address };
+      return updateDraft(state, { address: action.address });
     case 'setAnswer':
-      return {
-        ...state,
-        answers: { ...state.answers, [action.questionId]: action.value },
-      };
+      return updateDraft(state, {
+        answers: { ...state.draft.answers, [action.questionId]: action.value },
+      });
     case 'setBusy':
       return { ...state, busy: action.busy };
     case 'setDescription':
-      return { ...state, description: action.description };
+      return updateDraft(state, { description: action.description });
     case 'setEmailBody':
       return { ...state, emailBody: action.emailBody };
     case 'setEmailSubject':
@@ -227,50 +211,44 @@ export function reportWizardReducer(
     case 'setIssueSearchQuery':
       return { ...state, issueSearchQuery: action.issueSearchQuery };
     case 'setLocationNote':
-      return { ...state, locationNote: action.locationNote };
+      return updateDraft(state, { locationNote: action.locationNote });
     case 'setPhotoAnalysisUserEnabled':
       return { ...state, photoAnalysisUserEnabled: action.enabled };
     case 'setPhotoVisionError':
-      if (action.photoUri !== state.photoUri) return state;
+      if (action.photoUri !== state.draft.photoUri) return state;
       return {
         ...state,
         photoVisionPhotoUri: action.photoUri,
         photoVisionStatus: getPhotoVisionErrorStatus(action.error),
       };
     case 'setPhotoVisionLoading':
-      if (action.photoUri !== state.photoUri) return state;
+      if (action.photoUri !== state.draft.photoUri) return state;
       return {
         ...state,
         photoVisionPhotoUri: action.photoUri,
         photoVisionStatus: 'loading',
       };
     case 'setPhotoVisionResult':
-      if (action.photoUri !== state.photoUri) return state;
+      if (action.photoUri !== state.draft.photoUri) return state;
       return {
-        ...state,
+        ...updateDraft(state, { photoVisionResult: action.result }),
         photoVisionPhotoUri: action.photoUri,
-        photoVisionResult: action.result,
         photoVisionStatus: getPhotoVisionStatus(action.result),
       };
     case 'setPinLocation':
-      return {
-        ...state,
-        latitude: action.latitude,
-        longitude: action.longitude,
-      };
+      return updateDraft(state, { latitude: action.latitude, longitude: action.longitude });
     case 'setResolvedAddress':
-      return { ...state, address: action.address };
+      return updateDraft(state, { address: action.address });
     case 'setStep':
       return { ...state, step: action.step };
     case 'togglePhotoIssueTopic': {
-      const selected =
-        state.selectedPhotoIssueTopic?.issueId === action.topic.issueId ? null : action.topic;
-      return {
-        ...state,
-        answers: {},
-        selectedCategoryId: null,
-        selectedPhotoIssueTopic: selected,
-      };
+      const deselecting = state.draft.photoIssueTopic?.issueId === action.topic.issueId;
+      const categoryId = deselecting ? null : action.topic.issueId;
+      return updateDraft(state, {
+        answers: answersForCategory(state.draft, categoryId),
+        categoryId,
+        photoIssueTopic: deselecting ? null : action.topic,
+      });
     }
     default:
       return state;
@@ -293,33 +271,15 @@ export function getPhotoVisionErrorStatus(error: unknown): PhotoVisionStatus {
 }
 
 export function shouldStartPhotoAnalysis(
-  state: Pick<ReportWizardState, 'photoUri' | 'photoVisionPhotoUri' | 'photoVisionStatus'>,
+  state: Pick<ReportWizardState, 'draft' | 'photoVisionPhotoUri' | 'photoVisionStatus'>,
   photoLabelsEnabled: boolean
 ) {
   return Boolean(
     photoLabelsEnabled &&
-      state.photoUri &&
+      state.draft.photoUri &&
       state.photoVisionStatus === 'idle' &&
-      state.photoVisionPhotoUri !== state.photoUri
+      state.photoVisionPhotoUri !== state.draft.photoUri
   );
-}
-
-export function getWizardCategory(
-  state: Pick<ReportWizardState, 'selectedCategoryId' | 'selectedPhotoIssueTopic'>
-) {
-  const manualCategory = state.selectedCategoryId
-    ? getCategory(state.selectedCategoryId) ?? null
-    : null;
-  const topic = state.selectedPhotoIssueTopic;
-  const photoIssueCategory = topic
-    ? getCategory(topic.issueId) ?? categoryFromPhotoTopic(topic)
-    : null;
-
-  return {
-    category: manualCategory ?? photoIssueCategory ?? GENERAL_CATEGORY,
-    manualCategory,
-    photoIssueCategory,
-  };
 }
 
 export function filterIssueCategories(queryValue: string) {
@@ -341,15 +301,15 @@ export function getCommonIssueCategories() {
 }
 
 export function canContinueFromLocation(
-  state: Pick<ReportWizardState, 'address' | 'latitude' | 'longitude'>
+  draft: Pick<ReportDraft, 'address' | 'latitude' | 'longitude'>
 ) {
-  return Boolean(state.address.trim() || (state.latitude != null && state.longitude != null));
+  return Boolean(draft.address.trim() || (draft.latitude != null && draft.longitude != null));
 }
 
 export function canPreviewReport(
-  state: Pick<ReportWizardState, 'address' | 'description' | 'latitude' | 'longitude'>
+  draft: Pick<ReportDraft, 'address' | 'description' | 'latitude' | 'longitude'>
 ) {
-  return Boolean(state.description.trim() && canContinueFromLocation(state));
+  return Boolean(draft.description.trim() && canContinueFromLocation(draft));
 }
 
 export function profilesEqual(left: Profile, right: Profile) {

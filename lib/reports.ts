@@ -19,16 +19,17 @@ export async function createDraftReport(input: CreateReportInput) {
 
   await db.runAsync(
     `INSERT INTO reports (
-      id, category_id, category, description, answers_json, address, latitude, longitude,
+      id, category_id, category, description, answers_json, address, location_note, latitude, longitude,
       photo_uri, thumbnail_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, status, case_number,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.categoryId,
     input.category,
     input.description,
     serializeAnswers(input.answers),
     input.address,
+    input.locationNote,
     input.latitude,
     input.longitude,
     toStoredPhotoPath(input.photoUri),
@@ -55,6 +56,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       description = ?,
       answers_json = ?,
       address = ?,
+      location_note = ?,
       latitude = ?,
       longitude = ?,
       photo_uri = ?,
@@ -71,6 +73,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     input.description,
     serializeAnswers(input.answers),
     input.address,
+    input.locationNote,
     input.latitude,
     input.longitude,
     toStoredPhotoPath(input.photoUri),

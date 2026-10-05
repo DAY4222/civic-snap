@@ -14,8 +14,9 @@ import {
   updateDraftReport,
   updateReportEmail,
   updateReportStatus,
+  type CreateReportInput,
 } from '@/lib/reports';
-import type { DraftReportInput, IssueCategory } from '@/lib/types';
+import type { EmailInput, IssueCategory, ReportDraft } from '@/lib/types';
 
 import { type ReportWizardState } from './reportWizardState';
 
@@ -60,9 +61,9 @@ export async function saveReportDraft({
   savedReportId: string | null;
   state: ReportWizardState;
 }) {
-  const emailInput = buildEmailInput(category, state);
+  const emailInput: EmailInput = { ...state.draft, category, profile: state.profile };
   const localEmail = buildEmail(emailInput);
-  const localDraftInput = buildReportDraftInput(category, state, localEmail);
+  const localDraftInput = toCreateReportInput(state.draft, category, localEmail);
 
   const id = savedReportId ?? (await createDraftReport(localDraftInput));
   if (savedReportId) {
@@ -71,19 +72,19 @@ export async function saveReportDraft({
 
   const email = await buildPreviewEmail(emailInput, rewriteEmailDraft, () => localEmail);
   if (email.body !== localEmail.body || email.subject !== localEmail.subject) {
-    await updateDraftReport(id, buildReportDraftInput(category, state, email));
+    await updateDraftReport(id, toCreateReportInput(state.draft, category, email));
   }
 
   return { email, id };
 }
 
 export async function buildPreviewEmail(
-  input: DraftReportInput,
+  input: EmailInput,
   rewriteDraft: (
-    input: DraftReportInput,
+    input: EmailInput,
     options: { defaultEmailBody: string }
   ) => Promise<Pick<EmailRewriteResult, 'body'>> = rewriteEmailDraft,
-  buildLocalEmail: (input: DraftReportInput) => ReturnType<typeof buildEmail> = buildEmail
+  buildLocalEmail: (input: EmailInput) => ReturnType<typeof buildEmail> = buildEmail
 ) {
   const email = buildLocalEmail(input);
   if (rewriteDraft === rewriteEmailDraft && !canRewriteEmailDraft()) return email;
@@ -99,38 +100,15 @@ export async function buildPreviewEmail(
   }
 }
 
-function buildEmailInput(category: IssueCategory, state: ReportWizardState): DraftReportInput {
-  return {
-    category,
-    description: state.description,
-    answers: state.answers,
-    address: state.address,
-    locationNote: state.locationNote,
-    latitude: state.latitude,
-    longitude: state.longitude,
-    photoUri: state.photoUri,
-    photoIssueTopic: state.selectedPhotoIssueTopic,
-    profile: state.profile,
-  };
-}
-
-function buildReportDraftInput(
+export function toCreateReportInput(
+  draft: ReportDraft,
   category: IssueCategory,
-  state: ReportWizardState,
-  email: ReturnType<typeof buildEmail>
-) {
+  email: Pick<ReturnType<typeof buildEmail>, 'subject' | 'body'>
+): CreateReportInput {
   return {
+    ...draft,
     categoryId: category.id === GENERAL_CATEGORY.id ? null : category.id,
     category: category.title,
-    description: state.description,
-    answers: state.answers,
-    address: state.address,
-    latitude: state.latitude,
-    longitude: state.longitude,
-    photoUri: state.photoUri,
-    thumbnailUri: state.thumbnailUri,
-    photoVisionResult: state.photoVisionResult,
-    photoIssueTopic: state.selectedPhotoIssueTopic,
     emailSubject: email.subject,
     emailBody: email.body,
   };

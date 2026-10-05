@@ -5,10 +5,10 @@ import {
   filterIssueCategories,
   getPhotoVisionErrorStatus,
   getPhotoVisionStatus,
-  getWizardCategory,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from '../reportWizardState';
+import { EMPTY_DRAFT, getDraftCategory } from '@/lib/reportDraft';
 import {
   makePhotoIssueCandidate,
   makePhotoVisionResult,
@@ -19,18 +19,18 @@ import { PhotoVisionError } from '@/lib/vision';
 const topic: PhotoIssueCandidate = makePhotoIssueCandidate();
 
 const report: Report = {
+  ...EMPTY_DRAFT,
   id: 'report-1',
   categoryId: 'road-pothole-road-damage',
   category: 'Road Pothole / Road Damage',
   description: 'Large pothole in curb lane.',
   answers: { one: 'answer' },
   address: '123 Queen St W',
+  locationNote: 'south curb',
   latitude: 43.65,
   longitude: -79.38,
   photoUri: 'file:///photo.jpg',
   thumbnailUri: 'file:///photo-thumb.jpg',
-  photoVisionResult: null,
-  photoIssueTopic: null,
   emailSubject: '311 service request: Road Pothole / Road Damage',
   emailBody: 'Hello',
   status: 'draft',
@@ -53,8 +53,8 @@ describe('report wizard reducer', () => {
       categoryId: 'road-pothole-road-damage',
     });
     expect(state.step).toBe('location');
-    expect(state.selectedCategoryId).toBe('road-pothole-road-damage');
-    expect(state.selectedPhotoIssueTopic).toBeNull();
+    expect(state.draft.categoryId).toBe('road-pothole-road-damage');
+    expect(state.draft.photoIssueTopic).toBeNull();
 
     state = reportWizardReducer(state, { type: 'openCategory', returnStep: 'details' });
     state = reportWizardReducer(state, { type: 'backFromCategory' });
@@ -65,20 +65,32 @@ describe('report wizard reducer', () => {
     let state = createInitialReportWizardState();
     state = reportWizardReducer(state, {
       type: 'chooseCategory',
-      categoryId: 'road-pothole-road-damage',
+      categoryId: 'damaged-concrete-sidewalk',
     });
     state = reportWizardReducer(state, { type: 'setAnswer', questionId: 'q1', value: 'yes' });
 
     state = reportWizardReducer(state, { type: 'togglePhotoIssueTopic', topic });
-    expect(state.selectedCategoryId).toBeNull();
-    expect(state.selectedPhotoIssueTopic?.issueId).toBe(topic.issueId);
-    expect(state.answers).toEqual({});
+    expect(state.draft.categoryId).toBe(topic.issueId);
+    expect(state.draft.photoIssueTopic?.issueId).toBe(topic.issueId);
+    expect(state.draft.answers).toEqual({});
 
     state = reportWizardReducer(state, { type: 'togglePhotoIssueTopic', topic });
-    expect(state.selectedPhotoIssueTopic).toBeNull();
+    expect(state.draft.photoIssueTopic).toBeNull();
+    expect(state.draft.categoryId).toBeNull();
   });
 
-  it('restores a saved draft into the details step', () => {
+  it('keeps checklist answers when a photo suggestion confirms the issue already chosen', () => {
+    let state = createInitialReportWizardState();
+    state = reportWizardReducer(state, { type: 'chooseCategory', categoryId: topic.issueId });
+    state = reportWizardReducer(state, { type: 'setAnswer', questionId: 'q1', value: 'yes' });
+
+    state = reportWizardReducer(state, { type: 'togglePhotoIssueTopic', topic });
+
+    expect(state.draft.photoIssueTopic?.issueId).toBe(topic.issueId);
+    expect(state.draft.answers).toEqual({ q1: 'yes' });
+  });
+
+  it('restores a saved draft, including the location note, into the details step', () => {
     const state = reportWizardReducer(createInitialReportWizardState(), {
       type: 'resumeReport',
       report,
@@ -86,8 +98,29 @@ describe('report wizard reducer', () => {
 
     expect(state.step).toBe('details');
     expect(state.savedReportId).toBe(report.id);
-    expect(state.description).toBe(report.description);
-    expect(state.answers).toEqual(report.answers);
+    expect(state.draft.description).toBe(report.description);
+    expect(state.draft.answers).toEqual(report.answers);
+    expect(state.draft.locationNote).toBe('south curb');
+  });
+
+  it('turns legacy joined multi-choice answers into lists when resuming', () => {
+    const multiQuestion = getDraftCategory({
+      categoryId: 'construction-noise',
+      photoIssueTopic: null,
+    }).questions.find((question) => question.answerType === 'multipicklist');
+    if (!multiQuestion) throw new Error('Expected a multi-choice question on this issue');
+    const [first, second] = multiQuestion.options.map((option) => option.label);
+
+    const state = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'resumeReport',
+      report: {
+        ...report,
+        categoryId: 'construction-noise',
+        answers: { [multiQuestion.id]: `${first}, ${second}` },
+      },
+    });
+
+    expect(state.draft.answers[multiQuestion.id]).toEqual([first, second]);
   });
 
   it('moves through preview, fallback, and reset without losing stable settings', () => {
@@ -165,16 +198,9 @@ describe('report wizard reducer', () => {
     expect(state.step).toBe('start');
     expect(state.savedReportId).toBeNull();
     expect(state.savedBannerId).toBeNull();
-    expect(state.address).toBe('');
-    expect(state.answers).toEqual({});
-    expect(state.description).toBe('');
+    expect(state.draft).toEqual(EMPTY_DRAFT);
     expect(state.emailBody).toBe('');
     expect(state.emailSubject).toBe('');
-    expect(state.latitude).toBeNull();
-    expect(state.locationNote).toBe('');
-    expect(state.longitude).toBeNull();
-    expect(state.photoUri).toBeNull();
-    expect(state.selectedCategoryId).toBeNull();
     expect(state.photoAnalysisUserEnabled).toBe(true);
     expect(state.profile.name).toBe('Ada');
   });
@@ -189,10 +215,26 @@ describe('report wizard reducer', () => {
     state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
 
     expect(state.photoAnalysisUserEnabled).toBe(true);
-    expect(state.photoUri).toBe('file:///photo.jpg');
+    expect(state.draft.photoUri).toBe('file:///photo.jpg');
     expect(state.step).toBe('location');
-    expect(state.address).toBe('123 Queen St W');
-    expect(state.locationNote).toBe('south curb');
+    expect(state.draft.address).toBe('123 Queen St W');
+    expect(state.draft.locationNote).toBe('south curb');
+  });
+
+  it('drops the photo-suggested issue, but not a manual one, when the photo changes', () => {
+    let state = createInitialReportWizardState();
+    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///first.jpg' });
+    state = reportWizardReducer(state, { type: 'togglePhotoIssueTopic', topic });
+    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///second.jpg' });
+    expect(state.draft.categoryId).toBeNull();
+    expect(state.draft.photoIssueTopic).toBeNull();
+
+    state = reportWizardReducer(state, {
+      type: 'chooseCategory',
+      categoryId: 'road-pothole-road-damage',
+    });
+    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///third.jpg' });
+    expect(state.draft.categoryId).toBe('road-pothole-road-damage');
   });
 
   it('ignores stale photo analysis updates from previous photos', () => {
@@ -212,7 +254,7 @@ describe('report wizard reducer', () => {
       result: photoVisionResult,
     });
     expect(state.photoVisionStatus).toBe('idle');
-    expect(state.photoVisionResult).toBeNull();
+    expect(state.draft.photoVisionResult).toBeNull();
 
     state = reportWizardReducer(state, {
       type: 'setPhotoVisionLoading',
@@ -258,18 +300,17 @@ describe('report wizard reducer', () => {
   });
 
   it('falls back to general or the suggested title, never another catalog issue', () => {
-    expect(
-      getWizardCategory({ selectedCategoryId: 'retired-issue-id', selectedPhotoIssueTopic: null })
-        .category.id
-    ).toBe('general');
+    expect(getDraftCategory({ categoryId: 'retired-issue-id', photoIssueTopic: null }).id).toBe(
+      'general'
+    );
 
     const unknownTopic = makePhotoIssueCandidate({
       issueId: 'issue-from-newer-catalog',
       title: 'Issue From Newer Catalog',
     });
-    const { category } = getWizardCategory({
-      selectedCategoryId: null,
-      selectedPhotoIssueTopic: unknownTopic,
+    const category = getDraftCategory({
+      categoryId: unknownTopic.issueId,
+      photoIssueTopic: unknownTopic,
     });
     expect(category.title).toBe('Issue From Newer Catalog');
     expect(category.questions).toEqual([]);
@@ -294,28 +335,28 @@ describe('report wizard reducer', () => {
 
   it('checks location and preview readiness', () => {
     const state = createInitialReportWizardState();
-    expect(canContinueFromLocation(state)).toBe(false);
-    expect(canPreviewReport(state)).toBe(false);
+    expect(canContinueFromLocation(state.draft)).toBe(false);
+    expect(canPreviewReport(state.draft)).toBe(false);
 
     const withAddress = reportWizardReducer(state, {
       type: 'setAddress',
       address: '123 Queen St W',
     });
-    expect(canContinueFromLocation(withAddress)).toBe(true);
-    expect(canPreviewReport(withAddress)).toBe(false);
+    expect(canContinueFromLocation(withAddress.draft)).toBe(true);
+    expect(canPreviewReport(withAddress.draft)).toBe(false);
 
     const withDescription = reportWizardReducer(withAddress, {
       type: 'setDescription',
       description: 'Large pothole in curb lane.',
     });
-    expect(canPreviewReport(withDescription)).toBe(true);
+    expect(canPreviewReport(withDescription.draft)).toBe(true);
 
     const withPin = reportWizardReducer(state, {
       type: 'setPinLocation',
       latitude: 43.65,
       longitude: -79.38,
     });
-    expect(canContinueFromLocation(withPin)).toBe(true);
+    expect(canContinueFromLocation(withPin.draft)).toBe(true);
   });
 
   it('classifies photo vision status from normalized results', () => {

@@ -77,16 +77,30 @@ export type PhotoIssueCandidate = {
   boundingBoxes: PhotoIssueCandidateBoundingBox[];
 };
 
-export type DraftReportInput = {
-  category: IssueCategory;
+/** Text answers are strings; single-choice answers store the option label; multi-choice a list of labels. */
+export type ReportAnswerValue = string | string[];
+export type ReportAnswers = Record<string, ReportAnswerValue>;
+
+/** What the user is drafting. The wizard edits it, and every save writes all of it. */
+export type ReportDraft = {
+  /** Issue chosen in search or from an accepted photo suggestion; null for a general report. */
+  categoryId: string | null;
+  /** The photo suggestion the user accepted, when categoryId came from one. */
+  photoIssueTopic: PhotoIssueCandidate | null;
   description: string;
-  answers: Record<string, string>;
+  answers: ReportAnswers;
   address: string;
   locationNote: string;
   latitude: number | null;
   longitude: number | null;
   photoUri: string | null;
-  photoIssueTopic?: PhotoIssueCandidate | null;
+  thumbnailUri: string | null;
+  photoVisionResult: PhotoVisionResult | null;
+};
+
+/** Everything an email is built from: the draft, the issue it resolves to, and who is reporting. */
+export type EmailInput = ReportDraft & {
+  category: IssueCategory;
   profile: Profile;
 };
 
@@ -129,19 +143,10 @@ export type PhotoVisionResult = {
   };
 };
 
-export type Report = {
+export type Report = ReportDraft & {
   id: string;
-  categoryId: string | null;
+  /** Issue title when the report was saved, shown in History. */
   category: string;
-  description: string;
-  answers: Record<string, string>;
-  address: string;
-  latitude: number | null;
-  longitude: number | null;
-  photoUri: string | null;
-  thumbnailUri: string | null;
-  photoVisionResult: PhotoVisionResult | null;
-  photoIssueTopic: PhotoIssueCandidate | null;
   emailSubject: string;
   emailBody: string;
   status: ReportStatus;

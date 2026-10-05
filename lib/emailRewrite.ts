@@ -1,4 +1,5 @@
-import type { DraftReportInput } from './types';
+import { formatAnswer } from './answers';
+import type { EmailInput } from './types';
 
 export const EMAIL_REWRITE_PROMPT_VERSION = 'toronto-311-email-rewrite-v2';
 
@@ -13,7 +14,7 @@ export type EmailRewritePromptPayload = {
 };
 
 export function buildEmailRewritePromptPayload(
-  input: DraftReportInput,
+  input: EmailInput,
   defaultEmailBody: string
 ): EmailRewritePromptPayload {
   return {
@@ -28,16 +29,16 @@ export function buildEmailRewritePromptPayload(
   };
 }
 
-function buildGuidedAnswers(input: DraftReportInput) {
+function buildGuidedAnswers(input: EmailInput) {
   return input.category.questions
     .map((question) => {
-      const value = input.answers[question.id]?.trim();
+      const value = formatAnswer(input.answers[question.id]);
       return value ? `${question.label}: ${value}` : null;
     })
     .filter((answer): answer is string => answer != null);
 }
 
-function buildLocationSummary(input: DraftReportInput) {
+function buildLocationSummary(input: EmailInput) {
   return [
     input.address.trim(),
     input.locationNote.trim() ? `Location note: ${input.locationNote.trim()}` : null,
@@ -46,7 +47,7 @@ function buildLocationSummary(input: DraftReportInput) {
     .join('\n');
 }
 
-function buildPhotoEvidence(input: DraftReportInput) {
+function buildPhotoEvidence(input: EmailInput) {
   const topic = input.photoIssueTopic;
   if (!topic) return input.photoUri ? 'Photo attached.' : '';
 

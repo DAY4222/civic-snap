@@ -14,8 +14,9 @@ import {
 } from '@/lib/issueSuggestions';
 import { loadPhotoAnalysisEnabled, savePhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
+import { getDraftCategory } from '@/lib/reportDraft';
 import { getReport } from '@/lib/reports';
-import { PhotoIssueCandidate } from '@/lib/types';
+import { PhotoIssueCandidate, ReportAnswerValue } from '@/lib/types';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
 import {
@@ -25,7 +26,6 @@ import {
   canPreviewReport,
   createInitialReportWizardState,
   filterIssueCategories,
-  getWizardCategory,
   profilesEqual,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
@@ -53,65 +53,41 @@ export function useReportWizard(resumeId?: string) {
   const photoAnalysisAbortController = useRef<AbortController | null>(null);
   const reverseGeocodeRequestId = useRef(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { category, manualCategory, photoIssueCategory } = useMemo(
-    () => getWizardCategory(state),
-    [state.selectedCategoryId, state.selectedPhotoIssueTopic]
+  const { draft } = state;
+  const category = useMemo(
+    () => getDraftCategory(draft),
+    [draft.categoryId, draft.photoIssueTopic]
   );
+  const hasIssue = category.id !== GENERAL_CATEGORY.id;
   const photoAnalysisAvailable = canAnalyzePhotoLabels();
   const photoLabelsEnabled = photoAnalysisAvailable && state.photoAnalysisUserEnabled;
-  const currentIssueTitle =
-    manualCategory?.title ?? state.selectedPhotoIssueTopic?.title ?? GENERAL_CATEGORY.title;
   const photoIssueSuggestions = useMemo(
-    () => getSuggestedIssueCandidates(state.photoVisionResult),
-    [state.photoVisionResult]
+    () => getSuggestedIssueCandidates(draft.photoVisionResult),
+    [draft.photoVisionResult]
   );
   const filteredIssueCategories = useMemo(
     () => filterIssueCategories(state.issueSearchQuery),
     [state.issueSearchQuery]
   );
-  const canContinueLocation = canContinueFromLocation(state);
-  const canPreviewEmail = canPreviewReport(state);
-  const descriptionPlaceholder =
-    manualCategory || photoIssueCategory
-      ? `Describe the ${category.subjectLabel}, exact location, and what crews should know.`
-      : 'Example: pothole in the curb lane near the crosswalk';
+  const canContinueLocation = canContinueFromLocation(draft);
+  const canPreviewEmail = canPreviewReport(draft);
+  const descriptionPlaceholder = hasIssue
+    ? `Describe the ${category.subjectLabel}, exact location, and what crews should know.`
+    : 'Example: pothole in the curb lane near the crosswalk';
   const email = useMemo(
-    () =>
-      buildEmail({
-        category,
-        description: state.description,
-        answers: state.answers,
-        address: state.address,
-        locationNote: state.locationNote,
-        latitude: state.latitude,
-        longitude: state.longitude,
-        photoUri: state.photoUri,
-        photoIssueTopic: state.selectedPhotoIssueTopic,
-        profile: state.profile,
-      }),
-    [
-      category,
-      state.address,
-      state.answers,
-      state.description,
-      state.latitude,
-      state.locationNote,
-      state.longitude,
-      state.photoUri,
-      state.profile,
-      state.selectedPhotoIssueTopic,
-    ]
+    () => buildEmail({ ...draft, category, profile: state.profile }),
+    [category, draft, state.profile]
   );
   const pinRegion = useMemo<Region | null>(() => {
-    if (state.latitude == null || state.longitude == null) return null;
+    if (draft.latitude == null || draft.longitude == null) return null;
 
     return {
-      latitude: state.latitude,
-      longitude: state.longitude,
+      latitude: draft.latitude,
+      longitude: draft.longitude,
       latitudeDelta: BLOCK_LEVEL_DELTA,
       longitudeDelta: BLOCK_LEVEL_DELTA,
     };
-  }, [state.latitude, state.longitude]);
+  }, [draft.latitude, draft.longitude]);
   const draftSnapshot = useRef({ category, state });
   draftSnapshot.current = { category, state };
 
@@ -134,27 +110,13 @@ export function useReportWizard(resumeId?: string) {
           let nextEmailSubject: string | undefined;
           if (current.state.step === 'preview') {
             const currentEmail = buildEmail({
+              ...current.state.draft,
               category: current.category,
-              description: current.state.description,
-              answers: current.state.answers,
-              address: current.state.address,
-              locationNote: current.state.locationNote,
-              latitude: current.state.latitude,
-              longitude: current.state.longitude,
-              photoUri: current.state.photoUri,
-              photoIssueTopic: current.state.selectedPhotoIssueTopic,
               profile: currentProfile,
             });
             const updatedEmail = buildEmail({
+              ...current.state.draft,
               category: current.category,
-              description: current.state.description,
-              answers: current.state.answers,
-              address: current.state.address,
-              locationNote: current.state.locationNote,
-              latitude: current.state.latitude,
-              longitude: current.state.longitude,
-              photoUri: current.state.photoUri,
-              photoIssueTopic: current.state.selectedPhotoIssueTopic,
               profile: nextProfile,
             });
 
@@ -243,10 +205,10 @@ export function useReportWizard(resumeId?: string) {
   }, [resumeId]);
 
   const analyzeCurrentPhoto = useCallback(async () => {
-    const photoUri = state.photoUri;
+    const photoUri = draft.photoUri;
     if (!photoUri) return;
 
-    if (state.photoVisionResult && state.photoVisionPhotoUri === photoUri) {
+    if (draft.photoVisionResult && state.photoVisionPhotoUri === photoUri) {
       return;
     }
 
@@ -267,7 +229,7 @@ export function useReportWizard(resumeId?: string) {
         photoAnalysisAbortController.current = null;
       }
     }
-  }, [state.photoUri, state.photoVisionPhotoUri, state.photoVisionResult]);
+  }, [draft.photoUri, draft.photoVisionResult, state.photoVisionPhotoUri]);
 
   useEffect(() => {
     if (!shouldStartPhotoAnalysis(state, photoLabelsEnabled)) return;
@@ -276,7 +238,7 @@ export function useReportWizard(resumeId?: string) {
   }, [
     analyzeCurrentPhoto,
     photoLabelsEnabled,
-    state.photoUri,
+    draft.photoUri,
     state.photoVisionPhotoUri,
     state.photoVisionStatus,
   ]);
@@ -413,12 +375,12 @@ export function useReportWizard(resumeId?: string) {
   }
 
   async function previewEmail() {
-    if (!canContinueFromLocation(state)) {
+    if (!canContinueFromLocation(draft)) {
       Alert.alert('Add a location', 'Enter an address or nearest landmark.');
       return;
     }
 
-    if (!state.description.trim()) {
+    if (!draft.description.trim()) {
       Alert.alert('Add a short description', 'One sentence is enough for the MVP.');
       return;
     }
@@ -452,7 +414,7 @@ export function useReportWizard(resumeId?: string) {
         emailBody: state.emailBody,
         emailRecipient: email.recipient,
         emailSubject: state.emailSubject,
-        photoUri: state.photoUri,
+        photoUri: draft.photoUri,
         reportId: state.savedReportId,
       });
       if (result === 'fallback') {
@@ -486,7 +448,8 @@ export function useReportWizard(resumeId?: string) {
   }
 
   function backFromLocation() {
-    if (state.selectedCategoryId) {
+    // A manually chosen issue started in search, so Back returns there.
+    if (draft.categoryId && !draft.photoIssueTopic) {
       openCategory('location');
       return;
     }
@@ -501,7 +464,7 @@ export function useReportWizard(resumeId?: string) {
   function insertSuggestedDescription(suggestion: string) {
     dispatch({
       type: 'appendDescription',
-      value: appendSuggestedDescription(state.description, suggestion),
+      value: appendSuggestedDescription(draft.description, suggestion),
     });
   }
 
@@ -541,7 +504,7 @@ export function useReportWizard(resumeId?: string) {
         addressEditVersion.current += 1;
         dispatch({ type: 'setAddress', address });
       },
-      setAnswer: (questionId: string, value: string) =>
+      setAnswer: (questionId: string, value: ReportAnswerValue) =>
         dispatch({ type: 'setAnswer', questionId, value }),
       setDescription: (description: string) => dispatch({ type: 'setDescription', description }),
       setEmailBody: (emailBody: string) => dispatch({ type: 'setEmailBody', emailBody }),
@@ -560,11 +523,10 @@ export function useReportWizard(resumeId?: string) {
     category,
     canContinueLocation,
     canPreviewEmail,
-    currentIssueTitle,
     descriptionPlaceholder,
     email,
     filteredIssueCategories,
-    manualCategory,
+    hasIssue,
     photoAnalysisAvailable,
     photoIssueSuggestions,
     photoLabelsEnabled,

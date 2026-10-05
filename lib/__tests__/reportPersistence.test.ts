@@ -16,6 +16,7 @@ const baseRow: ReportRow = {
   description: 'Pothole in road.',
   answers_json: '{"q1":"yes","q2":2}',
   address: '123 Queen St W',
+  location_note: 'north curb',
   latitude: 43.65,
   longitude: -79.38,
   photo_uri: null,
@@ -41,6 +42,9 @@ describe('report persistence helpers', () => {
 
   it('keeps malformed answers from escaping storage parsing', () => {
     expect(parseAnswers('{"a":"one","b":2,"c":false}')).toEqual({ a: 'one' });
+    expect(parseAnswers('{"multi":["Lid","Body, handle or frame",3]}')).toEqual({
+      multi: ['Lid', 'Body, handle or frame'],
+    });
     expect(parseAnswers('not json')).toEqual({});
     expect(parseAnswers('["nope"]')).toEqual({});
   });
@@ -50,6 +54,8 @@ describe('report persistence helpers', () => {
 
     expect(report.categoryId).toBe('road-pothole-road-damage');
     expect(report.answers).toEqual({ q1: 'yes' });
+    expect(report.locationNote).toBe('north curb');
+    expect(rowToReport({ ...baseRow, location_note: null }).locationNote).toBe('');
     expect(report.status).toBe('draft');
   });
 

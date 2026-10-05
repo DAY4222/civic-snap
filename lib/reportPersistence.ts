@@ -1,6 +1,6 @@
 import { CATEGORY_TITLE_IDS } from './generated/categoryTitleIds';
 import { parseStoredPhotoVisionResult } from './photoAnalysisContract';
-import { PhotoIssueCandidate, Report, ReportStatus } from './types';
+import { PhotoIssueCandidate, Report, ReportAnswers, ReportStatus } from './types';
 
 export type ReportRow = {
   id: string;
@@ -9,6 +9,7 @@ export type ReportRow = {
   description: string;
   answers_json: string;
   address: string;
+  location_note: string | null;
   latitude: number | null;
   longitude: number | null;
   photo_uri: string | null;
@@ -23,6 +24,7 @@ export type ReportRow = {
   updated_at: string;
 };
 
+/** A report as saved from the wizard: the draft plus its issue title and current email. */
 export type CreateReportInput = Omit<
   Report,
   'id' | 'status' | 'caseNumber' | 'createdAt' | 'updatedAt'
@@ -35,7 +37,7 @@ export function createReportId() {
   );
 }
 
-export function serializeAnswers(answers: Record<string, string>) {
+export function serializeAnswers(answers: ReportAnswers) {
   return JSON.stringify(answers);
 }
 
@@ -75,6 +77,7 @@ export function rowToReport(row: ReportRow, photoDirectory: string | null = null
     description: stringValue(row.description),
     answers: parseAnswers(row.answers_json),
     address: stringValue(row.address),
+    locationNote: stringValue(row.location_note),
     latitude: nullableNumber(row.latitude),
     longitude: nullableNumber(row.longitude),
     photoUri,
@@ -90,16 +93,19 @@ export function rowToReport(row: ReportRow, photoDirectory: string | null = null
   };
 }
 
-export function parseAnswers(raw: string | null) {
+export function parseAnswers(raw: string | null): ReportAnswers {
   const parsed = parseJson(raw);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
 
-  return Object.fromEntries(
-    Object.entries(parsed).filter(
-      (entry): entry is [string, string] =>
-        typeof entry[0] === 'string' && typeof entry[1] === 'string'
-    )
-  );
+  const answers: ReportAnswers = {};
+  for (const [questionId, value] of Object.entries(parsed)) {
+    if (typeof value === 'string') {
+      answers[questionId] = value;
+    } else if (Array.isArray(value)) {
+      answers[questionId] = value.filter((item): item is string => typeof item === 'string');
+    }
+  }
+  return answers;
 }
 
 export function parsePhotoVisionResult(raw: string | null) {

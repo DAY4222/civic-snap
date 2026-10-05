@@ -12,12 +12,15 @@ import {
 import MapView, { type Region } from '@/components/CivicMap';
 import { Button, Card, Field, Notice, colors } from '@/components/ui';
 import { GENERAL_CATEGORY } from '@/lib/categories';
-import { getSuggestedAnswerOptions, toggleMultiAnswer } from '@/lib/issueSuggestions';
+import { formatAnswer, isOptionSelected, toggleMultiAnswer } from '@/lib/answers';
+import { getSuggestedAnswerOptions } from '@/lib/issueSuggestions';
 import type {
   CategoryQuestion,
   IssueCategory,
   PhotoIssueCandidate,
   PhotoVisionResult,
+  ReportAnswerValue,
+  ReportAnswers,
 } from '@/lib/types';
 
 import { type PhotoVisionStatus, type ReportWizardStep } from './reportWizardState';
@@ -235,10 +238,8 @@ export function LocationStep({
 export function DetailsStep({
   answers,
   category,
-  currentIssueTitle,
   description,
   descriptionPlaceholder,
-  manualCategory,
   onAnalyze,
   onBack,
   onDescriptionChange,
@@ -252,35 +253,35 @@ export function DetailsStep({
   photoVisionResult,
   photoVisionStatus,
   previewRequirementText,
+  selectedCategory,
   selectedPhotoIssueTopic,
   topics,
 }: {
-  answers: Record<string, string>;
+  answers: ReportAnswers;
   category: IssueCategory;
-  currentIssueTitle: string;
   description: string;
   descriptionPlaceholder: string;
-  manualCategory: IssueCategory | null;
   onAnalyze: () => void;
   onBack: () => void;
   onDescriptionChange: (value: string) => void;
   onExitToStart: () => void;
   onInsertSuggestedDescription: (value: string) => void;
   onOpenIssueSearch: () => void;
-  onSetAnswer: (questionId: string, value: string) => void;
+  onSetAnswer: (questionId: string, value: ReportAnswerValue) => void;
   onToggleTopic: (topic: PhotoIssueCandidate) => void;
   photoLabelsEnabled: boolean;
   photoUri: string | null;
   photoVisionResult: PhotoVisionResult | null;
   photoVisionStatus: PhotoVisionStatus;
   previewRequirementText: string;
+  selectedCategory: IssueCategory | null;
   selectedPhotoIssueTopic: PhotoIssueCandidate | null;
   topics: PhotoIssueCandidate[];
 }) {
   return (
     <View style={styles.stack}>
       <Header title="Add details" onBack={onBack} onExitToStart={onExitToStart} />
-      <Text style={styles.categoryTitle}>{currentIssueTitle}</Text>
+      <Text style={styles.categoryTitle}>{category.title}</Text>
       {photoLabelsEnabled && photoUri ? (
         <SuggestedTopicsPanel
           onAnalyze={onAnalyze}
@@ -291,7 +292,7 @@ export function DetailsStep({
           topics={topics}
         />
       ) : (
-        <ManualIssuePanel manualCategory={manualCategory} onOpenIssueSearch={onOpenIssueSearch} />
+        <ManualIssuePanel selectedCategory={selectedCategory} onOpenIssueSearch={onOpenIssueSearch} />
       )}
       {selectedPhotoIssueTopic && photoUri ? (
         <EvidencePhoto
@@ -328,10 +329,10 @@ export function DetailsStep({
           {category.questions.map((question) => (
             <QuestionField
               key={question.id}
-              onChangeText={(value) => onSetAnswer(question.id, value)}
+              onChange={(value) => onSetAnswer(question.id, value)}
               question={question}
               selectedCandidate={selectedPhotoIssueTopic}
-              value={answers[question.id] ?? ''}
+              value={answers[question.id]}
             />
           ))}
           <Text style={styles.sectionTitle}>Useful observations</Text>
@@ -543,21 +544,17 @@ export function Progress({ currentStep }: { currentStep: ReportWizardStep }) {
 }
 
 function QuestionField({
-  onChangeText,
+  onChange,
   question,
   selectedCandidate,
   value,
 }: {
-  onChangeText: (value: string) => void;
+  onChange: (value: ReportAnswerValue) => void;
   question: CategoryQuestion;
   selectedCandidate: PhotoIssueCandidate | null;
-  value: string;
+  value: ReportAnswerValue | undefined;
 }) {
   const suggestions = getSuggestedAnswerOptions(question, selectedCandidate);
-  const selectedValues = value
-    .split(', ')
-    .map((item) => item.trim())
-    .filter(Boolean);
 
   if (question.options.length > 0) {
     return (
@@ -565,10 +562,7 @@ function QuestionField({
         <Text style={styles.label}>{question.label}</Text>
         <View style={styles.optionWrap}>
           {question.options.map((option) => {
-            const selected =
-              question.answerType === 'multipicklist'
-                ? selectedValues.includes(option.label)
-                : value === option.label;
+            const selected = isOptionSelected(question, value, option);
             const suggested = suggestions.some((suggestion) => suggestion.value === option.value);
 
             return (
@@ -578,7 +572,7 @@ function QuestionField({
                 accessibilityState={{ checked: selected }}
                 key={option.value}
                 onPress={() =>
-                  onChangeText(
+                  onChange(
                     question.answerType === 'multipicklist'
                       ? toggleMultiAnswer(value, option)
                       : option.label
@@ -609,9 +603,9 @@ function QuestionField({
     <Field
       label={question.label}
       multiline={question.answerType === 'text'}
-      onChangeText={onChangeText}
+      onChangeText={onChange}
       placeholder={question.placeholder}
-      value={value}
+      value={formatAnswer(value)}
     />
   );
 }
@@ -747,11 +741,11 @@ function SuggestedTopicsPanel({
 }
 
 function ManualIssuePanel({
-  manualCategory,
   onOpenIssueSearch,
+  selectedCategory,
 }: {
-  manualCategory: IssueCategory | null;
   onOpenIssueSearch: () => void;
+  selectedCategory: IssueCategory | null;
 }) {
   return (
     <Card style={styles.suggestionCard}>
@@ -759,7 +753,7 @@ function ManualIssuePanel({
         <View style={{ flex: 1 }}>
           <Text style={styles.sectionTitle}>Issue type</Text>
           <Text style={styles.muted}>
-            {manualCategory ? manualCategory.title : 'Choose a topic, or keep this as a general report.'}
+            {selectedCategory ? selectedCategory.title : 'Choose a topic, or keep this as a general report.'}
           </Text>
         </View>
       </View>

@@ -1,8 +1,10 @@
 import { ISSUE_CATEGORIES } from '../categories';
+import { EMPTY_DRAFT } from '../reportDraft';
 import { EMAIL_REWRITE_PROMPT_VERSION, buildEmailRewritePromptPayload } from '../emailRewrite';
-import type { DraftReportInput, IssueCategory, PhotoIssueCandidate } from '../types';
+import type { EmailInput, IssueCategory, PhotoIssueCandidate } from '../types';
 
-const baseInput: DraftReportInput = {
+const baseInput: EmailInput = {
+  ...EMPTY_DRAFT,
   category: ISSUE_CATEGORIES[0],
   description: 'Damaged residential bin lid',
   answers: {

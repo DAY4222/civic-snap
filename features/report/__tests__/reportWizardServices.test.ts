@@ -22,12 +22,14 @@ jest.mock('@/lib/emailRewriteClient', () => {
 
 import { ISSUE_CATEGORIES } from '@/lib/categories';
 import { buildEmail } from '@/lib/email';
-import type { DraftReportInput } from '@/lib/types';
+import { EMPTY_DRAFT } from '@/lib/reportDraft';
+import type { EmailInput } from '@/lib/types';
 
 import { buildPreviewEmail, saveReportDraft } from '../reportWizardServices';
 import { createInitialReportWizardState } from '../reportWizardState';
 
-const baseInput: DraftReportInput = {
+const baseInput: EmailInput = {
+  ...EMPTY_DRAFT,
   category: ISSUE_CATEGORIES[0],
   description: 'Damaged residential bin lid',
   answers: {
@@ -59,7 +61,7 @@ describe('report wizard services', () => {
   });
 
   it('uses the rewritten body while preserving the local subject', async () => {
-    const buildLocalEmail = jest.fn((input: DraftReportInput) => buildEmail(input));
+    const buildLocalEmail = jest.fn((input: EmailInput) => buildEmail(input));
     const rewriteDraft = jest.fn(async () => ({
       body: 'Improved 311 email body',
     }));
@@ -88,15 +90,11 @@ describe('report wizard services', () => {
   });
 
   it('creates the local draft before applying an optional rewritten body', async () => {
+    const { category: _category, profile, ...draft } = baseInput;
     const state = {
       ...createInitialReportWizardState(),
-      address: baseInput.address,
-      answers: baseInput.answers,
-      description: baseInput.description,
-      latitude: baseInput.latitude,
-      locationNote: baseInput.locationNote,
-      longitude: baseInput.longitude,
-      profile: baseInput.profile,
+      draft,
+      profile,
     };
 
     const result = await saveReportDraft({

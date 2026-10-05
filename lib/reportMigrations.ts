@@ -107,6 +107,13 @@ export const REPORT_MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 4,
+    description: 'save the location note with the draft',
+    up: async (db) => {
+      await db.execAsync("ALTER TABLE reports ADD COLUMN location_note TEXT NOT NULL DEFAULT '';");
+    },
+  },
 ];
 
 export const LATEST_REPORTS_SCHEMA_VERSION = REPORT_MIGRATIONS[REPORT_MIGRATIONS.length - 1].version;

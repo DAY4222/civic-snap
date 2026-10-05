@@ -18,8 +18,9 @@ import { useReportWizard } from './useReportWizard';
 export function ReportWizard() {
   const { resumeId } = useLocalSearchParams<{ resumeId?: string }>();
   const wizard = useReportWizard(resumeId);
-  const { actions, category, email, manualCategory, state } = wizard;
-  const previewRequirementText = !state.description.trim()
+  const { actions, category, email, hasIssue, state } = wizard;
+  const { draft } = state;
+  const previewRequirementText = !draft.description.trim()
     ? 'Add a short description to preview the email.'
     : !wizard.canContinueLocation
       ? 'Add an address or GPS pin before previewing the email.'
@@ -84,16 +85,16 @@ export function ReportWizard() {
             onChooseCategory={actions.chooseCategory}
             onExitToStart={actions.confirmExitToStart}
             onSearchChange={actions.setIssueSearchQuery}
-            selectedCategoryId={state.selectedCategoryId}
+            selectedCategoryId={draft.categoryId}
           />
         ) : null}
 
         {state.step === 'location' ? (
           <LocationStep
-            address={state.address}
+            address={draft.address}
             busy={state.busy}
             canContinue={wizard.canContinueLocation}
-            locationNote={state.locationNote}
+            locationNote={draft.locationNote}
             onAddressChange={actions.setAddress}
             onBack={actions.backFromLocation}
             onContinue={() => actions.setStep('details')}
@@ -101,19 +102,18 @@ export function ReportWizard() {
             onLocationNoteChange={actions.setLocationNote}
             onUseCurrentLocation={actions.useCurrentLocation}
             onUpdatePin={actions.updatePinFromMap}
-            photoUri={state.photoUri}
+            photoUri={draft.photoUri}
             pinRegion={wizard.pinRegion}
           />
         ) : null}
 
         {state.step === 'details' ? (
           <DetailsStep
-            answers={state.answers}
+            answers={draft.answers}
             category={category}
-            currentIssueTitle={wizard.currentIssueTitle}
-            description={state.description}
+            description={draft.description}
             descriptionPlaceholder={wizard.descriptionPlaceholder}
-            manualCategory={manualCategory}
+            selectedCategory={hasIssue ? category : null}
             onAnalyze={actions.analyzeCurrentPhoto}
             onBack={() => actions.setStep('location')}
             onDescriptionChange={actions.setDescription}
@@ -123,11 +123,11 @@ export function ReportWizard() {
             onSetAnswer={actions.setAnswer}
             onToggleTopic={actions.togglePhotoIssueTopic}
             photoLabelsEnabled={wizard.photoLabelsEnabled}
-            photoUri={state.photoUri}
-            photoVisionResult={state.photoVisionResult}
+            photoUri={draft.photoUri}
+            photoVisionResult={draft.photoVisionResult}
             photoVisionStatus={state.photoVisionStatus}
             previewRequirementText={previewRequirementText}
-            selectedPhotoIssueTopic={state.selectedPhotoIssueTopic}
+            selectedPhotoIssueTopic={draft.photoIssueTopic}
             topics={wizard.photoIssueSuggestions}
           />
         ) : null}
@@ -143,7 +143,7 @@ export function ReportWizard() {
             onEmailBodyChange={actions.setEmailBody}
             onEmailSubjectChange={actions.setEmailSubject}
             onExitToStart={actions.confirmExitToStart}
-            photoUri={state.photoUri}
+            photoUri={draft.photoUri}
             profile={state.profile}
           />
         ) : null}
