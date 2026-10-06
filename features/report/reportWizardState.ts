@@ -1,5 +1,6 @@
 import type { PhotoAnalysisChoice } from '@/lib/aiSettings';
 import { ISSUE_CATEGORIES } from '@/lib/categories';
+import { searchIssues, type IssueSearchResult } from '@/lib/issueSearch';
 import { EMPTY_PROFILE } from '@/lib/profile';
 import { EMPTY_DRAFT, draftFromReport } from '@/lib/reportDraft';
 import {
@@ -383,16 +384,10 @@ export function shouldStartPhotoAnalysis(
   );
 }
 
-export function filterIssueCategories(queryValue: string) {
-  const query = queryValue.trim().toLowerCase();
-  if (!query) return getCommonIssueCategories();
-
-  return ISSUE_CATEGORIES.filter((item) =>
-    [item.title, item.subjectLabel, ...item.questions.map((question) => question.label)]
-      .join(' ')
-      .toLowerCase()
-      .includes(query)
-  );
+/** Common issues for an empty search; ranked matches and "report elsewhere" cards otherwise. */
+export function searchIssueCategories(query: string): IssueSearchResult {
+  if (!query.trim()) return { categories: getCommonIssueCategories(), redirects: [] };
+  return searchIssues(query);
 }
 
 export function getCommonIssueCategories() {

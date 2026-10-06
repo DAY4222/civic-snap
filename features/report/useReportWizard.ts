@@ -20,8 +20,8 @@ import {
   createInitialReportWizardState,
   getPreviousStep,
   getSuggestStepMode,
-  filterIssueCategories,
   reportWizardReducer,
+  searchIssueCategories,
 } from './reportWizardState';
 import { useDraftPersistence } from './useDraftPersistence';
 import { useEmailDraft } from './useEmailDraft';
@@ -60,8 +60,8 @@ export function useReportWizard(params: ReportWizardParams) {
   });
   const handoff = useHandoff(store, emailDraft.email, persistence);
 
-  const filteredIssueCategories = useMemo(
-    () => filterIssueCategories(state.issueSearchQuery),
+  const issueSearch = useMemo(
+    () => searchIssueCategories(state.issueSearchQuery),
     [state.issueSearchQuery]
   );
 
@@ -199,8 +199,8 @@ export function useReportWizard(params: ReportWizardParams) {
     email: emailDraft.email,
     emailOutOfDate: emailDraft.emailOutOfDate,
     emailPolishAvailable: emailDraft.polishAvailable,
-    filteredIssueCategories,
     hasIssue,
+    issueSearch,
     locationStatus: location.locationStatus,
     mailComposerAvailable: handoff.mailComposerAvailable,
     outsideCity: location.outsideCity,

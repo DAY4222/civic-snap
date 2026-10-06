@@ -99,6 +99,12 @@ export const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 48,
   },
+  categoryFooter: {
+    marginTop: 4,
+  },
+  redirectCard: {
+    gap: 10,
+  },
   categorySectionHeader: {
     gap: 4,
   },

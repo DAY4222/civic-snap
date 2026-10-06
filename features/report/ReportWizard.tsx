@@ -106,7 +106,7 @@ export function ReportWizard() {
 
         {state.step === 'category' ? (
           <CategoryStep
-            filteredIssueCategories={wizard.filteredIssueCategories}
+            categories={wizard.issueSearch.categories}
             issueSearchQuery={state.issueSearchQuery}
             notice={
               state.issueStep === 'suggest' &&
@@ -119,6 +119,7 @@ export function ReportWizard() {
             onChooseCategory={actions.chooseCategory}
             onExit={actions.confirmExit}
             onSearchChange={actions.setIssueSearchQuery}
+            redirects={wizard.issueSearch.redirects}
             selectedCategoryId={draft.categoryId}
           />
         ) : null}

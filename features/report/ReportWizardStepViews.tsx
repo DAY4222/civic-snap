@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Linking,
   Pressable,
   Text,
   View,
@@ -12,7 +13,7 @@ import {
 import { type Region } from '@/components/CivicMap';
 import { Button, Card, Field, Notice, colors } from '@/components/ui';
 import { GENERAL_CATEGORY } from '@/lib/categories';
-import { CITY } from '@/lib/city';
+import { CITY, type NotHandledRedirect } from '@/lib/city';
 import { formatAnswer, isOptionSelected, toggleMultiAnswer } from '@/lib/answers';
 import { getSuggestedAnswerOptions } from '@/lib/issueSuggestions';
 import type {
@@ -40,16 +41,17 @@ import { openAppSettings } from './wizardTypes';
 import { RaccoonSprite } from './RaccoonSprite';
 
 export function CategoryStep({
-  filteredIssueCategories,
+  categories,
   issueSearchQuery,
+  notice,
   onBack,
   onChooseCategory,
-  notice,
   onExit,
   onSearchChange,
+  redirects,
   selectedCategoryId,
 }: {
-  filteredIssueCategories: IssueCategory[];
+  categories: IssueCategory[];
   issueSearchQuery: string;
   /** Why the user landed here, e.g. the photo check found nothing. */
   notice?: string | null;
@@ -57,14 +59,31 @@ export function CategoryStep({
   onChooseCategory: (categoryId: string | null) => void;
   onExit: () => void;
   onSearchChange: (value: string) => void;
+  redirects: NotHandledRedirect[];
   selectedCategoryId: string | null;
 }) {
-  const showingCommonIssues = !issueSearchQuery.trim();
+  const searching = Boolean(issueSearchQuery.trim());
+  const generalCard = (
+    <Pressable
+      accessibilityLabel="Choose General 311 report"
+      accessibilityRole="button"
+      accessibilityState={{ selected: selectedCategoryId == null }}
+      onPress={() => onChooseCategory(null)}>
+      <Card selected={selectedCategoryId == null}>
+        <Text style={styles.cardTitle}>General 311 report</Text>
+        <Text style={styles.muted}>
+          {searching
+            ? 'Not listed? Describe it in your own words on the next steps.'
+            : 'Continue with a general 311 report.'}
+        </Text>
+      </Card>
+    </Pressable>
+  );
 
   return (
     <FlatList
       contentContainerStyle={styles.categoryListContent}
-      data={filteredIssueCategories}
+      data={categories}
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
@@ -74,33 +93,34 @@ export function CategoryStep({
           <Field
             label="Search"
             onChangeText={onSearchChange}
-            placeholder="Example: pothole, graffiti, sidewalk"
+            placeholder="Example: pothole, graffiti, trash"
             returnKeyType="search"
             value={issueSearchQuery}
           />
-          <Pressable
-            accessibilityLabel="Choose General 311 report"
-            accessibilityRole="button"
-            accessibilityState={{ selected: selectedCategoryId == null }}
-            onPress={() => onChooseCategory(null)}>
-            <Card selected={selectedCategoryId == null}>
-              <Text style={styles.cardTitle}>General 311 report</Text>
-              <Text style={styles.muted}>Continue with a general 311 report.</Text>
-            </Card>
-          </Pressable>
-          <View style={styles.categorySectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {showingCommonIssues ? 'Common issues' : 'Search results'}
-            </Text>
-            {showingCommonIssues ? (
-              <Text style={styles.muted}>Search to browse all issue types.</Text>
-            ) : null}
-          </View>
+          {redirects.map((redirect) => (
+            <RedirectCard key={redirect.url} redirect={redirect} />
+          ))}
+          {searching ? null : generalCard}
+          {searching && categories.length === 0 ? null : (
+            <View style={styles.categorySectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {searching ? 'Best matches' : 'Common issues'}
+              </Text>
+              {searching ? null : (
+                <Text style={styles.muted}>Search to browse all issue types.</Text>
+              )}
+            </View>
+          )}
         </View>
       }
       ListEmptyComponent={
-        <Text style={styles.muted}>No issue types found. Try a different search term.</Text>
+        searching ? (
+          <Text style={styles.muted}>
+            {`No issue types match "${issueSearchQuery.trim()}". Try other words, or use a general report.`}
+          </Text>
+        ) : null
       }
+      ListFooterComponent={searching ? <View style={styles.categoryFooter}>{generalCard}</View> : null}
       renderItem={({ item }) => (
         <Pressable
           accessibilityLabel={`Choose ${item.title}`}
@@ -115,6 +135,25 @@ export function CategoryStep({
       )}
       style={styles.categoryList}
     />
+  );
+}
+
+/** "311 doesn't handle this; here is who does." */
+function RedirectCard({ redirect }: { redirect: NotHandledRedirect }) {
+  return (
+    <Card style={styles.redirectCard} tone="warning">
+      <Text style={styles.cardTitle}>{redirect.title}</Text>
+      <Text style={styles.muted}>{redirect.body}</Text>
+      <Button
+        accessibilityHint="Opens their website"
+        icon={<FontAwesome name="external-link" size={15} color={colors.text} />}
+        onPress={() => {
+          Linking.openURL(redirect.url).catch(() => undefined);
+        }}
+        title="Report it there"
+        variant="secondary"
+      />
+    </Card>
   );
 }
 

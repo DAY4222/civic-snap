@@ -2,7 +2,6 @@ import {
   canContinueFromLocation,
   canPreviewReport,
   createInitialReportWizardState,
-  filterIssueCategories,
   getPhotoVisionErrorStatus,
   getPhotoVisionStatus,
   getPreviousStep,
@@ -10,6 +9,7 @@ import {
   getTrackerIndex,
   isPhotoVisionFailure,
   reportWizardReducer,
+  searchIssueCategories,
   shouldStartPhotoAnalysis,
 } from '../reportWizardState';
 import { EMPTY_DRAFT, getDraftCategory } from '@/lib/reportDraft';
@@ -432,7 +432,7 @@ describe('report wizard reducer', () => {
   });
 
   it('uses common issue categories before the user searches', () => {
-    expect(filterIssueCategories('').map((category) => category.id)).toEqual([
+    expect(searchIssueCategories('').categories.map((category) => category.id)).toEqual([
       'road-pothole-road-damage',
       'clean-up-illegal-dumping-on-city-road-allowance',
       'traffic-signal-repair',
@@ -442,7 +442,7 @@ describe('report wizard reducer', () => {
     ]);
 
     expect(
-      filterIssueCategories('pothole').some(
+      searchIssueCategories('pothole').categories.some(
         (category) => category.id === 'road-pothole-road-damage'
       )
     ).toBe(true);
