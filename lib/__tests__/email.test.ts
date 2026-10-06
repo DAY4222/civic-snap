@@ -44,10 +44,9 @@ describe('buildEmail', () => {
     expect(email.body).toContain('Location:\n123 Queen St W');
     expect(email.body).toContain('Location note: north curb');
     expect(email.body).toContain('GPS: 43.653481, -79.383935');
+    expect(email.body).toContain('Map: https://maps.google.com/?q=43.653481,-79.383935');
     expect(email.body).toContain('Issue:\nResidential Bin Lid Damaged');
-    expect(email.body).toContain(
-      'Category path: Waste Collection, Bins, Litter and Needle Cleanup > Residential > Collection Bin > Residential Bin Lid Damaged'
-    );
+    expect(email.body).not.toContain('Category path');
     expect(email.body).toContain('- What is this request about?: Request Repairs for a Damaged Bin');
     expect(email.body).toContain('- What part is damaged?: Lid');
     expect(email.body).toContain('- Photo attached');
@@ -125,6 +124,7 @@ describe('buildEmail', () => {
         'Request: Please repair it.',
         '',
         'GPS: 43.653481, -79.383935',
+        'Map: https://maps.google.com/?q=43.653481,-79.383935',
         '',
         'Contact:',
         'Name: Ada Lovelace',

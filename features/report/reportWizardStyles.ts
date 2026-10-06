@@ -3,6 +3,14 @@ import { StyleSheet } from 'react-native';
 import { colors, radius } from '@/components/ui';
 
 export const styles = StyleSheet.create({
+  attachmentRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  subjectInput: {
+    minHeight: 0,
+  },
   polishRow: {
     alignItems: 'center',
     flexDirection: 'row',

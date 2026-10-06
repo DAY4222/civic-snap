@@ -384,6 +384,9 @@ export function PreviewStep({
   polish: EmailPolishPanelProps;
   profile: { name: string; phone: string };
 }) {
+  const missingName = !profile.name.trim();
+  const missingPhone = !profile.phone.trim();
+
   return (
     <View style={styles.stack}>
       <Header title="Email preview" onBack={onBack} onExitToStart={onExitToStart} />
@@ -401,11 +404,31 @@ export function PreviewStep({
           />
         </Card>
       ) : null}
-      <Notice text="This draft is saved locally as Draft. You still send it from your own email." />
-      {(!profile.name.trim() || !profile.phone.trim()) && !dismissedContactPrompt ? (
+      <Card style={styles.emailBox}>
+        <View style={styles.emailToRow}>
+          <Text style={styles.emailToLabel}>To:</Text>
+          <Text numberOfLines={1} style={styles.emailTo}>{emailRecipient}</Text>
+        </View>
+        <Field
+          inputStyle={styles.subjectInput}
+          label="Subject"
+          multiline
+          onChangeText={onEmailSubjectChange}
+          value={emailSubject}
+        />
+        <Field label="Body" multiline onChangeText={onEmailBodyChange} value={emailBody} />
+      </Card>
+      <EmailPolishPanel {...polish} />
+      <View style={styles.attachmentRow}>
+        <FontAwesome color={colors.muted} name={photoUri ? 'paperclip' : 'image'} size={15} />
+        <Text style={styles.muted}>{photoUri ? 'Photo will be attached.' : 'No photo attached.'}</Text>
+      </View>
+      {missingPhone && !dismissedContactPrompt ? (
         <Card style={styles.warningCard} tone="warning">
           <View style={styles.warningCardHeader}>
-            <Text style={[styles.cardTitle, styles.warningCardTitle]}>Add contact info?</Text>
+            <Text style={[styles.cardTitle, styles.warningCardTitle]}>
+              {missingName ? 'Add your name and phone number?' : 'Add a phone number?'}
+            </Text>
             <Pressable
               accessibilityLabel="Dismiss contact info prompt"
               accessibilityRole="button"
@@ -415,7 +438,7 @@ export function PreviewStep({
               <FontAwesome name="times" size={16} color={colors.mutedStrong} />
             </Pressable>
           </View>
-          <Text style={styles.muted}>311 may use it to follow up. You can still send this report without it.</Text>
+          <Text style={styles.muted}>311 may call to follow up. You can still send without it.</Text>
           <Button
             onPress={() => router.push('/settings')}
             style={styles.smallButton}
@@ -424,16 +447,7 @@ export function PreviewStep({
           />
         </Card>
       ) : null}
-      <Card style={styles.emailBox}>
-        <View style={styles.emailToRow}>
-          <Text style={styles.emailToLabel}>To:</Text>
-          <Text numberOfLines={1} style={styles.emailTo}>{emailRecipient}</Text>
-        </View>
-        <Field label="Subject" onChangeText={onEmailSubjectChange} value={emailSubject} />
-        <Field label="Body" multiline onChangeText={onEmailBodyChange} value={emailBody} />
-      </Card>
-      <EmailPolishPanel {...polish} />
-      <Text style={styles.muted}>{photoUri ? 'Photo will be attached.' : 'No photo attached.'}</Text>
+      <Notice text="Saved as a draft. You send it from your own email app." />
     </View>
   );
 }

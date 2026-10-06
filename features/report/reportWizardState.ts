@@ -188,12 +188,7 @@ export function reportWizardReducer(
       };
     }
     case 'previewReady':
-      return {
-        ...state,
-        dismissedContactPrompt: false,
-        savedReportId: action.savedReportId,
-        step: 'preview',
-      };
+      return { ...state, savedReportId: action.savedReportId, step: 'preview' };
     case 'profileLoaded':
       return { ...state, profile: action.profile };
     case 'resetReport':
