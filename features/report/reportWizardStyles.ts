@@ -99,6 +99,32 @@ export const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 48,
   },
+  checklistHeader: {
+    gap: 2,
+  },
+  filledText: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  moreQuestionsButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  questionLabel: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 21,
+    textTransform: 'none',
+  },
   categoryFooter: {
     marginTop: 4,
   },

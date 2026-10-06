@@ -67,6 +67,20 @@ export function useReportWizard(params: ReportWizardParams) {
 
   useWizardSettings(dispatch);
   useResumeDraft(params.resumeId, dispatch);
+
+  // Details fills the checklist answers that follow from the location (and refreshes them
+  // if the location changed since), without touching answers the user gave.
+  useEffect(() => {
+    if (state.step === 'details') dispatch({ type: 'applyChecklistDefaults' });
+  }, [
+    category.id,
+    dispatch,
+    draft.address,
+    draft.latitude,
+    draft.locationNote,
+    draft.longitude,
+    state.step,
+  ]);
   // Waits for settings: whether to suggest from the photo depends on the user's choice.
   useWizardStart(params, state.photoAnalysisChoice !== null, async (photoUri) => {
     const suggest = analysis.available && state.photoAnalysisChoice !== 'off';

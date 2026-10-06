@@ -1,8 +1,13 @@
 import type { PhotoAnalysisChoice } from '@/lib/aiSettings';
 import { ISSUE_CATEGORIES } from '@/lib/categories';
+import {
+  applyChecklistDefaults,
+  getChecklistDefaults,
+  type FilledAnswers,
+} from '@/lib/checklistRules';
 import { searchIssues, type IssueSearchResult } from '@/lib/issueSearch';
 import { EMPTY_PROFILE } from '@/lib/profile';
-import { EMPTY_DRAFT, draftFromReport } from '@/lib/reportDraft';
+import { EMPTY_DRAFT, draftFromReport, getDraftCategory } from '@/lib/reportDraft';
 import {
   IssueCategory,
   PhotoIssueCandidate,
@@ -75,6 +80,8 @@ export type ReportWizardState = {
   draft: ReportDraft;
   busy: boolean;
   categoryReturnStep: CategoryReturnStep;
+  /** Checklist answers the app filled in from the location, until the user changes them. */
+  checklistFilled: FilledAnswers;
   dismissedContactPrompt: boolean;
   email: EmailDraftState;
   emailPolish: { status: EmailPolishStatus; message: string | null };
@@ -96,6 +103,7 @@ export type ReportWizardState = {
 
 export type ReportWizardAction =
   | { type: 'appendDescription'; value: string }
+  | { type: 'applyChecklistDefaults' }
   | { type: 'chooseCategory'; categoryId: string | null }
   | { type: 'chooseSuggestedTopic'; topic: PhotoIssueCandidate }
   | { type: 'dismissContactPrompt' }
@@ -144,6 +152,7 @@ export function createInitialReportWizardState(): ReportWizardState {
     draft: EMPTY_DRAFT,
     busy: false,
     categoryReturnStep: 'location',
+    checklistFilled: {},
     dismissedContactPrompt: false,
     email: INITIAL_EMAIL_DRAFT,
     emailPolish: IDLE_EMAIL_POLISH,
@@ -167,6 +176,11 @@ function updateDraft(state: ReportWizardState, patch: Partial<ReportDraft>): Rep
   return { ...state, draft: { ...state.draft, ...patch } };
 }
 
+function sameRecord(a: Record<string, unknown>, b: Record<string, unknown>) {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
+
 /** Checklist answers belong to one issue, so keep them only while the issue stays the same. */
 function answersForCategory(draft: ReportDraft, nextCategoryId: string | null) {
   return nextCategoryId === draft.categoryId ? draft.answers : {};
@@ -179,6 +193,19 @@ export function reportWizardReducer(
   switch (action.type) {
     case 'appendDescription':
       return updateDraft(state, { description: action.value });
+    case 'applyChecklistDefaults': {
+      const defaults = getChecklistDefaults(getDraftCategory(state.draft), state.draft);
+      const { answers, filled } = applyChecklistDefaults(
+        state.draft.answers,
+        defaults,
+        state.checklistFilled
+      );
+      // Nothing to fill: keep the same objects so autosave and renders don't fire.
+      if (sameRecord(answers, state.draft.answers) && sameRecord(filled, state.checklistFilled)) {
+        return state;
+      }
+      return { ...updateDraft(state, { answers }), checklistFilled: filled };
+    }
     case 'chooseCategory':
       return {
         ...updateDraft(state, {

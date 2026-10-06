@@ -1,5 +1,6 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,6 +17,7 @@ import { GENERAL_CATEGORY } from '@/lib/categories';
 import { CITY, type NotHandledRedirect } from '@/lib/city';
 import { formatAnswer, isOptionSelected, toggleMultiAnswer } from '@/lib/answers';
 import { getSuggestedAnswerOptions } from '@/lib/issueSuggestions';
+import { isAnswered, splitChecklist } from '@/lib/checklistRules';
 import type {
   CategoryQuestion,
   EmailSource,
@@ -237,6 +239,7 @@ export function LocationStep({
 export function DetailsStep({
   answers,
   category,
+  checklistFilled,
   description,
   descriptionPlaceholder,
   onAnalyze,
@@ -258,6 +261,8 @@ export function DetailsStep({
 }: {
   answers: ReportAnswers;
   category: IssueCategory;
+  /** Answers the app filled in from the location, by question id. */
+  checklistFilled: Record<string, string>;
   description: string;
   descriptionPlaceholder: string;
   onAnalyze: () => void;
@@ -324,16 +329,16 @@ export function DetailsStep({
       ) : null}
       {category.id !== GENERAL_CATEGORY.id ? (
         <>
-          {category.questions.length > 0 ? <Text style={styles.sectionTitle}>Checklist</Text> : null}
-          {category.questions.map((question) => (
-            <QuestionField
-              key={question.id}
-              onChange={(value) => onSetAnswer(question.id, value)}
-              question={question}
+          {category.questions.length > 0 ? (
+            <Checklist
+              answers={answers}
+              filled={checklistFilled}
+              key={category.id}
+              onSetAnswer={onSetAnswer}
+              questions={category.questions}
               selectedCandidate={selectedPhotoIssueTopic}
-              value={answers[question.id]}
             />
-          ))}
+          ) : null}
           <Text style={styles.sectionTitle}>Useful observations</Text>
           {category.observations.map((observation) => (
             <View key={observation} style={styles.observationRow}>
@@ -742,23 +747,97 @@ export function Progress({ activeIndex }: { activeIndex: number }) {
   );
 }
 
+/** The issue's 311 questions: what 311 needs first, the optional rest folded away. */
+function Checklist({
+  answers,
+  filled,
+  onSetAnswer,
+  questions,
+  selectedCandidate,
+}: {
+  answers: ReportAnswers;
+  filled: Record<string, string>;
+  onSetAnswer: (questionId: string, value: ReportAnswerValue) => void;
+  questions: CategoryQuestion[];
+  selectedCandidate: PhotoIssueCandidate | null;
+}) {
+  const { required, optional } = splitChecklist(questions);
+  const answeredRequired = required.filter((question) => isAnswered(answers[question.id])).length;
+  const answeredOptional = optional.filter((question) => isAnswered(answers[question.id])).length;
+  const [showOptional, setShowOptional] = useState(answeredOptional > 0);
+
+  const renderQuestion = (question: CategoryQuestion) => (
+    <QuestionField
+      filled={filled[question.id] != null && filled[question.id] === answers[question.id]}
+      key={question.id}
+      onChange={(value) => onSetAnswer(question.id, value)}
+      question={question}
+      selectedCandidate={selectedCandidate}
+      value={answers[question.id]}
+    />
+  );
+
+  return (
+    <View style={styles.stack}>
+      {required.length > 0 ? (
+        <View style={styles.checklistHeader}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>
+            311 needs to know
+          </Text>
+          <Text style={styles.muted}>
+            {answeredRequired} of {required.length} answered
+          </Text>
+        </View>
+      ) : null}
+      {required.map(renderQuestion)}
+      {optional.length > 0 ? (
+        <>
+          <Pressable
+            accessibilityHint={showOptional ? 'Hides the optional questions' : 'Shows the optional questions'}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showOptional }}
+            onPress={() => setShowOptional((shown) => !shown)}
+            style={styles.moreQuestionsButton}>
+            <Text style={styles.inlineButtonText}>
+              {required.length > 0 ? 'More questions' : 'Optional questions'} ({optional.length}
+              {answeredOptional > 0 ? `, ${answeredOptional} answered` : ''})
+            </Text>
+            <FontAwesome
+              color={colors.text}
+              name={showOptional ? 'chevron-up' : 'chevron-down'}
+              size={13}
+            />
+          </Pressable>
+          {showOptional ? optional.map(renderQuestion) : null}
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 function QuestionField({
+  filled,
   onChange,
   question,
   selectedCandidate,
   value,
 }: {
+  /** The app filled this answer in from the location. */
+  filled: boolean;
   onChange: (value: ReportAnswerValue) => void;
   question: CategoryQuestion;
   selectedCandidate: PhotoIssueCandidate | null;
   value: ReportAnswerValue | undefined;
 }) {
   const suggestions = getSuggestedAnswerOptions(question, selectedCandidate);
+  const filledNote = filled ? (
+    <Text style={styles.filledText}>Filled in from your location. Change it if needed.</Text>
+  ) : null;
 
   if (question.options.length > 0) {
     return (
       <View style={styles.field}>
-        <Text style={styles.label}>{question.label}</Text>
+        <Text style={styles.questionLabel}>{question.label}</Text>
         <View style={styles.optionWrap}>
           {question.options.map((option) => {
             const selected = isOptionSelected(question, value, option);
@@ -794,18 +873,23 @@ function QuestionField({
             Suggested by photo: {suggestions.map((option) => option.label).join(', ')}
           </Text>
         ) : null}
+        {filledNote}
       </View>
     );
   }
 
   return (
-    <Field
-      label={question.label}
-      multiline={question.answerType === 'text'}
-      onChangeText={onChange}
-      placeholder={question.placeholder}
-      value={formatAnswer(value)}
-    />
+    <View style={styles.field}>
+      <Field
+        label={question.label}
+        labelStyle={styles.questionLabel}
+        multiline={question.answerType === 'text'}
+        onChangeText={onChange}
+        placeholder={question.placeholder}
+        value={formatAnswer(value)}
+      />
+      {filledNote}
+    </View>
   );
 }
 

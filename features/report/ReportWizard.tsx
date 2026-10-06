@@ -148,6 +148,7 @@ export function ReportWizard() {
           <DetailsStep
             answers={draft.answers}
             category={category}
+            checklistFilled={state.checklistFilled}
             description={draft.description}
             descriptionPlaceholder={wizard.descriptionPlaceholder}
             selectedCategory={hasIssue ? category : null}
