@@ -257,6 +257,6 @@ flowchart LR
 ## Current Boundaries
 
 - Photo analysis is opt-in and sends a resized analysis copy of the report photo only to the Supabase Edge Function.
-- Saved report photos, report history, profile data, and email drafts stay on device unless the user hands the draft to Mail.
-- Address, GPS, location notes, user-written descriptions, profile fields, email text, and full reasoning are not sent to Gemini.
-- Sending is a handoff to the user's mail client. The app records `Mail opened`; it does not confirm receipt by 311.
+- Saved report photos, report history, and profile data stay on device. Email drafts leave the device only when the user hands them off, or when they opt in to AI email polish (without name, email, phone, GPS, or photo).
+- Photo analysis sends only the resized photo. AI email polish sends the issue, description, address, location note, and checklist answers; never contact details, GPS, or the photo.
+- Sending is a handoff to the user's email app (Apple Mail or the share sheet). The app records `handed_off` until the user confirms it was sent; it never confirms receipt by 311.
