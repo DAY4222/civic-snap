@@ -3,7 +3,7 @@ import { Href, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { Alert, BackHandler } from 'react-native';
 
-import { loadEmailPolishEnabled, loadPhotoAnalysisEnabled } from '@/lib/aiSettings';
+import { loadEmailPolishEnabled, loadPhotoAnalysisChoice } from '@/lib/aiSettings';
 import { GENERAL_CATEGORY } from '@/lib/categories';
 import { appendSuggestedDescription } from '@/lib/issueSuggestions';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
@@ -19,6 +19,7 @@ import {
   canPreviewReport,
   createInitialReportWizardState,
   getPreviousStep,
+  getSuggestStepMode,
   filterIssueCategories,
   reportWizardReducer,
 } from './reportWizardState';
@@ -66,9 +67,11 @@ export function useReportWizard(params: ReportWizardParams) {
 
   useWizardSettings(dispatch);
   useResumeDraft(params.resumeId, dispatch);
-  useWizardStart(params, async (photoUri) => {
+  // Waits for settings: whether to suggest from the photo depends on the user's choice.
+  useWizardStart(params, state.photoAnalysisChoice !== null, async (photoUri) => {
+    const suggest = analysis.available && state.photoAnalysisChoice !== 'off';
     if (photoUri && (await capture.storePhoto({ uri: photoUri }))) {
-      dispatch({ type: 'setStep', step: 'location' });
+      dispatch({ type: 'startPhotoPath', suggest });
       return;
     }
     dispatch({ type: 'openCategory', returnStep: 'location' });
@@ -153,10 +156,13 @@ export function useReportWizard(params: ReportWizardParams) {
       ...handoff.actions,
       analyzeCurrentPhoto: analysis.analyzeCurrentPhoto,
       chooseCategory: (categoryId: string | null) => dispatch({ type: 'chooseCategory', categoryId }),
+      chooseSuggestedTopic: (topic: PhotoIssueCandidate) =>
+        dispatch({ type: 'chooseSuggestedTopic', topic }),
       confirmExit,
+      declinePhotoAnalysis: analysis.decline,
       goBack,
       dismissContactPrompt: () => dispatch({ type: 'dismissContactPrompt' }),
-      enablePhotoAnalysisForCurrentReport: analysis.enableForThisReport,
+      enablePhotoAnalysis: analysis.enable,
       insertSuggestedDescription: (suggestion: string) =>
         dispatch({
           type: 'appendDescription',
@@ -172,6 +178,8 @@ export function useReportWizard(params: ReportWizardParams) {
         dispatch({ type: 'setIssueSearchQuery', issueSearchQuery }),
       setLocationNote: (locationNote: string) => dispatch({ type: 'setLocationNote', locationNote }),
       setStep: (step: ReportWizardStep) => dispatch({ type: 'setStep', step }),
+      /** Leaves the issue for later; Details still offers suggestions and the search. */
+      skipIssue: () => dispatch({ type: 'setStep', step: 'location' }),
       startNewReport: () => exitWizard('/'),
       togglePhotoIssueTopic: (topic: PhotoIssueCandidate) =>
         dispatch({ type: 'togglePhotoIssueTopic', topic }),
@@ -196,6 +204,7 @@ export function useReportWizard(params: ReportWizardParams) {
     photoLabelsEnabled: analysis.enabled,
     pinRegion: location.pinRegion,
     state,
+    suggestMode: getSuggestStepMode(state),
   };
 }
 
@@ -212,12 +221,13 @@ function useWizardSettings(dispatch: WizardStore['dispatch']) {
         .catch(() => {
           if (active) dispatch({ type: 'profileLoaded', profile: EMPTY_PROFILE });
         });
-      loadPhotoAnalysisEnabled()
-        .then((enabled) => {
-          if (active) dispatch({ type: 'setPhotoAnalysisUserEnabled', enabled });
+      loadPhotoAnalysisChoice()
+        .then((choice) => {
+          if (active) dispatch({ type: 'setPhotoAnalysisChoice', choice });
         })
         .catch(() => {
-          if (active) dispatch({ type: 'setPhotoAnalysisUserEnabled', enabled: false });
+          // Unreadable storage could not remember "Not now" either, so don't ask.
+          if (active) dispatch({ type: 'setPhotoAnalysisChoice', choice: 'off' });
         });
       loadEmailPolishEnabled()
         .then((enabled) => {
@@ -263,12 +273,19 @@ function useResumeDraft(resumeId: string | undefined, dispatch: WizardStore['dis
   }, [dispatch, resumeId]);
 }
 
-/** Runs the wizard's opening move once: save the picked photo, or start with the issue search. */
-function useWizardStart(params: ReportWizardParams, start: (photoUri: string | null) => void) {
+/**
+ * Runs the wizard's opening move once, when `ready`: save the picked photo and show suggestions
+ * (or the search), or start a photo-less report with the search.
+ */
+function useWizardStart(
+  params: ReportWizardParams,
+  ready: boolean,
+  start: (photoUri: string | null) => void
+) {
   const started = useRef(false);
 
   useEffect(() => {
-    if (started.current) return;
+    if (started.current || !ready) return;
     started.current = true;
     if (!params.resumeId) start(params.photo ?? null);
   });

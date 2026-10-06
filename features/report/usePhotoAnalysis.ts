@@ -5,7 +5,7 @@ import { savePhotoAnalysisEnabled } from '@/lib/aiSettings';
 import { getSuggestedIssueCandidates } from '@/lib/issueSuggestions';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
-import { shouldStartPhotoAnalysis } from './reportWizardState';
+import { isPhotoVisionFailure, shouldStartPhotoAnalysis } from './reportWizardState';
 import type { WizardStore } from './wizardTypes';
 
 /** Background photo suggestions: starts when a photo is stored and the user has opted in. */
@@ -13,7 +13,7 @@ export function usePhotoAnalysis({ state, dispatch }: WizardStore) {
   const { draft } = state;
   const abortController = useRef<AbortController | null>(null);
   const available = canAnalyzePhotoLabels();
-  const enabled = available && state.photoAnalysisUserEnabled;
+  const enabled = available && state.photoAnalysisChoice === 'on';
   const suggestions = useMemo(
     () => getSuggestedIssueCandidates(draft.photoVisionResult),
     [draft.photoVisionResult]
@@ -49,16 +49,34 @@ export function usePhotoAnalysis({ state, dispatch }: WizardStore) {
 
   useEffect(() => () => abortController.current?.abort(), []);
 
-  async function enableForThisReport() {
+  // When the check fails while the user waits on the suggest step, go straight to the search.
+  const previousStatus = useRef(state.photoVisionStatus);
+  useEffect(() => {
+    const wasLoading = previousStatus.current === 'loading';
+    previousStatus.current = state.photoVisionStatus;
+    if (state.step === 'suggest' && wasLoading && isPhotoVisionFailure(state.photoVisionStatus)) {
+      dispatch({ type: 'openCategory', returnStep: 'location' });
+    }
+  }, [dispatch, state.photoVisionStatus, state.step]);
+
+  /** "Turn on photo suggestions": saved for future reports, and starts on this photo. */
+  async function enable() {
     if (!available) return;
 
     try {
       await savePhotoAnalysisEnabled(true);
-      dispatch({ type: 'setPhotoAnalysisUserEnabled', enabled: true });
+      dispatch({ type: 'setPhotoAnalysisChoice', choice: 'on' });
     } catch {
       Alert.alert('Photo suggestions not turned on', 'Try again from Settings.');
     }
   }
 
-  return { analyzeCurrentPhoto, available, enableForThisReport, enabled, suggestions };
+  /** "Not now": remembered, so later reports go straight to the search. */
+  function decline() {
+    dispatch({ type: 'setPhotoAnalysisChoice', choice: 'off' });
+    dispatch({ type: 'openCategory', returnStep: 'location' });
+    savePhotoAnalysisEnabled(false).catch(() => undefined);
+  }
+
+  return { analyzeCurrentPhoto, available, decline, enable, enabled, suggestions };
 }

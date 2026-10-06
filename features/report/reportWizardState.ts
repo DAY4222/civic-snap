@@ -1,3 +1,4 @@
+import type { PhotoAnalysisChoice } from '@/lib/aiSettings';
 import { ISSUE_CATEGORIES } from '@/lib/categories';
 import { EMPTY_PROFILE } from '@/lib/profile';
 import { EMPTY_DRAFT, draftFromReport } from '@/lib/reportDraft';
@@ -27,6 +28,7 @@ import {
 
 export type ReportWizardStep =
   | 'start'
+  | 'suggest'
   | 'category'
   | 'location'
   | 'details'
@@ -41,6 +43,10 @@ export type LastHandoff = {
   app: string | null;
 };
 export type CategoryReturnStep = 'location' | 'details';
+/** The first step of a report: photo suggestions, or the issue search. */
+export type IssueStep = 'suggest' | 'category';
+/** What the suggest step shows. */
+export type SuggestStepMode = 'opt-in' | 'loading' | 'ready' | 'failed';
 export type EmailPolishStatus = 'idle' | 'consent' | 'loading' | 'error';
 export type PhotoVisionStatus =
   | 'idle'
@@ -72,7 +78,9 @@ export type ReportWizardState = {
   /** The user agreed to send report text (never contact details) for AI email polish. */
   emailPolishEnabled: boolean;
   issueSearchQuery: string;
-  photoAnalysisUserEnabled: boolean;
+  issueStep: IssueStep;
+  /** Null until settings load; the wizard waits for it before picking the first step. */
+  photoAnalysisChoice: PhotoAnalysisChoice | null;
   photoVisionPhotoUri: string | null;
   photoVisionStatus: PhotoVisionStatus;
   profile: Profile;
@@ -85,6 +93,7 @@ export type ReportWizardState = {
 export type ReportWizardAction =
   | { type: 'appendDescription'; value: string }
   | { type: 'chooseCategory'; categoryId: string | null }
+  | { type: 'chooseSuggestedTopic'; topic: PhotoIssueCandidate }
   | { type: 'dismissContactPrompt' }
   | { type: 'draftCreated'; reportId: string }
   | {
@@ -105,12 +114,13 @@ export type ReportWizardAction =
   | { type: 'setDescription'; description: string }
   | { type: 'setIssueSearchQuery'; issueSearchQuery: string }
   | { type: 'setLocationNote'; locationNote: string }
-  | { type: 'setPhotoAnalysisUserEnabled'; enabled: boolean }
+  | { type: 'setPhotoAnalysisChoice'; choice: PhotoAnalysisChoice }
   | { type: 'setPhotoVisionError'; photoUri: string; error: unknown }
   | { type: 'setPhotoVisionLoading'; photoUri: string }
   | { type: 'setPhotoVisionResult'; photoUri: string; result: PhotoVisionResult }
   | { type: 'setPinLocation'; latitude: number; longitude: number }
   | { type: 'setStep'; step: ReportWizardStep }
+  | { type: 'startPhotoPath'; suggest: boolean }
   | { type: 'setResolvedAddress'; address: string }
   | { type: 'togglePhotoIssueTopic'; topic: PhotoIssueCandidate }
   | { type: 'editEmail'; content: EmailContent; generated: EmailContent }
@@ -135,7 +145,8 @@ export function createInitialReportWizardState(): ReportWizardState {
     emailPolish: IDLE_EMAIL_POLISH,
     emailPolishEnabled: false,
     issueSearchQuery: '',
-    photoAnalysisUserEnabled: false,
+    issueStep: 'category',
+    photoAnalysisChoice: null,
     photoVisionPhotoUri: null,
     photoVisionStatus: 'idle',
     profile: EMPTY_PROFILE,
@@ -173,6 +184,17 @@ export function reportWizardReducer(
         issueSearchQuery: '',
         step: state.categoryReturnStep,
       };
+    case 'chooseSuggestedTopic': {
+      const categoryId = action.topic.issueId;
+      return {
+        ...updateDraft(state, {
+          answers: answersForCategory(state.draft, categoryId),
+          categoryId,
+          photoIssueTopic: action.topic,
+        }),
+        step: 'location',
+      };
+    }
     case 'dismissContactPrompt':
       return { ...state, dismissedContactPrompt: true };
     case 'draftCreated':
@@ -181,7 +203,7 @@ export function reportWizardReducer(
       return {
         ...createInitialReportWizardState(),
         emailPolishEnabled: state.emailPolishEnabled,
-        photoAnalysisUserEnabled: state.photoAnalysisUserEnabled,
+        photoAnalysisChoice: state.photoAnalysisChoice,
         lastHandoff: { app: action.app, reportId: action.reportId, status: action.status },
         profile: state.profile,
         step: 'done',
@@ -229,6 +251,7 @@ export function reportWizardReducer(
         issueSearchQuery: '',
         photoVisionPhotoUri: action.report.photoVisionResult ? action.report.photoUri : null,
         photoVisionStatus: getPhotoVisionStatus(action.report.photoVisionResult),
+        issueStep: action.report.photoVisionResult ? 'suggest' : 'category',
         lastHandoff: null,
         savedReportId: action.report.id,
         step: 'details',
@@ -247,8 +270,8 @@ export function reportWizardReducer(
       return { ...state, issueSearchQuery: action.issueSearchQuery };
     case 'setLocationNote':
       return updateDraft(state, { locationNote: action.locationNote });
-    case 'setPhotoAnalysisUserEnabled':
-      return { ...state, photoAnalysisUserEnabled: action.enabled };
+    case 'setPhotoAnalysisChoice':
+      return { ...state, photoAnalysisChoice: action.choice };
     case 'setPhotoVisionError':
       if (action.photoUri !== state.draft.photoUri) return state;
       return {
@@ -276,6 +299,16 @@ export function reportWizardReducer(
       return updateDraft(state, { address: action.address });
     case 'setStep':
       return { ...state, step: action.step };
+    case 'startPhotoPath':
+      return action.suggest
+        ? { ...state, issueStep: 'suggest', step: 'suggest' }
+        : {
+            ...state,
+            categoryReturnStep: 'location',
+            issueSearchQuery: '',
+            issueStep: 'category',
+            step: 'category',
+          };
     case 'togglePhotoIssueTopic': {
       const deselecting = state.draft.photoIssueTopic?.issueId === action.topic.issueId;
       const categoryId = deselecting ? null : action.topic.issueId;
@@ -389,14 +422,15 @@ export function describeEmailPolishError(error: unknown) {
 
 /** Where Back goes from each step; null means Back leaves the wizard. */
 export function getPreviousStep(
-  state: Pick<ReportWizardState, 'step' | 'categoryReturnStep' | 'draft'>
+  state: Pick<ReportWizardState, 'step' | 'categoryReturnStep' | 'issueStep'>
 ): ReportWizardStep | null {
   switch (state.step) {
     case 'category':
-      return state.categoryReturnStep === 'details' ? 'details' : null;
+      if (state.categoryReturnStep === 'details') return 'details';
+      // The search opened from the suggest step goes back to the suggestions.
+      return state.issueStep === 'suggest' ? 'suggest' : null;
     case 'location':
-      // The manual path chose its issue first, so Back returns to the search.
-      return state.draft.photoUri ? null : 'category';
+      return state.issueStep;
     case 'details':
       return 'location';
     case 'preview':
@@ -411,6 +445,8 @@ export function getPreviousStep(
 /** Which of the four progress-tracker steps is lit for the current wizard step. */
 export function getTrackerIndex(state: Pick<ReportWizardState, 'step' | 'categoryReturnStep'>) {
   switch (state.step) {
+    case 'suggest':
+      return 0;
     case 'category':
       return state.categoryReturnStep === 'details' ? 2 : 0;
     case 'location':
@@ -423,4 +459,26 @@ export function getTrackerIndex(state: Pick<ReportWizardState, 'step' | 'categor
     default:
       return 0;
   }
+}
+
+const FAILED_PHOTO_VISION_STATUSES: PhotoVisionStatus[] = [
+  'empty',
+  'error',
+  'offline',
+  'rate-limited',
+  'payload-too-large',
+];
+
+export function isPhotoVisionFailure(status: PhotoVisionStatus) {
+  return FAILED_PHOTO_VISION_STATUSES.includes(status);
+}
+
+/** The suggest step asks first, then waits for the photo check, then shows its result. */
+export function getSuggestStepMode(
+  state: Pick<ReportWizardState, 'photoAnalysisChoice' | 'photoVisionStatus'>
+): SuggestStepMode {
+  if (state.photoAnalysisChoice !== 'on') return 'opt-in';
+  if (state.photoVisionStatus === 'ready') return 'ready';
+  if (isPhotoVisionFailure(state.photoVisionStatus)) return 'failed';
+  return 'loading';
 }

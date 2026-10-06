@@ -15,7 +15,9 @@ import {
 } from './ReportWizardStepViews';
 import { EmailPolishConsentSheet } from './EmailPolishConsentSheet';
 import { styles } from './reportWizardStyles';
-import { getTrackerIndex } from './reportWizardState';
+import { getTrackerIndex, isPhotoVisionFailure } from './reportWizardState';
+import { SuggestStep } from './SuggestStep';
+import { photoSuggestionFallbackText } from './suggestionCopy';
 import { useReportWizard } from './useReportWizard';
 import type { ReportWizardParams } from './wizardTypes';
 
@@ -84,10 +86,35 @@ export function ReportWizard() {
           />
         ) : null}
 
+        {state.step === 'suggest' ? (
+          <SuggestStep
+            mode={wizard.suggestMode}
+            onBack={actions.goBack}
+            onChooseLater={actions.skipIssue}
+            onChooseTopic={actions.chooseSuggestedTopic}
+            onDecline={actions.declinePhotoAnalysis}
+            onEnable={actions.enablePhotoAnalysis}
+            onExit={actions.confirmExit}
+            onRetry={actions.analyzeCurrentPhoto}
+            onSearch={() => actions.openCategory('location')}
+            photoUri={draft.photoUri}
+            selectedTopic={draft.photoIssueTopic}
+            status={state.photoVisionStatus}
+            topics={wizard.photoIssueSuggestions}
+          />
+        ) : null}
+
         {state.step === 'category' ? (
           <CategoryStep
             filteredIssueCategories={wizard.filteredIssueCategories}
             issueSearchQuery={state.issueSearchQuery}
+            notice={
+              state.issueStep === 'suggest' &&
+              state.categoryReturnStep === 'location' &&
+              isPhotoVisionFailure(state.photoVisionStatus)
+                ? photoSuggestionFallbackText(state.photoVisionStatus)
+                : null
+            }
             onBack={actions.goBack}
             onChooseCategory={actions.chooseCategory}
             onExit={actions.confirmExit}

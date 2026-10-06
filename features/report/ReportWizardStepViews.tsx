@@ -32,6 +32,7 @@ import {
   type ReportWizardStep,
 } from './reportWizardState';
 import { styles } from './reportWizardStyles';
+import { confidenceTierText, photoSuggestionFallbackText } from './suggestionCopy';
 import { RaccoonSprite } from './RaccoonSprite';
 
 export function CategoryStep({
@@ -39,12 +40,15 @@ export function CategoryStep({
   issueSearchQuery,
   onBack,
   onChooseCategory,
+  notice,
   onExit,
   onSearchChange,
   selectedCategoryId,
 }: {
   filteredIssueCategories: IssueCategory[];
   issueSearchQuery: string;
+  /** Why the user landed here, e.g. the photo check found nothing. */
+  notice?: string | null;
   onBack: () => void;
   onChooseCategory: (categoryId: string | null) => void;
   onExit: () => void;
@@ -61,7 +65,8 @@ export function CategoryStep({
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.stack}>
-          <Header title="Search issue types" onBack={onBack} onExit={onExit} />
+          <StepHeader title="Search issue types" onBack={onBack} onExit={onExit} />
+          {notice ? <Notice text={notice} /> : null}
           <Field
             label="Search"
             onChangeText={onSearchChange}
@@ -140,7 +145,7 @@ export function LocationStep({
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Confirm location" onBack={onBack} onExit={onExit} />
+      <StepHeader title="Confirm location" onBack={onBack} onExit={onExit} />
       {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
       <Button
         disabled={busy}
@@ -225,7 +230,7 @@ export function DetailsStep({
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Add details" onBack={onBack} onExit={onExit} />
+      <StepHeader title="Add details" onBack={onBack} onExit={onExit} />
       <Text style={styles.categoryTitle}>{category.title}</Text>
       {photoLabelsEnabled && photoUri ? (
         <SuggestedTopicsPanel
@@ -331,7 +336,7 @@ export function PreviewStep({
 
   return (
     <View style={styles.stack}>
-      <Header title="Email preview" onBack={onBack} onExit={onExit} />
+      <StepHeader title="Email preview" onBack={onBack} onExit={onExit} />
       {emailOutOfDate ? (
         <Card style={styles.warningCard} tone="warning">
           <Text style={styles.muted}>
@@ -483,7 +488,7 @@ export function FallbackStep({
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Send by email" onBack={onBack} onExit={onExit} />
+      <StepHeader title="Send by email" onBack={onBack} onExit={onExit} />
       <Notice
         text={`Open the email in your email app, or copy it and send it to ${recipient}. Attach your photo yourself if you took one.`}
         tone="warning"
@@ -587,7 +592,7 @@ function EmailPolishPanel({
   );
 }
 
-function Header({
+export function StepHeader({
   title,
   onBack,
   onExit,
@@ -912,30 +917,4 @@ function ManualIssuePanel({
       </Pressable>
     </Card>
   );
-}
-
-function confidenceTierText(tier: PhotoIssueCandidate['confidenceTier']) {
-  if (tier === 'strong') return 'Strong match';
-  if (tier === 'likely') return 'Likely match';
-  return 'Possible match';
-}
-
-function photoSuggestionFallbackText(status: PhotoVisionStatus) {
-  if (status === 'rate-limited') {
-    return 'Daily photo analysis limit reached. Search all issue types to continue.';
-  }
-
-  if (status === 'payload-too-large') {
-    return 'This photo is too large for analysis. Search all issue types to continue.';
-  }
-
-  if (status === 'offline') {
-    return "Photo suggestions can't connect right now. You can still pick the issue type yourself.";
-  }
-
-  if (status === 'error') {
-    return 'Photo suggestions are unavailable. Search all issue types to continue.';
-  }
-
-  return 'No suggested topics available. Search all issue types to continue.';
 }
