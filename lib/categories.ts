@@ -1,7 +1,8 @@
 import { ISSUE_CATEGORIES } from './generated/issueCatalog';
 import type { IssueCategory, PhotoIssueCandidate } from './types';
 
-export { ISSUE_CATEGORIES, ISSUE_CATALOG_VERSION } from './generated/issueCatalog';
+export { ISSUE_CATEGORIES } from './generated/issueCatalog';
+export { ISSUE_CATALOG_VERSION } from './generated/versions';
 
 export const TORONTO_311_TARGET_ISSUE_TITLES = ISSUE_CATEGORIES.map(
   (category) => category.title

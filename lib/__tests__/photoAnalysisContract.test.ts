@@ -3,6 +3,7 @@ import {
   normalizePhotoVisionResponse,
   parseStoredPhotoVisionResult,
 } from '../photoAnalysisContract';
+import { ISSUE_CATALOG_VERSION } from '../categories';
 import { PHOTO_LABEL_TAXONOMY_VERSION } from '../photoLabels';
 import { TEST_PHOTO_IMAGE } from '../testUtils/photoVisionFixtures';
 import {
@@ -15,6 +16,7 @@ import {
   EDGE_ISSUE_CATALOG,
   EDGE_PHOTO_LABELS,
 } from '../../supabase/functions/analyze-photo-labels/issueCatalog';
+import * as edgeVersions from '../../supabase/functions/analyze-photo-labels/versions';
 
 const allowedLabels = [
   { id: 'road-pothole', label: 'Road pothole' },
@@ -44,6 +46,17 @@ describe('photo analysis contract', () => {
     expect(
       validateRequest(request, DEFAULT_LIMIT_CONFIG, EDGE_ISSUE_CATALOG, EDGE_PHOTO_LABELS)
     ).toMatchObject({ ok: true, taxonomyVersion: PHOTO_LABEL_TAXONOMY_VERSION });
+  });
+
+  it('reads the app and server versions from the same generated source', () => {
+    expect(edgeVersions.ISSUE_CATALOG_VERSION).toBe(ISSUE_CATALOG_VERSION);
+    expect(edgeVersions.PHOTO_LABEL_TAXONOMY_VERSION).toBe(PHOTO_LABEL_TAXONOMY_VERSION);
+    expect(edgeVersions.SUPPORTED_PHOTO_LABEL_TAXONOMY_VERSIONS[0]).toBe(
+      PHOTO_LABEL_TAXONOMY_VERSION
+    );
+    expect([...SUPPORTED_TAXONOMY_VERSIONS]).toEqual(
+      edgeVersions.SUPPORTED_PHOTO_LABEL_TAXONOMY_VERSIONS
+    );
   });
 
   it('accepts normalized Edge output with an issue catalog version', () => {

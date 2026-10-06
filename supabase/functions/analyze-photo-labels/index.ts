@@ -20,11 +20,8 @@ import {
   type AnalysisRequest,
   type EdgeIssueCatalogItem,
 } from './logic.ts';
-import {
-  EDGE_ISSUE_CATALOG,
-  EDGE_ISSUE_CATALOG_VERSION,
-  EDGE_PHOTO_LABELS,
-} from './issueCatalog.ts';
+import { EDGE_ISSUE_CATALOG, EDGE_PHOTO_LABELS } from './issueCatalog.ts';
+import { ISSUE_CATALOG_VERSION } from './versions.ts';
 
 const RUNS_TABLE = 'ai_photo_analysis_runs';
 const MODEL = 'gemini-3.1-flash-lite';
@@ -136,7 +133,7 @@ Deno.serve(async (request) => {
     model: MODEL,
     promptVersion: PROMPT_VERSION,
     taxonomyVersion: validation.taxonomyVersion,
-    issueCatalogVersion: EDGE_ISSUE_CATALOG_VERSION,
+    issueCatalogVersion: ISSUE_CATALOG_VERSION,
     analyzedAt,
     latencyMs,
     image: {

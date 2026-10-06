@@ -1,4 +1,4 @@
-import { PHOTO_LABEL_TAXONOMY_VERSION } from './photoLabels';
+import { PHOTO_LABEL_TAXONOMY_VERSION } from './generated/versions';
 import { PhotoIssueCandidate, PhotoVisionLabel, PhotoVisionResult } from './types';
 
 type PhotoVisionImage = PhotoVisionResult['image'];

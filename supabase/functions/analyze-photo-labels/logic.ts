@@ -1,4 +1,5 @@
 import { truncateText } from '../_shared/text.ts';
+import { SUPPORTED_PHOTO_LABEL_TAXONOMY_VERSIONS } from './versions.ts';
 
 export type AllowedLabel = {
   id: string;
@@ -114,12 +115,12 @@ export const MAX_REASON_CHARS = 180;
 export const MAX_DESCRIPTION_CHARS = 180;
 
 /**
- * Taxonomy versions app builds may send. The server answers from its own catalog either way,
- * so when the taxonomy changes, keep the previous version here until builds on it are gone.
+ * Taxonomy versions app builds may send, generated from data/issue-rules.json. The server
+ * answers from its own catalog either way, so older app builds keep getting suggestions.
  */
-export const SUPPORTED_TAXONOMY_VERSIONS: ReadonlySet<string> = new Set([
-  'photo-label-taxonomy-v3',
-]);
+export const SUPPORTED_TAXONOMY_VERSIONS: ReadonlySet<string> = new Set(
+  SUPPORTED_PHOTO_LABEL_TAXONOMY_VERSIONS
+);
 
 const MIN_INSTALL_ID_CHARS = 20;
 
