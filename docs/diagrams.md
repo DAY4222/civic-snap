@@ -1,262 +1,139 @@
 # Current App Diagrams
 
-These diagrams describe the app as implemented now. The current MVP is local-first for saved reports, profile data, saved report photos, and Mail handoff. If photo analysis is configured and the user opts in, the app can also send a resized analysis copy of the current report photo to the Supabase Edge Function before Mail handoff.
+These diagrams describe the app as implemented after phases 4–6 of `docs/implementation-plan.md` (branches `phase-4/report-flow`, `phase-5/backend`, `phase-6/surfaces`). The app is local-first: reports, profile data, photos and the email handoff stay on the device. Two optional AI features call Supabase Edge Functions, each only after the user opts in.
+
+## Report Flow
+
+```mermaid
+flowchart TD
+  Home["Home (Report tab)\nTake photo, Choose from library,\nReport without a photo,\nContinue your draft"]
+  Picker["photoPicker.ts\nPhoto + EXIF GPS"]
+  Route["/report/new\nfull-screen wizard, no tab bar"]
+  Suggest["What's the issue?\nphoto suggestions, opt-in inline"]
+  Search["Search issue types\nranked, everyday words,\nredirects (streetlights)"]
+  Location["Confirm location\nmap first, pin from photo or phone"]
+  Details["Add details\ndescription, checklist\n(311 needs to know + More questions)"]
+  Preview["Email preview\nedit, Polish with AI (opt-in)"]
+  Handoff["Apple Mail, or share sheet;\nweb: copy or mailto"]
+  Done["Done\nconfirm sent, view report, new report"]
+
+  Home -->|photo| Picker --> Route
+  Home -->|no photo| Route
+  Home -->|draft| Route
+  Route -->|photo, suggestions on or unasked| Suggest
+  Route -->|photo, suggestions off; or no photo| Search
+  Suggest -->|That's it| Location
+  Suggest -->|Something else, failed, Not now| Search
+  Suggest -->|Choose later| Location
+  Search --> Location
+  Location --> Details
+  Details -->|Search all issue types| Search
+  Details --> Preview --> Handoff --> Done
+  Route -->|resumed draft| Details
+```
 
 ## Data Flow
 
 ```mermaid
 flowchart TD
-  User["User"]
-
-  subgraph ReportTab["Report tab: app/(tabs)/index.tsx"]
-    Start["Start report"]
-    Category["Choose issue type"]
-    Photo["Take or choose photo"]
-    Location["Confirm location"]
-    InlineOptIn["Inline Photo analysis enable"]
-    PhotoSuggestions["Photo suggestions panel"]
-    Details["Add description and guided answers"]
-    Preview["Preview and edit email"]
-    MailHandoff["Open Mail"]
-    Fallback["Copy text or open mailto fallback"]
-    HydrateDraft["Hydrate draft into report state"]
-    IssueCandidates["AI issue candidates\nUser taps final issue"]
+  subgraph Wizard["features/report"]
+    Reducer["reportWizardState.ts\npure reducer, Back rules,\ntracker, suggest-step mode"]
+    Hooks["useReportWizard.ts composes\nusePhotoCapture, usePhotoAnalysis,\nuseLocationPin, useEmailDraft,\nuseDraftPersistence, useHandoff"]
   end
 
-  subgraph Inputs["Device and app inputs"]
-    Categories["lib/categories.ts\nIssue questions and observations"]
-    Catalog["Generated 311 catalog\nLabels, issue rules, checklist questions"]
-    Profile["lib/profile.ts\nProfile and onboarding helpers"]
-    Settings["app/settings.tsx\nPhoto analysis opt-in"]
-    Camera["expo-image-picker\nCamera or photo library"]
-    Geo["expo-location\nGPS and reverse geocode"]
-    MapAdjust["components/CivicMap\nMove map under center pin"]
+  subgraph Rules["Local rules and data"]
+    City["lib/city.ts\nrecipient, bounds, island,\nnot-handled redirects"]
+    Catalog["lib/generated/issueCatalog.ts\n97 issues, questions, labels"]
+    Search["lib/issueSearch.ts +\ndata/search-synonyms.json"]
+    Checklist["lib/checklistRules.ts\nexact location, Toronto Island"]
+    Address["lib/address.ts\nformatAddress, EXIF GPS"]
+    Email["lib/email.ts\nsubject and body"]
   end
 
-  subgraph Processing["Local processing"]
-    PersistPhoto["lib/photos.ts\nResize and save photo"]
-    WizardState["features/report/reportWizardState.ts\nPure report state"]
-    WizardEffects["features/report/useReportWizard.ts\nAsync report side effects"]
-    PhotoSetting["lib/photoAnalysisSettings.ts\nLoad and save opt-in"]
-    DeviceStore["lib/deviceStore.ts\nSecureStore or web localStorage adapter"]
-    EmailBuilder["lib/email.ts\nBuild recipient, subject, body"]
-    ReportStore["lib/reports.ts\nSQLite report API"]
-    Vision["lib/vision.ts\nResize analysis copy and fetch labels"]
-    Contract["lib/photoAnalysisContract.ts\nNormalize analysis response"]
-    IssueSuggestions["lib/issueSuggestions.ts\nExpose candidates and answer hints"]
+  subgraph AppState["lib/appState.tsx"]
+    Settings["profile, photo suggestions\n(on/off/unset), polish consent,\nonboarding"]
   end
 
-  subgraph Backend["Supabase Edge Function"]
-    EdgeFunction["analyze-photo-labels\nGemini labels + hybrid issue rerank"]
-    Gemini["Gemini photo-only analysis"]
-    AnalysisRuns["ai_photo_analysis_runs\nRate-limit and diagnostic summaries"]
+  subgraph Device["On-device storage"]
+    SQLite["SQLite civic-snap.db\nreports (migrations v1–v6)"]
+    Files["Document directory\nreport photos (relative paths)"]
+    Secure["SecureStore\nsettings, install id,\nanonymous session"]
   end
 
-  subgraph Storage["On-device storage"]
-    FileStorage["FileSystem documentDirectory\nreports/*.jpg"]
-    SQLite["SQLite civic-snap.db\nreports with category_id,\nphoto_vision_result_json,\nphoto_issue_topic_json"]
-    DeviceStorage["SecureStore or localStorage\nprofile, onboarding,\nphoto-analysis setting, install id"]
+  subgraph Backend["Supabase (optional, opt-in)"]
+    Auth["Auth: anonymous user\n(off until enabled)"]
+    Analyze["analyze-photo-labels\nresized photo only"]
+    Rewrite["rewrite-email\nno contact details, GPS or photo"]
+    Runs["ai_*_runs tables\nreserve-then-call daily limits"]
+    Gemini["Gemini 3.1 Flash-Lite"]
   end
 
-  subgraph Review["History, map, and detail views"]
-    History["History tab\nlistReports"]
-    Map["Map tab\nlistReports with coordinates"]
-    Detail["Report detail\ngetReport and updateCaseNumber"]
-    Resume["Resume draft\nroute param resumeId"]
-  end
-
-  subgraph Outside["Outside the app"]
-    NativeMail["Native Mail composer"]
-    Toronto311["311@toronto.ca"]
-  end
-
-  User --> Start
-  Start --> Category
-  Start --> Photo
-  Camera --> Photo
-  Photo --> PersistPhoto
-  PersistPhoto --> FileStorage
-  FileStorage --> Photo
-  PersistPhoto --> WizardState
-  Category --> Categories
-  Category --> Location
-  Geo --> Location
-  MapAdjust --> Location
-  Location --> InlineOptIn
-  InlineOptIn --> PhotoSetting
-  Settings --> PhotoSetting
-  PhotoSetting <--> DeviceStore
-  DeviceStore <--> DeviceStorage
-  WizardState --> WizardEffects
-  PhotoSetting --> WizardEffects
-  WizardEffects --> Vision
-  Location --> Details
-  Categories --> Details
-  Catalog --> Categories
-  Catalog --> Vision
-  Vision --> EdgeFunction
-  EdgeFunction --> Gemini
-  EdgeFunction --> AnalysisRuns
-  EdgeFunction --> Contract
-  Contract --> WizardState
-  WizardState --> IssueSuggestions
-  IssueSuggestions --> PhotoSuggestions
-  EdgeFunction --> IssueCandidates
-  IssueCandidates --> PhotoSuggestions
-  PhotoSuggestions --> Details
-  Profile --> DeviceStore
-  DeviceStore --> Profile
-  Profile --> EmailBuilder
-  Details --> EmailBuilder
-  EmailBuilder --> Preview
-  Preview --> ReportStore
-  ReportStore <--> SQLite
-  Preview --> MailHandoff
-  MailHandoff --> ReportStore
-  MailHandoff --> NativeMail
-  NativeMail --> Toronto311
-  MailHandoff --> Fallback
-  Fallback --> NativeMail
-  ReportStore --> History
-  ReportStore --> Map
-  ReportStore --> Detail
-  History --> Resume
-  Detail --> Resume
-  Resume --> ReportStore
-  ReportStore --> HydrateDraft
-  HydrateDraft --> Details
+  Hooks --> Reducer
+  Hooks --> Settings
+  Settings <--> Secure
+  Hooks --> Search --> Catalog
+  Hooks --> Checklist --> City
+  Hooks --> Address
+  Hooks --> Email --> City
+  Hooks -->|autosave| SQLite
+  Hooks --> Files
+  Hooks -->|first AI use| Auth
+  Hooks --> Analyze --> Gemini
+  Hooks --> Rewrite --> Gemini
+  Analyze --> Runs
+  Rewrite --> Runs
 ```
 
 ## App Architecture
 
 ```mermaid
 flowchart LR
-  subgraph Runtime["Expo React Native runtime"]
-    ExpoRouter["expo-router entry"]
-    RootLayout["app/_layout.tsx\nFonts, splash screen, onboarding guard"]
-    Stack["Root stack\nonboarding, tabs, settings, report detail"]
-    Tabs["app/(tabs)/_layout.tsx\nReport, History, Map"]
+  subgraph Runtime["Expo Router"]
+    Root["app/_layout.tsx\nfonts, GestureHandlerRootView,\nAppStateProvider, splash"]
+    Stack["Root stack with Stack.Protected"]
+    Tabs["app/(tabs)\nReport, History, Map"]
   end
 
   subgraph Screens["Screens"]
-    Onboarding["app/onboarding.tsx"]
-    Report["app/(tabs)/index.tsx"]
-    History["app/(tabs)/history.tsx"]
-    MapScreen["app/(tabs)/map.tsx"]
-    Settings["app/settings.tsx"]
-    ReportDetail["app/report/[id].tsx"]
-    NotFound["app/+not-found.tsx"]
+    Onboarding["app/onboarding.tsx\none screen"]
+    Home["features/home/HomeScreen.tsx"]
+    History["app/(tabs)/history.tsx\nsections, chips, swipe to delete"]
+    MapScreen["app/(tabs)/map.tsx\nfit pins, colour by status"]
+    New["app/report/new.tsx\nReportWizard"]
+    Detail["app/report/[id].tsx"]
+    SettingsScreen["app/settings.tsx"]
   end
 
-  subgraph Components["Shared components"]
-    CivicMapNative["components/CivicMap.tsx\nNative react-native-maps export"]
-    CivicMapWeb["components/CivicMap.web.tsx\nWeb fallback map preview"]
+  subgraph Backend["Edge Functions"]
+    Shared["_shared: cors, gemini, rateLimit,\nruns, identity, hash, text"]
+    Fn1["analyze-photo-labels"]
+    Fn2["rewrite-email"]
   end
 
-  subgraph ReportFeature["Report feature"]
-    ReportWizard["features/report/ReportWizard.tsx\nWizard UI and step rendering"]
-    ReportHook["features/report/useReportWizard.ts\nAsync side effects and derived data"]
-    ReportState["features/report/reportWizardState.ts\nReducer and pure state helpers"]
-  end
-
-  subgraph Domain["Domain and data helpers"]
-    Types["lib/types.ts"]
-    Categories["lib/categories.ts"]
-    Email["lib/email.ts"]
-    Photos["lib/photos.ts"]
-    Profile["lib/profile.ts"]
-    Reports["lib/reports.ts"]
-    ReportPersistence["lib/reportPersistence.ts"]
-    VisionHelper["lib/vision.ts"]
-    PhotoSettings["lib/photoAnalysisSettings.ts"]
-    PhotoContract["lib/photoAnalysisContract.ts"]
-    IssueSuggestionsHelper["lib/issueSuggestions.ts"]
-    DeviceStoreHelper["lib/deviceStore.ts"]
-  end
-
-  subgraph AnalysisBackend["Photo analysis backend"]
-    EdgeFunctionArch["supabase/functions/analyze-photo-labels"]
-    GeminiArch["Gemini generateContent"]
-    AnalysisRunsArch["public.ai_photo_analysis_runs"]
-  end
-
-  subgraph ExpoServices["Expo and native services"]
-    ImagePicker["expo-image-picker"]
-    Location["expo-location"]
-    MailComposer["expo-mail-composer"]
-    ClipboardLinking["expo-clipboard and Linking"]
-    FileImage["expo-file-system and expo-image-manipulator"]
-    SQLiteService["expo-sqlite"]
-    DeviceKeyValue["expo-secure-store or web localStorage"]
-    NativeMaps["react-native-maps"]
-  end
-
-  subgraph Stores["Local stores"]
-    PhotoFiles["Photo files\nDocument directory"]
-    ReportDb["Report history\nSQLite civic-snap.db"]
-    DeviceStoreData["Profile, onboarding,\nphoto-analysis setting,\ninstall id"]
-  end
-
-  ExpoRouter --> RootLayout --> Stack --> Tabs
-  Stack --> Onboarding
-  Stack --> Settings
-  Stack --> ReportDetail
-  Tabs --> Report
+  Root --> Stack
+  Stack -->|onboarding not done| Onboarding
+  Stack -->|onboarding done| Tabs
+  Stack --> New
+  Stack --> Detail
+  Stack --> SettingsScreen
+  Tabs --> Home
   Tabs --> History
   Tabs --> MapScreen
-  ExpoRouter --> NotFound
-
-  Report --> ReportWizard
-  ReportWizard --> ReportHook
-  ReportHook --> ReportState
-  ReportHook --> Categories
-  ReportHook --> Email
-  ReportHook --> Photos
-  ReportHook --> Profile
-  ReportHook --> Reports
-  ReportHook --> VisionHelper
-  ReportHook --> PhotoSettings
-  ReportHook --> IssueSuggestionsHelper
-  History --> Reports
-  MapScreen --> Reports
-  Settings --> PhotoSettings
-  Settings --> Profile
-  Onboarding --> Profile
-  ReportDetail --> Reports
-
-  Report --> CivicMapNative
-  Report --> CivicMapWeb
-  MapScreen --> CivicMapNative
-  MapScreen --> CivicMapWeb
-  ReportState --> Categories
-  ReportState --> Types
-  Categories --> Types
-  Email --> Types
-  Profile --> Types
-  Reports --> Types
-  Reports --> ReportPersistence
-  ReportPersistence --> PhotoContract
-  VisionHelper --> PhotoContract
-  VisionHelper --> DeviceStoreHelper
-  PhotoSettings --> DeviceStoreHelper
-  Profile --> DeviceStoreHelper
-  IssueSuggestionsHelper --> Types
-
-  Photos --> FileImage --> PhotoFiles
-  Reports --> SQLiteService --> ReportDb
-  DeviceStoreHelper --> DeviceKeyValue --> DeviceStoreData
-  Report --> ImagePicker
-  Report --> Location
-  Report --> MailComposer
-  Report --> ClipboardLinking
-  CivicMapNative --> NativeMaps
-  VisionHelper --> EdgeFunctionArch --> GeminiArch
-  EdgeFunctionArch --> AnalysisRunsArch
+  Home --> New
+  History --> New
+  History --> Detail
+  MapScreen --> New
+  MapScreen --> Detail
+  Detail --> New
+  New -->|lib/vision.ts, lib/emailRewriteClient.ts\nvia lib/backend/userToken.ts| Fn1
+  New --> Fn2
+  Fn1 --> Shared
+  Fn2 --> Shared
 ```
 
 ## Current Boundaries
 
-- Photo analysis is opt-in and sends a resized analysis copy of the report photo only to the Supabase Edge Function.
-- Saved report photos, report history, and profile data stay on device. Email drafts leave the device only when the user hands them off, or when they opt in to AI email polish (without name, email, phone, GPS, or photo).
-- Photo analysis sends only the resized photo. AI email polish sends the issue, description, address, location note, and checklist answers; never contact details, GPS, or the photo.
+- Photo suggestions are opt-in (asked inline on the first photo report, or in Settings) and send only a resized copy of the photo. The saved photo stays on the device.
+- AI email polish is opt-in with a consent sheet. It sends the issue, description, address, location note and checklist answers; never contact details, GPS or the photo. The app adds those back on the device.
+- When anonymous sign-ins are enabled in the project, the first AI request signs the install in as an anonymous user, which holds no data and only identifies the caller for the daily limits. Otherwise the app's install id is used, as before.
 - Sending is a handoff to the user's email app (Apple Mail or the share sheet). The app records `handed_off` until the user confirms it was sent; it never confirms receipt by 311.
