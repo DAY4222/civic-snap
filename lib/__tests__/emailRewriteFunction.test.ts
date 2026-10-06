@@ -1,5 +1,7 @@
 import {
   MAX_DEFAULT_EMAIL_CHARS,
+  MAX_REWRITTEN_BODY_CHARS,
+  REWRITE_GENERATION_CONFIG,
   buildGeminiEmailRewritePrompt,
   buildRewriteRunReservationRow,
   buildRewriteRunResultRow,
@@ -140,5 +142,13 @@ describe('rewrite-email Edge Function logic', () => {
         status: 'error',
       })
     ).toMatchObject({ error_code: 'gemini_request_failed', error_message: 'Gemini returned 429' });
+  });
+});
+
+describe('rewrite generation settings', () => {
+  it('pins minimal thinking and caps output well above the longest kept body', () => {
+    expect(REWRITE_GENERATION_CONFIG.thinking_config.thinking_level).toBe('minimal');
+    // About 4 characters per token: the cap must leave room for a full-length body in JSON.
+    expect(REWRITE_GENERATION_CONFIG.max_output_tokens * 4).toBeGreaterThan(MAX_REWRITTEN_BODY_CHARS * 2);
   });
 });

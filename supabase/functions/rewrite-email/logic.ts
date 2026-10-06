@@ -28,6 +28,18 @@ export const MAX_GUIDED_ANSWERS = 40;
 export const MAX_GUIDED_ANSWER_CHARS = 1_000;
 export const MAX_REWRITTEN_BODY_CHARS = 3_000;
 
+/**
+ * Gemini settings for the rewrite. Thinking is pinned to minimal (Flash-Lite's default today)
+ * so a changed default can't slow the rewrite down. The output cap is about three times the
+ * longest body we keep, so it only stops a runaway answer; typical answers are ~100 tokens.
+ */
+export const REWRITE_GENERATION_CONFIG = {
+  max_output_tokens: 2048,
+  response_mime_type: 'application/json',
+  temperature: 0.2,
+  thinking_config: { thinking_level: 'minimal' },
+} as const;
+
 const MIN_INSTALL_ID_CHARS = 20;
 
 export function readRewriteLimitConfigFromEnv(getEnv: (name: string) => string | undefined) {

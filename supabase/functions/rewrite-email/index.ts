@@ -5,6 +5,7 @@ import { finishRun, reserveRun } from '../_shared/runs.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 import { describeError } from '../_shared/text.ts';
 import {
+  REWRITE_GENERATION_CONFIG,
   buildGeminiEmailRewritePrompt,
   buildRewriteRunReservationRow,
   buildRewriteRunResultRow,
@@ -80,10 +81,7 @@ Deno.serve(async (request) => {
           text: buildGeminiEmailRewritePrompt(validation),
         },
       ],
-      generationConfig: {
-        response_mime_type: 'application/json',
-        temperature: 0.2,
-      },
+      generationConfig: REWRITE_GENERATION_CONFIG,
       timeoutMs: GEMINI_TIMEOUT_MS,
     });
   } catch (error) {
