@@ -7,6 +7,7 @@ import { Button, Card, Screen, colors, radius } from '@/components/ui';
 import { pickReportPhoto, type PhotoSource } from '@/features/report/photoPicker';
 import { RaccoonSprite } from '@/features/report/RaccoonSprite';
 import { formatRelativeTime } from '@/lib/relativeTime';
+import { lowercaseRelative } from '@/lib/reportTracking';
 import type { Report } from '@/lib/types';
 import { useReportsOnFocus } from '@/lib/useReportsOnFocus';
 
@@ -113,7 +114,7 @@ function ContinueDraftCard({ report }: { report: Report }) {
           </Text>
           <Text numberOfLines={1} style={styles.draftMeta}>
             {/* Time first: it always fits, and a long address truncates after it. */}
-            {[edited && `Edited ${edited.toLowerCase()}`, report.address].filter(Boolean).join(' · ')}
+            {[edited && `Edited ${lowercaseRelative(edited)}`, report.address].filter(Boolean).join(' · ')}
           </Text>
         </View>
         <FontAwesome name="chevron-right" size={14} color={colors.muted} />
