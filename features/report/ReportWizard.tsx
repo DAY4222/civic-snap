@@ -129,6 +129,7 @@ export function ReportWizard() {
             busy={state.busy}
             canContinue={wizard.canContinueLocation}
             locationNote={draft.locationNote}
+            locationStatus={wizard.locationStatus}
             onAddressChange={actions.setAddress}
             onBack={actions.goBack}
             onContinue={() => actions.setStep('details')}
@@ -136,8 +137,9 @@ export function ReportWizard() {
             onLocationNoteChange={actions.setLocationNote}
             onUseCurrentLocation={actions.useCurrentLocation}
             onUpdatePin={actions.updatePinFromMap}
-            photoUri={draft.photoUri}
+            outsideCity={wizard.outsideCity}
             pinRegion={wizard.pinRegion}
+            pinSource={state.pinSource}
           />
         ) : null}
 

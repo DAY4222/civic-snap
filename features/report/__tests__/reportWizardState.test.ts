@@ -470,8 +470,10 @@ describe('report wizard reducer', () => {
       type: 'setPinLocation',
       latitude: 43.65,
       longitude: -79.38,
+      source: 'photo',
     });
     expect(canContinueFromLocation(withPin.draft)).toBe(true);
+    expect(withPin.pinSource).toBe('photo');
   });
 
   it('classifies photo vision status from normalized results', () => {

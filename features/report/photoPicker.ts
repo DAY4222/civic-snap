@@ -1,18 +1,28 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 
+import { gpsFromExif, type Coordinates } from '@/lib/address';
+
 import { openAppSettings } from './wizardTypes';
 
-export type PickedPhoto = { uri: string };
+export type PhotoSource = 'camera' | 'library';
+export type PickedPhoto = {
+  uri: string;
+  /** Where the photo was taken, when the file says (library photos usually do). */
+  gps: Coordinates | null;
+  source: PhotoSource;
+};
 
 const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   allowsEditing: false,
+  // Only read for the GPS position; the saved copy is re-encoded without metadata.
+  exif: true,
   mediaTypes: ['images'],
   quality: 0.85,
 };
 
 /** Opens the camera or the photo library. Resolves null when the user cancels or declines. */
-export async function pickReportPhoto(source: 'camera' | 'library'): Promise<PickedPhoto | null> {
+export async function pickReportPhoto(source: PhotoSource): Promise<PickedPhoto | null> {
   if (source === 'camera') {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
@@ -29,5 +39,8 @@ export async function pickReportPhoto(source: 'camera' | 'library'): Promise<Pic
       ? await ImagePicker.launchCameraAsync(PICKER_OPTIONS)
       : await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
 
-  return result.canceled ? null : { uri: result.assets[0].uri };
+  if (result.canceled) return null;
+
+  const [asset] = result.assets;
+  return { uri: asset.uri, gps: gpsFromExif(asset.exif), source };
 }

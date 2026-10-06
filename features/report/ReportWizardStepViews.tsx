@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 
-import MapView, { type Region } from '@/components/CivicMap';
+import { type Region } from '@/components/CivicMap';
 import { Button, Card, Field, Notice, colors } from '@/components/ui';
 import { GENERAL_CATEGORY } from '@/lib/categories';
 import { CITY } from '@/lib/city';
@@ -29,10 +29,14 @@ import {
   type EmailPolishStatus,
   type LastHandoff,
   type PhotoVisionStatus,
+  type PinSource,
   type ReportWizardStep,
 } from './reportWizardState';
 import { styles } from './reportWizardStyles';
 import { confidenceTierText, photoSuggestionFallbackText } from './suggestionCopy';
+import { PinMap } from './PinMap';
+import type { LocationStatus } from './useLocationPin';
+import { openAppSettings } from './wizardTypes';
 import { RaccoonSprite } from './RaccoonSprite';
 
 export function CategoryStep({
@@ -119,6 +123,7 @@ export function LocationStep({
   busy,
   canContinue,
   locationNote,
+  locationStatus,
   onAddressChange,
   onBack,
   onContinue,
@@ -126,13 +131,15 @@ export function LocationStep({
   onLocationNoteChange,
   onUpdatePin,
   onUseCurrentLocation,
-  photoUri,
+  outsideCity,
   pinRegion,
+  pinSource,
 }: {
   address: string;
   busy: boolean;
   canContinue: boolean;
   locationNote: string;
+  locationStatus: LocationStatus;
   onAddressChange: (value: string) => void;
   onBack: () => void;
   onContinue: () => void;
@@ -140,37 +147,40 @@ export function LocationStep({
   onLocationNoteChange: (value: string) => void;
   onUpdatePin: (region: Region) => void;
   onUseCurrentLocation: () => void;
-  photoUri: string | null;
+  outsideCity: boolean;
   pinRegion: Region | null;
+  pinSource: PinSource | null;
 }) {
   return (
     <View style={styles.stack}>
       <StepHeader title="Confirm location" onBack={onBack} onExit={onExit} />
-      {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
-      <Button
-        disabled={busy}
-        loading={busy}
-        onPress={onUseCurrentLocation}
-        title="Use current location"
-        variant="secondary"
+      <PinMap
+        locating={locationStatus === 'locating'}
+        onLocate={onUseCurrentLocation}
+        onPinMoved={onUpdatePin}
+        pinRegion={pinRegion}
+        pinSource={pinSource}
       />
+      {outsideCity ? (
+        <Notice
+          text={`This spot looks outside ${CITY.name}. ${CITY.name} 311 only handles locations in the city.`}
+          tone="warning"
+        />
+      ) : null}
+      {locationStatus === 'denied' && !pinRegion ? (
+        <Pressable
+          accessibilityHint="Opens Settings to allow location for Civic Snap"
+          accessibilityRole="button"
+          onPress={openAppSettings}>
+          <Notice text="Location is off for Civic Snap. Move the map to the spot, type the address, or tap here to allow location in Settings." />
+        </Pressable>
+      ) : null}
       <Field
         label="Address or nearest landmark"
         onChangeText={onAddressChange}
         placeholder="Example: outside library entrance"
         value={address}
       />
-      {pinRegion ? (
-        <View style={styles.pinCard}>
-          <MapView style={styles.pinMap} region={pinRegion} onRegionChangeComplete={onUpdatePin} />
-          <View pointerEvents="none" style={styles.centerPin}>
-            <FontAwesome name="map-marker" size={38} color={colors.danger} />
-          </View>
-          <Text style={styles.mapHelp}>Move the map under the pin. The view is zoomed to about one block.</Text>
-        </View>
-      ) : (
-        <Notice text="Use current location to place an adjustable pin, or enter the address manually." />
-      )}
       <Field
         label="Location note"
         onChangeText={onLocationNoteChange}
@@ -178,7 +188,7 @@ export function LocationStep({
         value={locationNote}
       />
       {!canContinue ? (
-        <Text style={styles.requirementText}>Add an address or use current location to continue.</Text>
+        <Text style={styles.requirementText}>Place the pin or add an address to continue.</Text>
       ) : null}
       <Button disabled={busy || !canContinue} onPress={onContinue} title="Use this spot" />
     </View>

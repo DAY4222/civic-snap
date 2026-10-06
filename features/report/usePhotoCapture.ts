@@ -10,7 +10,7 @@ import type { WizardStore } from './wizardTypes';
 export function usePhotoCapture({ state, dispatch }: WizardStore) {
   const { draft } = state;
 
-  async function storePhoto(photo: PickedPhoto) {
+  async function storePhoto(photo: Pick<PickedPhoto, 'uri'>) {
     // A retaken photo that no saved draft points to can go now; saved ones are cleaned up by
     // the startup sweep once the draft has been re-saved with the new photo.
     const replacedPhotos = state.savedReportId ? [] : [draft.photoUri, draft.thumbnailUri];

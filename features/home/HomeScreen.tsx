@@ -17,7 +17,18 @@ export function HomeScreen() {
     setBusy(true);
     try {
       const photo = await pickReportPhoto(source);
-      if (photo) router.push({ pathname: '/report/new', params: { photo: photo.uri } });
+      if (!photo) return;
+
+      router.push({
+        pathname: '/report/new',
+        params: {
+          photo: photo.uri,
+          photoSource: photo.source,
+          ...(photo.gps
+            ? { photoLat: String(photo.gps.latitude), photoLng: String(photo.gps.longitude) }
+            : {}),
+        },
+      });
     } finally {
       setBusy(false);
     }

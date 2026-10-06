@@ -6,6 +6,10 @@ import type { ReportWizardAction, ReportWizardState } from './reportWizardState'
 /** Route params for /report/new: a picked photo, a draft to resume, or a manual start. */
 export type ReportWizardParams = {
   photo?: string;
+  /** The photo's GPS position, as decimal strings, when it has one. */
+  photoLat?: string;
+  photoLng?: string;
+  photoSource?: 'camera' | 'library';
   resumeId?: string;
   start?: 'manual';
 };

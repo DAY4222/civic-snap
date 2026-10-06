@@ -47,6 +47,8 @@ export type CategoryReturnStep = 'location' | 'details';
 export type IssueStep = 'suggest' | 'category';
 /** What the suggest step shows. */
 export type SuggestStepMode = 'opt-in' | 'loading' | 'ready' | 'failed';
+/** Where the pin came from: the photo's GPS, the phone's location, or the user moving the map. */
+export type PinSource = 'photo' | 'device' | 'map';
 export type EmailPolishStatus = 'idle' | 'consent' | 'loading' | 'error';
 export type PhotoVisionStatus =
   | 'idle'
@@ -83,6 +85,7 @@ export type ReportWizardState = {
   photoAnalysisChoice: PhotoAnalysisChoice | null;
   photoVisionPhotoUri: string | null;
   photoVisionStatus: PhotoVisionStatus;
+  pinSource: PinSource | null;
   profile: Profile;
   /** The report just handed off, shown on the done step. */
   lastHandoff: LastHandoff | null;
@@ -118,7 +121,7 @@ export type ReportWizardAction =
   | { type: 'setPhotoVisionError'; photoUri: string; error: unknown }
   | { type: 'setPhotoVisionLoading'; photoUri: string }
   | { type: 'setPhotoVisionResult'; photoUri: string; result: PhotoVisionResult }
-  | { type: 'setPinLocation'; latitude: number; longitude: number }
+  | { type: 'setPinLocation'; latitude: number; longitude: number; source: PinSource }
   | { type: 'setStep'; step: ReportWizardStep }
   | { type: 'startPhotoPath'; suggest: boolean }
   | { type: 'setResolvedAddress'; address: string }
@@ -149,6 +152,7 @@ export function createInitialReportWizardState(): ReportWizardState {
     photoAnalysisChoice: null,
     photoVisionPhotoUri: null,
     photoVisionStatus: 'idle',
+    pinSource: null,
     profile: EMPTY_PROFILE,
     lastHandoff: null,
     savedReportId: null,
@@ -294,7 +298,10 @@ export function reportWizardReducer(
         photoVisionStatus: getPhotoVisionStatus(action.result),
       };
     case 'setPinLocation':
-      return updateDraft(state, { latitude: action.latitude, longitude: action.longitude });
+      return {
+        ...updateDraft(state, { latitude: action.latitude, longitude: action.longitude }),
+        pinSource: action.source,
+      };
     case 'setResolvedAddress':
       return updateDraft(state, { address: action.address });
     case 'setStep':

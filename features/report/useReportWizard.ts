@@ -72,6 +72,9 @@ export function useReportWizard(params: ReportWizardParams) {
     const suggest = analysis.available && state.photoAnalysisChoice !== 'off';
     if (photoUri && (await capture.storePhoto({ uri: photoUri }))) {
       dispatch({ type: 'startPhotoPath', suggest });
+      const gps = photoGpsFromParams(params);
+      // The photo knows where it was taken; the address is ready by the time Location opens.
+      if (gps) location.placePin(gps.latitude, gps.longitude, 'photo');
       return;
     }
     dispatch({ type: 'openCategory', returnStep: 'location' });
@@ -198,7 +201,9 @@ export function useReportWizard(params: ReportWizardParams) {
     emailPolishAvailable: emailDraft.polishAvailable,
     filteredIssueCategories,
     hasIssue,
+    locationStatus: location.locationStatus,
     mailComposerAvailable: handoff.mailComposerAvailable,
+    outsideCity: location.outsideCity,
     photoAnalysisAvailable: analysis.available,
     photoIssueSuggestions: analysis.suggestions,
     photoLabelsEnabled: analysis.enabled,
@@ -240,6 +245,15 @@ function useWizardSettings(dispatch: WizardStore['dispatch']) {
       };
     }, [dispatch])
   );
+}
+
+function photoGpsFromParams({ photoLat, photoLng }: ReportWizardParams) {
+  const latitude = Number(photoLat);
+  const longitude = Number(photoLng);
+  if (!photoLat || !photoLng || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+  return { latitude, longitude };
 }
 
 /** Opens a saved draft for editing. A report that was already sent opens as a report instead. */
