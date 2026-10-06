@@ -1,7 +1,6 @@
 import { formatAnswer } from './answers';
+import { CITY } from './city';
 import type { EmailInput, Profile } from './types';
-
-const RECIPIENT = '311@toronto.ca';
 
 type BuildEmailOptions = {
   /** Contact details and exact GPS stay on the device when the draft is sent for AI rewriting. */
@@ -28,7 +27,7 @@ export function buildEmail(
     : [];
 
   const body = [
-    'Hello 311 Toronto,',
+    CITY.greeting,
     '',
     'Issue:',
     input.category.title,
@@ -57,7 +56,7 @@ export function buildEmail(
     .join('\n');
 
   return {
-    recipient: RECIPIENT,
+    recipient: CITY.recipient,
     subject,
     body,
   };

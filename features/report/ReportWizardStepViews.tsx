@@ -12,6 +12,7 @@ import {
 import MapView, { type Region } from '@/components/CivicMap';
 import { Button, Card, Field, Notice, colors } from '@/components/ui';
 import { GENERAL_CATEGORY } from '@/lib/categories';
+import { CITY } from '@/lib/city';
 import { formatAnswer, isOptionSelected, toggleMultiAnswer } from '@/lib/answers';
 import { getSuggestedAnswerOptions } from '@/lib/issueSuggestions';
 import type {
@@ -691,11 +692,11 @@ function Header({
 
 function categorySourceMatchText(category: IssueCategory) {
   if (category.sourceMatchStatus === 'unmatched') {
-    return 'No exact Toronto 311 source match; review before sending.';
+    return `No exact ${CITY.name} 311 source match; review before sending.`;
   }
 
   if (category.sourceMatchStatus === 'ambiguous') {
-    return 'Multiple exact Toronto 311 source matches; review before sending.';
+    return `Multiple exact ${CITY.name} 311 source matches; review before sending.`;
   }
 
   return 'Use these prompts to shape your description.';
