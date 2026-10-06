@@ -1,3 +1,5 @@
+import { truncateText } from '../_shared/text.ts';
+
 export type AllowedLabel = {
   id: string;
   label: string;
@@ -256,6 +258,63 @@ export function buildServerAllowedLabels(
       ? { id, label: definition.label, description: definition.description }
       : { id, label: definition?.label ?? humanizeLabelId(id) };
   });
+}
+
+/**
+ * The run's columns known before Gemini is called: image size and versions, never the image.
+ * runs.ts adds the id, created_at, install hash and status.
+ */
+export function buildAnalysisRunReservationRow(input: {
+  model: string;
+  promptVersion: string;
+  provider: string;
+  request: ValidAnalysisRequest;
+}) {
+  return {
+    image_bytes: input.request.imageBytes,
+    image_height: input.request.imageHeight,
+    image_mime_type: input.request.mimeType,
+    image_width: input.request.imageWidth,
+    model: input.model,
+    prompt_version: input.promptVersion,
+    provider: input.provider,
+    taxonomy_version: input.request.taxonomyVersion,
+    unknown_observations: [],
+  };
+}
+
+/** How the run ended: label ids with confidences and candidate ids with tiers. */
+export function buildAnalysisRunResultRow(input: {
+  errorCode?: string;
+  errorMessage?: string;
+  issueCandidates: Pick<NormalizedIssueCandidate, 'issueId' | 'confidenceTier'>[];
+  latencyMs: number;
+  status: 'ok' | 'error';
+  suggestedLabels: unknown[];
+}) {
+  return {
+    error_code: input.errorCode ?? null,
+    error_message: input.errorMessage ?? null,
+    issue_candidates: input.issueCandidates.map(({ issueId, confidenceTier }) => ({
+      issueId,
+      confidenceTier,
+    })),
+    latency_ms: input.latencyMs,
+    status: input.status,
+    suggested_labels: summarizeLabelsForLog(input.suggestedLabels),
+  };
+}
+
+function summarizeLabelsForLog(labels: unknown[]) {
+  return labels
+    .map((label) => {
+      if (!label || typeof label !== 'object') return null;
+      const item = label as { id?: unknown; confidence?: unknown };
+      return typeof item.id === 'string'
+        ? { id: item.id, confidence: Number(item.confidence) || 0 }
+        : null;
+    })
+    .filter((label): label is { id: string; confidence: number } => label != null);
 }
 
 function normalizeLabel(
@@ -557,8 +616,4 @@ function getBase64ByteSize(base64: string) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
-}
-
-function truncateText(value: string, maxLength: number) {
-  return value.trim().slice(0, maxLength);
 }

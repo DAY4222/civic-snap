@@ -38,3 +38,7 @@ jobs:
           deno check
           supabase/functions/analyze-photo-labels/index.ts
           supabase/functions/rewrite-email/index.ts
+        env:
+          # The root package.json is the Expo app's. With it, Deno expects the functions' npm:
+          # imports in a local node_modules, which this job doesn't install.
+          DENO_NO_PACKAGE_JSON: '1'

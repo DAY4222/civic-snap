@@ -61,7 +61,7 @@ npx supabase functions deploy rewrite-email
 
 Do not commit Gemini API keys or Supabase service-role keys. They belong in Supabase Edge Function secrets only.
 
-The public shared backend is protected by per-install and global daily rate limits. Server-side analysis logs keep the hashed install ID, image metadata, summarized labels, issue candidate IDs and confidence tiers, status, latency, and error summaries for rate limiting and diagnostics. They do not store the full user report context.
+The public shared backend is protected by per-install and global daily rate limits (UTC days). Each request first writes a `pending` row and counts it with the day's other rows, so parallel requests cannot go past a limit; a refused request's row is deleted, and pending rows older than five minutes stop counting. Counts ignore the model and prompt version, so changing either does not reset anyone's quota. Server-side analysis logs keep the hashed install ID, image metadata, summarized labels, issue candidate IDs and confidence tiers, status, latency, and error summaries for rate limiting and diagnostics. They do not store the full user report context.
 
 ## Gemini setup
 

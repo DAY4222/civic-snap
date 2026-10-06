@@ -1,5 +1,7 @@
 import {
   SUPPORTED_TAXONOMY_VERSION,
+  buildAnalysisRunReservationRow,
+  buildAnalysisRunResultRow,
   buildServerAllowedLabels,
   DEFAULT_LIMIT_CONFIG,
   hybridRerankIssueCandidates,
@@ -497,6 +499,55 @@ describe('photo label Edge Function logic', () => {
       confidenceTier: 'strong',
       supportingLabelIds: ['roadway', 'road-surface-damage'],
       evidenceChips: ['Roadway', 'Road surface damage'],
+    });
+  });
+
+  it('builds metadata-only run rows', () => {
+    const validation = validateRequest(validRequest, DEFAULT_LIMIT_CONFIG, EDGE_ISSUE_CATALOG);
+    if (!validation.ok) throw new Error('Expected a valid request');
+
+    expect(
+      buildAnalysisRunReservationRow({
+        model: 'gemini-3.1-flash-lite',
+        promptVersion: 'photo-issue-candidates-v2',
+        provider: 'gemini',
+        request: validation,
+      })
+    ).toEqual({
+      image_bytes: 3,
+      image_height: 10,
+      image_mime_type: 'image/jpeg',
+      image_width: 12,
+      model: 'gemini-3.1-flash-lite',
+      prompt_version: 'photo-issue-candidates-v2',
+      provider: 'gemini',
+      taxonomy_version: SUPPORTED_TAXONOMY_VERSION,
+      unknown_observations: [],
+    });
+
+    const result = normalizeGeminiResult(
+      {
+        suggestedLabels: [{ id: 'road-pothole', confidence: 0.95, evidence: 'visible pothole' }],
+        issueCandidates: [],
+      },
+      allowedLabels,
+      EDGE_ISSUE_CATALOG
+    );
+
+    expect(
+      buildAnalysisRunResultRow({
+        issueCandidates: result.issueCandidates,
+        latencyMs: 1200,
+        status: 'ok',
+        suggestedLabels: result.suggestedLabels,
+      })
+    ).toEqual({
+      error_code: null,
+      error_message: null,
+      issue_candidates: [{ issueId: 'road-pothole-road-damage', confidenceTier: 'strong' }],
+      latency_ms: 1200,
+      status: 'ok',
+      suggested_labels: [{ id: 'road-pothole', confidence: 0.95 }],
     });
   });
 });
