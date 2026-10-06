@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { callGemini } from '../_shared/gemini.ts';
 import { sha256 } from '../_shared/hash.ts';
+import { isSignedInUserRequired, resolveCallerIdentity } from '../_shared/identity.ts';
 import { finishRun, reserveRun } from '../_shared/runs.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 import { describeError } from '../_shared/text.ts';
@@ -29,6 +30,7 @@ const PROVIDER = 'gemini';
 const PROMPT_VERSION = 'photo-issue-candidates-v2';
 const GEMINI_TIMEOUT_MS = 20_000;
 const LIMIT_CONFIG = readLimitConfigFromEnv((name) => Deno.env.get(name));
+const REQUIRE_SIGNED_IN_USER = isSignedInUserRequired((name) => Deno.env.get(name));
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -66,9 +68,15 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: validation.error }, 400);
   }
 
+  // A signed-in (anonymous) user counts as one caller however the app was reinstalled.
+  const caller = resolveCallerIdentity(request.headers.get('Authorization'), validation.installId);
+  if (REQUIRE_SIGNED_IN_USER && caller.kind !== 'user') {
+    return jsonResponse({ error: 'sign_in_required' }, 401);
+  }
+
   const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
   const reservation = await reserveRun(supabase, RUNS_TABLE, {
-    installIdHash: await sha256(validation.installId),
+    installIdHash: await sha256(caller.key),
     limits: {
       global: LIMIT_CONFIG.config.maxAnalysesGlobalPerDay,
       perInstall: LIMIT_CONFIG.config.maxAnalysesPerInstallPerDay,

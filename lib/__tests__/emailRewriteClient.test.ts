@@ -2,6 +2,7 @@ import { ISSUE_CATEGORIES } from '../categories';
 import { EMPTY_DRAFT } from '../reportDraft';
 import { BackendError } from '../backend/client';
 import type { BackendConfig } from '../backend/config';
+import { ANON_KEY_ONLY } from '../backend/userToken';
 import {
   DEFAULT_REWRITE_TIMEOUT_MS,
   canRewriteEmailDraft,
@@ -70,6 +71,7 @@ describe('email rewrite client', () => {
       defaultEmailBody: 'Prebuilt local draft body',
       fetchImpl,
       installId: 'install-1',
+      tokens: ANON_KEY_ONLY,
     });
 
     expect(result.body).toBe('Improved email body');
@@ -97,6 +99,7 @@ describe('email rewrite client', () => {
       rewriteEmailDraft(baseInput, {
         config: { ...config, rewriteEmailUrl: '' },
         installId: 'install-1',
+        tokens: ANON_KEY_ONLY,
       })
     ).rejects.toMatchObject({ code: 'disabled' });
 
@@ -105,6 +108,7 @@ describe('email rewrite client', () => {
         config,
         fetchImpl: async () => new Response('{}', { status: 429 }),
         installId: 'install-1',
+        tokens: ANON_KEY_ONLY,
       })
     ).rejects.toMatchObject({ code: 'rate-limited' });
 
@@ -113,6 +117,7 @@ describe('email rewrite client', () => {
         config,
         fetchImpl: async () => new Response('{}', { status: 503 }),
         installId: 'install-1',
+        tokens: ANON_KEY_ONLY,
       })
     ).rejects.toMatchObject({ code: 'offline' });
 
@@ -121,6 +126,7 @@ describe('email rewrite client', () => {
         config,
         fetchImpl: async () => new Response('{}', { status: 502 }),
         installId: 'install-1',
+        tokens: ANON_KEY_ONLY,
       })
     ).rejects.toMatchObject({ code: 'server' });
 
@@ -131,6 +137,7 @@ describe('email rewrite client', () => {
           throw new TypeError('Network request failed');
         },
         installId: 'install-1',
+        tokens: ANON_KEY_ONLY,
       })
     ).rejects.toMatchObject({ code: 'offline' });
   });

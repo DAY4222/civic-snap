@@ -23,6 +23,8 @@ export type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promis
 
 type PostJsonOptions = {
   anonKey: string;
+  /** A signed-in user's token; the anon key is sent as the bearer when there is none. */
+  accessToken?: string | null;
   fetchImpl?: FetchImpl;
   signal?: AbortSignal;
   timeoutMs: number;
@@ -37,7 +39,7 @@ export async function postJson(url: string, body: unknown, options: PostJsonOpti
     response = await (options.fetchImpl ?? fetch)(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${options.anonKey}`,
+        Authorization: `Bearer ${options.accessToken || options.anonKey}`,
         'Content-Type': 'application/json',
         apikey: options.anonKey,
       },

@@ -1,8 +1,9 @@
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { Image } from 'react-native';
 
-import { BackendError, postJson } from './backend/client';
+import { BackendError } from './backend/client';
 import { backendConfig, isPhotoAnalysisConfigured } from './backend/config';
+import { postAsCaller } from './backend/userToken';
 import { getInstallId } from './installId';
 import { buildPhotoAnalysisRequest, normalizePhotoVisionResponse } from './photoAnalysisContract';
 
@@ -39,7 +40,7 @@ export async function analyzePhotoLabels(photoUri: string, options: AnalyzePhoto
     throw new BackendError('Photo analysis image is too large.', 'payload-too-large');
   }
 
-  const result = await postJson(
+  const result = await postAsCaller(
     backendConfig.analyzePhotoUrl,
     buildPhotoAnalysisRequest({
       installId,
