@@ -63,7 +63,6 @@ async function main() {
         anonKey,
         functionUrl,
         imagePath: absolutePath,
-        labels: labelTaxonomy.labels,
         taxonomyVersion: labelTaxonomy.version,
       });
     } catch (error) {
@@ -94,7 +93,7 @@ function imageChecksFromArgs(args) {
   return args.map((arg) => ({ path: arg, expectedIssueId: null }));
 }
 
-async function analyzeImage({ anonKey, functionUrl, imagePath, labels, taxonomyVersion }) {
+async function analyzeImage({ anonKey, functionUrl, imagePath, taxonomyVersion }) {
   const imageBase64 = fs.readFileSync(imagePath).toString('base64');
   const response = await fetch(functionUrl, {
     method: 'POST',
@@ -107,7 +106,6 @@ async function analyzeImage({ anonKey, functionUrl, imagePath, labels, taxonomyV
       installId: `live-spot-check-${Date.now()}`,
       imageBase64,
       mimeType: mimeTypeFor(imagePath),
-      allowedLabels: labels,
       taxonomyVersion,
     }),
   });

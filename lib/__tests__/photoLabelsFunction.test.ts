@@ -1,5 +1,5 @@
 import {
-  SUPPORTED_TAXONOMY_VERSION,
+  SUPPORTED_TAXONOMY_VERSIONS,
   buildAnalysisRunReservationRow,
   buildAnalysisRunResultRow,
   buildServerAllowedLabels,
@@ -16,6 +16,7 @@ import {
   EDGE_ISSUE_CATALOG,
   EDGE_PHOTO_LABELS,
 } from '../../supabase/functions/analyze-photo-labels/issueCatalog';
+import { PHOTO_LABEL_TAXONOMY_VERSION } from '../photoLabels';
 
 const allowedLabels = [
   { id: 'road-pothole', label: 'Road pothole' },
@@ -34,8 +35,7 @@ const validRequest: AnalysisRequest = {
     width: 12,
   },
   mimeType: 'image/jpeg',
-  allowedLabels,
-  taxonomyVersion: SUPPORTED_TAXONOMY_VERSION,
+  taxonomyVersion: PHOTO_LABEL_TAXONOMY_VERSION,
 };
 
 function labelsFor(labelIds: string[]) {
@@ -101,6 +101,61 @@ describe('photo label Edge Function logic', () => {
       imageHeight: 10,
       imageWidth: 12,
     });
+  });
+
+  it('accepts every supported taxonomy version, so older app builds keep getting suggestions', () => {
+    expect(SUPPORTED_TAXONOMY_VERSIONS.has(PHOTO_LABEL_TAXONOMY_VERSION)).toBe(true);
+
+    // After a taxonomy change the server lists the new version and keeps the previous one.
+    const afterTaxonomyChange = new Set(['photo-label-taxonomy-v4', 'photo-label-taxonomy-v3']);
+    const validate = (taxonomyVersion?: string) =>
+      validateRequest(
+        { ...validRequest, taxonomyVersion },
+        DEFAULT_LIMIT_CONFIG,
+        EDGE_ISSUE_CATALOG,
+        EDGE_PHOTO_LABELS,
+        afterTaxonomyChange
+      );
+
+    expect(validate('photo-label-taxonomy-v4')).toMatchObject({
+      ok: true,
+      taxonomyVersion: 'photo-label-taxonomy-v4',
+    });
+    expect(validate(' photo-label-taxonomy-v3 ')).toMatchObject({
+      ok: true,
+      taxonomyVersion: 'photo-label-taxonomy-v3',
+    });
+    expect(validate('photo-label-taxonomy-v2')).toEqual({
+      ok: false,
+      error: 'unsupported_taxonomy_version',
+    });
+    expect(validate(undefined)).toEqual({ ok: false, error: 'unsupported_taxonomy_version' });
+  });
+
+  it('ignores the label list older app builds send and uses the server catalog', () => {
+    const serverLabels = buildServerAllowedLabels(EDGE_ISSUE_CATALOG, EDGE_PHOTO_LABELS);
+    const withoutLabels = validateRequest(
+      validRequest,
+      DEFAULT_LIMIT_CONFIG,
+      EDGE_ISSUE_CATALOG,
+      EDGE_PHOTO_LABELS
+    );
+    const withOldAppLabels = validateRequest(
+      { ...validRequest, allowedLabels: [{ id: 'made-up-label', label: 'Made up' }] },
+      DEFAULT_LIMIT_CONFIG,
+      EDGE_ISSUE_CATALOG,
+      EDGE_PHOTO_LABELS
+    );
+    const withMalformedLabels = validateRequest(
+      { ...validRequest, allowedLabels: 'not a list' },
+      DEFAULT_LIMIT_CONFIG,
+      EDGE_ISSUE_CATALOG,
+      EDGE_PHOTO_LABELS
+    );
+
+    expect(withoutLabels).toMatchObject({ ok: true, allowedLabels: serverLabels });
+    expect(withOldAppLabels).toEqual(withoutLabels);
+    expect(withMalformedLabels).toEqual(withoutLabels);
   });
 
   it('builds allowed labels from the server issue catalog instead of trusting client labels', () => {
@@ -521,7 +576,7 @@ describe('photo label Edge Function logic', () => {
       model: 'gemini-3.1-flash-lite',
       prompt_version: 'photo-issue-candidates-v2',
       provider: 'gemini',
-      taxonomy_version: SUPPORTED_TAXONOMY_VERSION,
+      taxonomy_version: PHOTO_LABEL_TAXONOMY_VERSION,
       unknown_observations: [],
     });
 

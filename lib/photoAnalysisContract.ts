@@ -1,7 +1,26 @@
+import { PHOTO_LABEL_TAXONOMY_VERSION } from './photoLabels';
 import { PhotoIssueCandidate, PhotoVisionLabel, PhotoVisionResult } from './types';
 
 type PhotoVisionImage = PhotoVisionResult['image'];
 const MAX_ISSUE_CANDIDATES = 3;
+
+export type PhotoAnalysisRequest = {
+  installId: string;
+  imageBase64: string;
+  image: Omit<PhotoVisionImage, 'mimeType'>;
+  mimeType: string;
+  taxonomyVersion: string;
+};
+
+/**
+ * The analyze-photo-labels request body. The server builds the allowed labels from its own
+ * catalog, so the app sends its taxonomy version instead of the label list (about 12 KB).
+ */
+export function buildPhotoAnalysisRequest(
+  input: Omit<PhotoAnalysisRequest, 'taxonomyVersion'>
+): PhotoAnalysisRequest {
+  return { ...input, taxonomyVersion: PHOTO_LABEL_TAXONOMY_VERSION };
+}
 
 export function normalizePhotoVisionResponse(
   result: unknown,

@@ -1,7 +1,20 @@
-import { normalizePhotoVisionResponse, parseStoredPhotoVisionResult } from '../photoAnalysisContract';
+import {
+  buildPhotoAnalysisRequest,
+  normalizePhotoVisionResponse,
+  parseStoredPhotoVisionResult,
+} from '../photoAnalysisContract';
+import { PHOTO_LABEL_TAXONOMY_VERSION } from '../photoLabels';
 import { TEST_PHOTO_IMAGE } from '../testUtils/photoVisionFixtures';
-import { normalizeGeminiResult } from '../../supabase/functions/analyze-photo-labels/logic';
-import { EDGE_ISSUE_CATALOG } from '../../supabase/functions/analyze-photo-labels/issueCatalog';
+import {
+  DEFAULT_LIMIT_CONFIG,
+  SUPPORTED_TAXONOMY_VERSIONS,
+  normalizeGeminiResult,
+  validateRequest,
+} from '../../supabase/functions/analyze-photo-labels/logic';
+import {
+  EDGE_ISSUE_CATALOG,
+  EDGE_PHOTO_LABELS,
+} from '../../supabase/functions/analyze-photo-labels/issueCatalog';
 
 const allowedLabels = [
   { id: 'road-pothole', label: 'Road pothole' },
@@ -12,6 +25,27 @@ const allowedLabels = [
 const fallbackImage = TEST_PHOTO_IMAGE;
 
 describe('photo analysis contract', () => {
+  it('sends the taxonomy version instead of the label list, and the server accepts it', () => {
+    const request = buildPhotoAnalysisRequest({
+      installId: 'install-1234567890abcdef',
+      imageBase64: 'AAAA',
+      image: { bytes: 3, height: 10, width: 12 },
+      mimeType: 'image/jpeg',
+    });
+
+    expect(request).toEqual({
+      installId: 'install-1234567890abcdef',
+      imageBase64: 'AAAA',
+      image: { bytes: 3, height: 10, width: 12 },
+      mimeType: 'image/jpeg',
+      taxonomyVersion: PHOTO_LABEL_TAXONOMY_VERSION,
+    });
+    expect(SUPPORTED_TAXONOMY_VERSIONS.has(request.taxonomyVersion)).toBe(true);
+    expect(
+      validateRequest(request, DEFAULT_LIMIT_CONFIG, EDGE_ISSUE_CATALOG, EDGE_PHOTO_LABELS)
+    ).toMatchObject({ ok: true, taxonomyVersion: PHOTO_LABEL_TAXONOMY_VERSION });
+  });
+
   it('accepts normalized Edge output with an issue catalog version', () => {
     const safeResult = normalizeGeminiResult(
       {

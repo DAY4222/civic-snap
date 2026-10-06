@@ -35,7 +35,6 @@ describe('live AI photo sample', () => {
       anonKey,
       functionUrl,
       imagePath,
-      labels: labelTaxonomy.labels,
       taxonomyVersion: labelTaxonomy.version,
     });
     const responseJsonPath = writeLiveResponseJson(result);

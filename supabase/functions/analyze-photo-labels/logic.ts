@@ -29,7 +29,11 @@ export type AnalysisRequest = {
     width?: number;
   };
   mimeType?: string;
-  allowedLabels?: AllowedLabel[];
+  /**
+   * Older app builds send their whole label list. It is ignored: the allowed labels always
+   * come from the server's catalog.
+   */
+  allowedLabels?: unknown;
   taxonomyVersion?: string;
 };
 
@@ -108,7 +112,14 @@ export const MAX_ISSUE_CANDIDATES = 3;
 export const MAX_EVIDENCE_CHARS = 240;
 export const MAX_REASON_CHARS = 180;
 export const MAX_DESCRIPTION_CHARS = 180;
-export const SUPPORTED_TAXONOMY_VERSION = 'photo-label-taxonomy-v3';
+
+/**
+ * Taxonomy versions app builds may send. The server answers from its own catalog either way,
+ * so when the taxonomy changes, keep the previous version here until builds on it are gone.
+ */
+export const SUPPORTED_TAXONOMY_VERSIONS: ReadonlySet<string> = new Set([
+  'photo-label-taxonomy-v3',
+]);
 
 const MIN_INSTALL_ID_CHARS = 20;
 
@@ -158,7 +169,8 @@ export function validateRequest(
   body: AnalysisRequest,
   limits: Pick<LimitConfig, 'maxImageBase64Bytes'> = DEFAULT_LIMIT_CONFIG,
   issueCatalog: readonly EdgeIssueCatalogItem[] = [],
-  labelDefinitions: readonly AllowedLabel[] = []
+  labelDefinitions: readonly AllowedLabel[] = [],
+  supportedTaxonomyVersions: ReadonlySet<string> = SUPPORTED_TAXONOMY_VERSIONS
 ) {
   const installId = typeof body.installId === 'string' ? body.installId.trim() : '';
   const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
@@ -174,7 +186,7 @@ export function validateRequest(
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
     return { ok: false as const, error: 'unsupported_mime_type' };
   }
-  if (taxonomyVersion !== SUPPORTED_TAXONOMY_VERSION) {
+  if (!supportedTaxonomyVersions.has(taxonomyVersion)) {
     return { ok: false as const, error: 'unsupported_taxonomy_version' };
   }
 
