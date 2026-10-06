@@ -4,17 +4,22 @@ Written 2026-10-05 from two reviews done against `main` at `e747143`: an archite
 
 ## Progress
 
-Last updated 2026-10-05. Decisions taken: AI polish opt-in per device; Apple Mail when set up, share sheet otherwise; free-tier keep-alive. Phase 0 skipped for now.
+Last updated 2026-10-06. Decisions taken: AI polish opt-in per device; Apple Mail when set up, share sheet otherwise; free-tier keep-alive; anonymous auth before public launch (built, switched off until then); web as a dev preview; keep the Map tab. Phase 0 skipped for now.
+
+Branches stack: `phase-1/stabilize` → `phase-2/report-model` → `phase-3/send-path` → `phase-4/report-flow` → `phase-6/surfaces`. `phase-5/backend` also starts from `phase-3/send-path`; it merges into the app stack without conflicts (checked: type check, 188 tests, catalog drift check and web export pass on the merged result).
 
 | Item | Status | Notes |
 |---|---|---|
 | 1.1–1.7 | Done (branch `phase-1/stabilize`) | 1.4 and 3.4 deployed both Edge Functions. 1.4 also pulled the label descriptions forward from 5.2. |
-| 1.8 | Not started | Needs your OK before deleting branches and worktrees. |
+| 1.8 | Done | Old branches and worktrees removed; their tips are kept as local `archive/*` tags. |
 | 2.1–2.5 | Done (branch `phase-2/report-model`) | Migrations 2–4. |
 | 3.1–3.7 | Done (branch `phase-3/send-path`) | Migrations 5–6. 3.4 also retries Gemini 500/503 once. |
-| 4–7 | Not started | |
+| 4.1–4.7 | Done (branch `phase-4/report-flow`) | 4.4 makes photo suggestions three-way (on, off, never asked). 4.6 reads `data/search-synonyms.json` at runtime instead of generating `searchText`, so the catalog generator is unchanged. |
+| 5.1–5.5 | Done (branch `phase-5/backend`) | Migration `20261006223856_rate_limit_reservations` applied; both functions deployed and checked live. 5.4 is off until "Allow anonymous sign-ins" is turned on in the dashboard; `REQUIRE_SIGNED_IN_USER=true` then makes it required. 5.5 findings are in its commit. |
+| 6.1–6.5 | Done (branch `phase-6/surfaces`) | 6.4 adds `react-native-gesture-handler` (SDK 54 version). |
+| 7 | Not started | |
 
-Not verified locally: the Deno type-check job in CI (Deno isn't installed here), and Apple Mail's own composer path (the simulator has no Mail account; the share-sheet and web paths were tested).
+Not verified locally: the Deno type-check job in CI (Deno isn't installed here; 5.1 fixed three type errors it would have reported), Apple Mail's own composer path (the simulator has no Mail account; the share-sheet and web paths were tested), and 5.4's signed-in path (anonymous sign-ins are off in the project; the fallback was checked live).
 
 ## How to use this document
 
@@ -418,9 +423,9 @@ Recommendation first in each case.
 ## Smoke script
 
 1. Fresh install → onboarding → home.
-2. Photo report with AI on: choose the pothole photo → suggestion → location (map, address) → details → preview → handoff → "Did you send it?" → success → History shows it under Sent.
+2. Photo report with AI on: choose the pothole photo → "What's the issue?" suggestion → location (map, pin from the photo or phone, address) → details (checklist prefilled from the location) → preview → handoff → "Did you send it?" → success → History shows it under Sent.
 3. Manual report without a photo, through to preview.
-4. Resume a draft → ✕ → Return to start → home stays.
+4. Resume a draft from the home card or History → ✕ → Leave → back where you came from; the draft is still in History.
 5. Kill the app mid-report → relaunch → draft in History with its photo.
 6. Point the backend env at a dead host → AI states show the offline copy; the report still completes.
 7. Settings: profile and toggles persist across relaunch.
