@@ -32,18 +32,16 @@ import {
   type ReportWizardStep,
 } from './reportWizardState';
 import { styles } from './reportWizardStyles';
-import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
+import { RaccoonSprite } from './RaccoonSprite';
 
 export function StartStep({
   busy,
-  frameIndex,
   onChooseIssueType,
   onChoosePhoto,
   onReportWithoutPhoto,
   onTakePhoto,
 }: {
   busy: boolean;
-  frameIndex: number;
   onChooseIssueType: () => void;
   onChoosePhoto: () => void;
   onReportWithoutPhoto: () => void;
@@ -53,13 +51,7 @@ export function StartStep({
     <View style={styles.stack}>
       <View>
         <Text style={styles.eyebrow}>Civic Snap</Text>
-        <View style={styles.raccoonStage}>
-          <Image
-            resizeMode="contain"
-            source={RACCOON_SWEEPER_FRAMES[frameIndex]}
-            style={styles.raccoonSprite}
-          />
-        </View>
+        <RaccoonSprite style={styles.raccoonStage} />
         <Text style={styles.title}>Snap. Pin. Send to 311.</Text>
         <Text style={styles.subtitle}>Create a strong report in a few focused steps.</Text>
       </View>
@@ -462,14 +454,12 @@ export function PreviewStep({
 }
 
 export function DoneStep({
-  frameIndex,
   handoff,
   onConfirmSent,
   onNewReport,
   onViewReport,
   recipient,
 }: {
-  frameIndex: number;
   handoff: LastHandoff;
   onConfirmSent: () => void;
   onNewReport: () => void;
@@ -482,14 +472,7 @@ export function DoneStep({
   return (
     <View style={styles.stack}>
       <View style={styles.doneHero}>
-        <View style={styles.doneRaccoon}>
-          <Image
-            accessibilityIgnoresInvertColors
-            resizeMode="contain"
-            source={RACCOON_SWEEPER_FRAMES[frameIndex]}
-            style={styles.raccoonSprite}
-          />
-        </View>
+        <RaccoonSprite style={styles.doneRaccoon} />
         <Text accessibilityRole="header" style={[styles.title, styles.centerText]}>
           {sent ? 'Sent to 311' : `Ready in ${where}`}
         </Text>

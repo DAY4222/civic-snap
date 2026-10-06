@@ -63,7 +63,6 @@ export function ReportWizard() {
 
         {state.step === 'done' && state.lastHandoff ? (
           <DoneStep
-            frameIndex={wizard.raccoonFrameIndex}
             handoff={state.lastHandoff}
             onConfirmSent={actions.confirmLastHandoffSent}
             onNewReport={actions.startNewReport}
@@ -75,7 +74,6 @@ export function ReportWizard() {
         {state.step === 'start' ? (
           <StartStep
             busy={state.busy}
-            frameIndex={wizard.raccoonFrameIndex}
             onChoosePhoto={actions.choosePhoto}
             onChooseIssueType={() => actions.openCategory('location')}
             onReportWithoutPhoto={actions.reportWithoutPhoto}

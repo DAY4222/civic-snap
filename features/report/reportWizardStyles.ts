@@ -390,10 +390,6 @@ export const styles = StyleSheet.create({
     flexShrink: 1,
     width: '100%',
   },
-  raccoonSprite: {
-    height: '100%',
-    width: '100%',
-  },
   raccoonStage: {
     aspectRatio: 1,
     marginTop: 12,
