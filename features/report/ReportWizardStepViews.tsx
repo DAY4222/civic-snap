@@ -26,6 +26,7 @@ import type {
 
 import {
   type EmailPolishStatus,
+  type LastHandoff,
   type PhotoVisionStatus,
   type ReportWizardStep,
 } from './reportWizardState';
@@ -455,6 +456,80 @@ export function PreviewStep({
         />
       ) : null}
       <Notice text="Saved as a draft. You send it from your own email app." />
+    </View>
+  );
+}
+
+export function DoneStep({
+  frameIndex,
+  handoff,
+  onConfirmSent,
+  onNewReport,
+  onViewReport,
+  recipient,
+}: {
+  frameIndex: number;
+  handoff: LastHandoff;
+  onConfirmSent: () => void;
+  onNewReport: () => void;
+  onViewReport: () => void;
+  recipient: string;
+}) {
+  const sent = handoff.status === 'sent';
+  const where = handoff.app ?? 'your email app';
+
+  return (
+    <View style={styles.stack}>
+      <View style={styles.doneHero}>
+        <View style={styles.doneRaccoon}>
+          <Image
+            accessibilityIgnoresInvertColors
+            resizeMode="contain"
+            source={RACCOON_SWEEPER_FRAMES[frameIndex]}
+            style={styles.raccoonSprite}
+          />
+        </View>
+        <Text accessibilityRole="header" style={[styles.title, styles.centerText]}>
+          {sent ? 'Sent to 311' : `Ready in ${where}`}
+        </Text>
+        <Text style={[styles.subtitle, styles.centerText]}>
+          {sent
+            ? `Your report is on its way to ${recipient}.`
+            : `Send the email from ${where} if you haven't yet, then confirm it here.`}
+        </Text>
+      </View>
+
+      <Card style={styles.suggestionCard}>
+        <Text style={styles.cardTitle}>What happens next</Text>
+        <View style={styles.observationRow}>
+          <FontAwesome name="envelope-o" size={16} color={colors.primary} />
+          <Text style={styles.observationText}>
+            Replies from 311 go to the email address you sent from.
+          </Text>
+        </View>
+        <View style={styles.observationRow}>
+          <FontAwesome name="hashtag" size={16} color={colors.primary} />
+          <Text style={styles.observationText}>
+            If the reply includes a case number, add it to this report so you can follow up.
+          </Text>
+        </View>
+        <View style={styles.observationRow}>
+          <FontAwesome name="lock" size={16} color={colors.primary} />
+          <Text style={styles.observationText}>Your saved copy stays private on this phone.</Text>
+        </View>
+      </Card>
+
+      {sent ? (
+        <>
+          <Button onPress={onNewReport} title="New report" />
+          <Button onPress={onViewReport} title="View report" variant="secondary" />
+        </>
+      ) : (
+        <>
+          <Button onPress={onConfirmSent} title="I've sent it" />
+          <Button onPress={onNewReport} title="New report" variant="secondary" />
+        </>
+      )}
     </View>
   );
 }

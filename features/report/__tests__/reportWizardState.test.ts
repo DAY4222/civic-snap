@@ -171,9 +171,10 @@ describe('report wizard reducer', () => {
     expect(state.savedReportId).toBe('report-1');
   });
 
-  it('moves through preview, fallback, and reset without losing stable settings', () => {
+  it('moves through preview and fallback to the done step without losing stable settings', () => {
     let state = createInitialReportWizardState();
     state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
+    state = reportWizardReducer(state, { type: 'setEmailPolishEnabled', enabled: true });
     state = reportWizardReducer(state, {
       type: 'profileLoaded',
       profile: { name: 'Ada', email: '', phone: '555-0100' },
@@ -184,28 +185,35 @@ describe('report wizard reducer', () => {
     state = reportWizardReducer(state, { type: 'setStep', step: 'fallback' });
     expect(state.step).toBe('fallback');
 
-    state = reportWizardReducer(state, { type: 'resetReport', savedBannerId: 'report-1' });
-    expect(state.step).toBe('start');
-    expect(state.savedBannerId).toBe('report-1');
+    state = reportWizardReducer(state, {
+      type: 'handoffFinished',
+      app: 'Gmail',
+      reportId: 'report-1',
+      status: 'handed_off',
+    });
+    expect(state.step).toBe('done');
+    expect(state.lastHandoff).toEqual({ app: 'Gmail', reportId: 'report-1', status: 'handed_off' });
+    expect(state.savedReportId).toBeNull();
+    expect(state.draft).toEqual(EMPTY_DRAFT);
     expect(state.photoAnalysisUserEnabled).toBe(true);
+    expect(state.emailPolishEnabled).toBe(true);
     expect(state.profile.name).toBe('Ada');
   });
 
-  it('dismisses the saved report banner without changing stable settings', () => {
-    let state = createInitialReportWizardState();
-    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
-    state = reportWizardReducer(state, {
-      type: 'profileLoaded',
-      profile: { name: 'Ada', email: '', phone: '555-0100' },
+  it('confirms a handed-off report from the done step, then starts a new report', () => {
+    let state = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'handoffFinished',
+      app: null,
+      reportId: 'report-1',
+      status: 'handed_off',
     });
-    state = reportWizardReducer(state, { type: 'resetReport', savedBannerId: 'report-1' });
 
-    state = reportWizardReducer(state, { type: 'dismissSavedBanner' });
+    state = reportWizardReducer(state, { type: 'handoffConfirmed' });
+    expect(state.lastHandoff?.status).toBe('sent');
 
+    state = reportWizardReducer(state, { type: 'resetReport' });
     expect(state.step).toBe('start');
-    expect(state.savedBannerId).toBeNull();
-    expect(state.photoAnalysisUserEnabled).toBe(true);
-    expect(state.profile.name).toBe('Ada');
+    expect(state.lastHandoff).toBeNull();
   });
 
   it('resets active report progress while preserving stable settings', () => {
@@ -235,7 +243,7 @@ describe('report wizard reducer', () => {
 
     expect(state.step).toBe('start');
     expect(state.savedReportId).toBeNull();
-    expect(state.savedBannerId).toBeNull();
+    expect(state.lastHandoff).toBeNull();
     expect(state.draft).toEqual(EMPTY_DRAFT);
     expect(state.email.source).toBe('generated');
     expect(state.photoAnalysisUserEnabled).toBe(true);

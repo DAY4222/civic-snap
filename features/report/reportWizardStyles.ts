@@ -3,6 +3,18 @@ import { StyleSheet } from 'react-native';
 import { colors, radius } from '@/components/ui';
 
 export const styles = StyleSheet.create({
+  centerText: {
+    textAlign: 'center',
+  },
+  doneHero: {
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 12,
+  },
+  doneRaccoon: {
+    height: 120,
+    width: 120,
+  },
   attachmentRow: {
     alignItems: 'center',
     flexDirection: 'row',

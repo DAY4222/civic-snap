@@ -25,7 +25,21 @@ import {
   type EmailDraftState,
 } from './emailDraft';
 
-export type ReportWizardStep = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
+export type ReportWizardStep =
+  | 'start'
+  | 'category'
+  | 'location'
+  | 'details'
+  | 'preview'
+  | 'fallback'
+  | 'done';
+
+export type LastHandoff = {
+  reportId: string;
+  status: Extract<ReportStatus, 'handed_off' | 'sent'>;
+  /** The app the email went to, when known ("Mail", "Gmail"). */
+  app: string | null;
+};
 export type CategoryReturnStep = 'location' | 'details';
 export type EmailPolishStatus = 'idle' | 'consent' | 'loading' | 'error';
 export type PhotoVisionStatus =
@@ -62,7 +76,8 @@ export type ReportWizardState = {
   photoVisionPhotoUri: string | null;
   photoVisionStatus: PhotoVisionStatus;
   profile: Profile;
-  savedBannerId: string | null;
+  /** The report just handed off, shown on the done step. */
+  lastHandoff: LastHandoff | null;
   savedReportId: string | null;
   step: ReportWizardStep;
 };
@@ -72,7 +87,6 @@ export type ReportWizardAction =
   | { type: 'backFromCategory' }
   | { type: 'chooseCategory'; categoryId: string | null }
   | { type: 'dismissContactPrompt' }
-  | { type: 'dismissSavedBanner' }
   | { type: 'draftCreated'; reportId: string }
   | {
       type: 'handoffFinished';
@@ -84,7 +98,8 @@ export type ReportWizardAction =
   | { type: 'photoStored'; photoUri: string; thumbnailUri?: string | null }
   | { type: 'previewReady'; savedReportId: string }
   | { type: 'profileLoaded'; profile: Profile }
-  | { type: 'resetReport'; savedBannerId?: string | null }
+  | { type: 'resetReport' }
+  | { type: 'handoffConfirmed' }
   | { type: 'resumeReport'; report: Report }
   | { type: 'setAddress'; address: string }
   | { type: 'setAnswer'; questionId: string; value: ReportAnswerValue }
@@ -126,7 +141,7 @@ export function createInitialReportWizardState(): ReportWizardState {
     photoVisionPhotoUri: null,
     photoVisionStatus: 'idle',
     profile: EMPTY_PROFILE,
-    savedBannerId: null,
+    lastHandoff: null,
     savedReportId: null,
     step: 'start',
   };
@@ -167,8 +182,6 @@ export function reportWizardReducer(
       };
     case 'dismissContactPrompt':
       return { ...state, dismissedContactPrompt: true };
-    case 'dismissSavedBanner':
-      return { ...state, savedBannerId: null };
     case 'draftCreated':
       return { ...state, savedReportId: state.savedReportId ?? action.reportId };
     case 'handoffFinished':
@@ -176,9 +189,14 @@ export function reportWizardReducer(
         ...createInitialReportWizardState(),
         emailPolishEnabled: state.emailPolishEnabled,
         photoAnalysisUserEnabled: state.photoAnalysisUserEnabled,
+        lastHandoff: { app: action.app, reportId: action.reportId, status: action.status },
         profile: state.profile,
-        savedBannerId: action.reportId,
+        step: 'done',
       };
+    case 'handoffConfirmed':
+      return state.lastHandoff
+        ? { ...state, lastHandoff: { ...state.lastHandoff, status: 'sent' } }
+        : state;
     case 'openCategory':
       return {
         ...state,
@@ -212,7 +230,6 @@ export function reportWizardReducer(
         emailPolishEnabled: state.emailPolishEnabled,
         photoAnalysisUserEnabled: state.photoAnalysisUserEnabled,
         profile: state.profile,
-        savedBannerId: action.savedBannerId ?? null,
       };
     case 'resumeReport':
       return {
@@ -226,7 +243,7 @@ export function reportWizardReducer(
         issueSearchQuery: '',
         photoVisionPhotoUri: action.report.photoVisionResult ? action.report.photoUri : null,
         photoVisionStatus: getPhotoVisionStatus(action.report.photoVisionResult),
-        savedBannerId: null,
+        lastHandoff: null,
         savedReportId: action.report.id,
         step: 'details',
       };

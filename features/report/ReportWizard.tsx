@@ -6,6 +6,7 @@ import { Button, Screen, StickyActionBar } from '@/components/ui';
 import {
   CategoryStep,
   DetailsStep,
+  DoneStep,
   FallbackStep,
   LocationStep,
   PreviewStep,
@@ -56,23 +57,20 @@ export function ReportWizard() {
   return (
     <View style={styles.root}>
       <Screen scroll={state.step !== 'category'} stickyFooter={stickyFooter}>
-        {state.savedBannerId ? (
-          <View style={styles.banner}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.bannerTitle}>Report saved</Text>
-              <Text style={styles.muted}>Mail was opened. Tracking is local.</Text>
-            </View>
-            <Button
-              onPress={() =>
-                router.push({ pathname: '/report/[id]', params: { id: state.savedBannerId } })
-              }
-              style={styles.bannerButton}
-              textStyle={styles.bannerButtonText}
-              title="View"
-            />
-          </View>
+        {state.step !== 'start' && state.step !== 'done' ? (
+          <Progress currentStep={state.step} />
         ) : null}
-        {state.step !== 'start' ? <Progress currentStep={state.step} /> : null}
+
+        {state.step === 'done' && state.lastHandoff ? (
+          <DoneStep
+            frameIndex={wizard.raccoonFrameIndex}
+            handoff={state.lastHandoff}
+            onConfirmSent={actions.confirmLastHandoffSent}
+            onNewReport={actions.startNewReport}
+            onViewReport={actions.viewLastHandoff}
+            recipient={email.recipient}
+          />
+        ) : null}
 
         {state.step === 'start' ? (
           <StartStep

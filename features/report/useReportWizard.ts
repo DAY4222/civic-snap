@@ -22,7 +22,7 @@ import { canRewriteEmailDraft } from '@/lib/emailRewriteClient';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
 import { deleteReportPhotos } from '@/lib/photos';
 import { getDraftCategory, isDraftEmpty } from '@/lib/reportDraft';
-import { getReport, markReportHandedOff } from '@/lib/reports';
+import { getReport, markReportHandedOff, markReportSent } from '@/lib/reports';
 import { PhotoIssueCandidate, ReportAnswerValue } from '@/lib/types';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
@@ -155,7 +155,7 @@ export function useReportWizard(resumeId?: string) {
   );
 
   useEffect(() => {
-    if (state.step !== 'start') return;
+    if (state.step !== 'start' && state.step !== 'done') return;
 
     const frameTimer = setInterval(() => {
       setRaccoonFrameIndex((currentFrame) => (currentFrame + 1) % RACCOON_SWEEPER_FRAMES.length);
@@ -163,16 +163,6 @@ export function useReportWizard(resumeId?: string) {
 
     return () => clearInterval(frameTimer);
   }, [state.step]);
-
-  useEffect(() => {
-    if (!state.savedBannerId) return;
-
-    const savedBannerTimer = setTimeout(() => {
-      dispatch({ type: 'dismissSavedBanner' });
-    }, 5000);
-
-    return () => clearTimeout(savedBannerTimer);
-  }, [state.savedBannerId]);
 
   useEffect(() => {
     return () => {
@@ -523,6 +513,27 @@ export function useReportWizard(resumeId?: string) {
     Linking.openURL(url).catch(() => undefined);
   }
 
+  /** From the done screen, after handing off to another app. */
+  async function confirmLastHandoffSent() {
+    const reportId = state.lastHandoff?.reportId;
+    if (!reportId) return;
+
+    try {
+      await markReportSent(reportId);
+      dispatch({ type: 'handoffConfirmed' });
+    } catch {
+      Alert.alert('Not saved', 'Try again in a moment.');
+    }
+  }
+
+  function viewLastHandoff() {
+    const reportId = state.lastHandoff?.reportId;
+    if (!reportId) return;
+
+    dispatch({ type: 'resetReport' });
+    router.push({ pathname: '/report/[id]', params: { id: reportId } });
+  }
+
   /** From the fallback screen, once the user has sent the email themselves. */
   async function confirmSentManually() {
     const reportId = state.savedReportId;
@@ -600,7 +611,10 @@ export function useReportWizard(resumeId?: string) {
       insertSuggestedDescription,
       openCategory,
       sendReport,
+      confirmLastHandoffSent,
       confirmSentManually,
+      startNewReport: () => dispatch({ type: 'resetReport' }),
+      viewLastHandoff,
       copyRecipient,
       openMailto,
       previewEmail,
