@@ -84,7 +84,6 @@ export type ReportWizardState = {
 
 export type ReportWizardAction =
   | { type: 'appendDescription'; value: string }
-  | { type: 'backFromCategory' }
   | { type: 'chooseCategory'; categoryId: string | null }
   | { type: 'dismissContactPrompt' }
   | { type: 'draftCreated'; reportId: string }
@@ -98,7 +97,6 @@ export type ReportWizardAction =
   | { type: 'photoStored'; photoUri: string; thumbnailUri?: string | null }
   | { type: 'previewReady'; savedReportId: string }
   | { type: 'profileLoaded'; profile: Profile }
-  | { type: 'resetReport' }
   | { type: 'handoffConfirmed' }
   | { type: 'resumeReport'; report: Report }
   | { type: 'setAddress'; address: string }
@@ -165,11 +163,6 @@ export function reportWizardReducer(
   switch (action.type) {
     case 'appendDescription':
       return updateDraft(state, { description: action.value });
-    case 'backFromCategory':
-      return {
-        ...state,
-        step: state.categoryReturnStep === 'details' ? 'details' : 'start',
-      };
     case 'chooseCategory':
       return {
         ...updateDraft(state, {
@@ -224,13 +217,6 @@ export function reportWizardReducer(
       return { ...state, savedReportId: action.savedReportId, step: 'preview' };
     case 'profileLoaded':
       return { ...state, profile: action.profile };
-    case 'resetReport':
-      return {
-        ...createInitialReportWizardState(),
-        emailPolishEnabled: state.emailPolishEnabled,
-        photoAnalysisUserEnabled: state.photoAnalysisUserEnabled,
-        profile: state.profile,
-      };
     case 'resumeReport':
       return {
         ...state,
@@ -399,4 +385,42 @@ export function describeEmailPolishError(error: unknown) {
     return 'AI polish took too long. Try again, or send the email as it is.';
   }
   return "AI polish didn't work this time. Your email is ready to send as it is.";
+}
+
+/** Where Back goes from each step; null means Back leaves the wizard. */
+export function getPreviousStep(
+  state: Pick<ReportWizardState, 'step' | 'categoryReturnStep' | 'draft'>
+): ReportWizardStep | null {
+  switch (state.step) {
+    case 'category':
+      return state.categoryReturnStep === 'details' ? 'details' : null;
+    case 'location':
+      // The manual path chose its issue first, so Back returns to the search.
+      return state.draft.photoUri ? null : 'category';
+    case 'details':
+      return 'location';
+    case 'preview':
+      return 'details';
+    case 'fallback':
+      return 'preview';
+    default:
+      return null;
+  }
+}
+
+/** Which of the four progress-tracker steps is lit for the current wizard step. */
+export function getTrackerIndex(state: Pick<ReportWizardState, 'step' | 'categoryReturnStep'>) {
+  switch (state.step) {
+    case 'category':
+      return state.categoryReturnStep === 'details' ? 2 : 0;
+    case 'location':
+      return 1;
+    case 'details':
+      return 2;
+    case 'preview':
+    case 'fallback':
+      return 3;
+    default:
+      return 0;
+  }
 }

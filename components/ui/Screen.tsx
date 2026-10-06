@@ -8,6 +8,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from './theme';
 
@@ -16,18 +17,24 @@ type ScreenProps = {
   contentContainerStyle?: StyleProp<ViewStyle>;
   scroll?: boolean;
   stickyFooter?: ReactNode;
+  /** Pads for the home indicator. Use on full-screen routes without a tab bar. */
+  safeBottom?: boolean;
 };
 
 export function Screen({
   children,
   contentContainerStyle,
+  safeBottom = false,
   scroll = true,
   stickyFooter,
 }: ScreenProps) {
+  const bottomInset = useSafeAreaInsets().bottom;
+  const extraBottom = safeBottom ? bottomInset : 0;
   const contentStyle = [
     styles.content,
     !scroll ? styles.staticContent : null,
     stickyFooter ? styles.contentWithFooter : null,
+    !stickyFooter && extraBottom ? { paddingBottom: spacing.xxl + extraBottom } : null,
     contentContainerStyle,
   ];
 
@@ -42,7 +49,9 @@ export function Screen({
       ) : (
         <View style={contentStyle}>{children}</View>
       )}
-      {stickyFooter ? <View style={styles.footer}>{stickyFooter}</View> : null}
+      {stickyFooter ? (
+        <View style={[styles.footer, { paddingBottom: spacing.lg + extraBottom }]}>{stickyFooter}</View>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }

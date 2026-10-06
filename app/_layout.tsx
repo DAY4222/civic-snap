@@ -117,6 +117,8 @@ function RootLayoutNav({
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ presentation: 'modal', title: 'Settings' }} />
         <Stack.Screen name="report/[id]" options={{ headerBackTitle: 'Back', title: 'Report detail' }} />
+        {/* The wizard handles its own Back; a swipe would skip the save-and-confirm step. */}
+        <Stack.Screen name="report/new" options={{ gestureEnabled: false, headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

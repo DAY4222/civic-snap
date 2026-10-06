@@ -3,6 +3,12 @@ import { StyleSheet } from 'react-native';
 import { colors, radius } from '@/components/ui';
 
 export const styles = StyleSheet.create({
+  startLoading: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    paddingTop: 120,
+  },
   centerText: {
     textAlign: 'center',
   },

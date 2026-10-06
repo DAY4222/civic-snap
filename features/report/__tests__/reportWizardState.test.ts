@@ -5,6 +5,8 @@ import {
   filterIssueCategories,
   getPhotoVisionErrorStatus,
   getPhotoVisionStatus,
+  getPreviousStep,
+  getTrackerIndex,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from '../reportWizardState';
@@ -61,8 +63,31 @@ describe('report wizard reducer', () => {
     expect(state.draft.photoIssueTopic).toBeNull();
 
     state = reportWizardReducer(state, { type: 'openCategory', returnStep: 'details' });
-    state = reportWizardReducer(state, { type: 'backFromCategory' });
-    expect(state.step).toBe('details');
+    expect(getPreviousStep(state)).toBe('details');
+    expect(getTrackerIndex(state)).toBe(2);
+  });
+
+  it('steps Back through the wizard and leaves it from the first step', () => {
+    const initial = createInitialReportWizardState();
+    const at = (step: typeof initial.step, photoUri: string | null = 'file:///photo.jpg') => ({
+      ...initial,
+      draft: { ...initial.draft, photoUri },
+      step,
+    });
+
+    // Photo path: Location is the first step, so Back leaves.
+    expect(getPreviousStep(at('location'))).toBeNull();
+    // Manual path: the issue search came first.
+    expect(getPreviousStep(at('location', null))).toBe('category');
+    expect(getPreviousStep({ ...at('category', null), categoryReturnStep: 'location' })).toBeNull();
+    expect(getPreviousStep(at('details'))).toBe('location');
+    expect(getPreviousStep(at('preview'))).toBe('details');
+    expect(getPreviousStep(at('fallback'))).toBe('preview');
+    expect(getPreviousStep(at('done'))).toBeNull();
+
+    expect([at('category'), at('location'), at('details'), at('preview')].map(getTrackerIndex)).toEqual([
+      0, 1, 2, 3,
+    ]);
   });
 
   it('keeps photo topic selection mutually exclusive with manual categories', () => {
@@ -200,7 +225,7 @@ describe('report wizard reducer', () => {
     expect(state.profile.name).toBe('Ada');
   });
 
-  it('confirms a handed-off report from the done step, then starts a new report', () => {
+  it('confirms a handed-off report from the done step', () => {
     let state = reportWizardReducer(createInitialReportWizardState(), {
       type: 'handoffFinished',
       app: null,
@@ -210,44 +235,6 @@ describe('report wizard reducer', () => {
 
     state = reportWizardReducer(state, { type: 'handoffConfirmed' });
     expect(state.lastHandoff?.status).toBe('sent');
-
-    state = reportWizardReducer(state, { type: 'resetReport' });
-    expect(state.step).toBe('start');
-    expect(state.lastHandoff).toBeNull();
-  });
-
-  it('resets active report progress while preserving stable settings', () => {
-    let state = createInitialReportWizardState();
-    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
-    state = reportWizardReducer(state, {
-      type: 'profileLoaded',
-      profile: { name: 'Ada', email: 'ada@example.com', phone: '555-0100' },
-    });
-    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///photo.jpg' });
-    state = reportWizardReducer(state, {
-      type: 'chooseCategory',
-      categoryId: 'road-pothole-road-damage',
-    });
-    state = reportWizardReducer(state, { type: 'setAddress', address: '123 Queen St W' });
-    state = reportWizardReducer(state, { type: 'setLocationNote', locationNote: 'south curb' });
-    state = reportWizardReducer(state, {
-      type: 'setPinLocation',
-      latitude: 43.65,
-      longitude: -79.38,
-    });
-    state = reportWizardReducer(state, { type: 'setDescription', description: 'Large pothole.' });
-    state = reportWizardReducer(state, { type: 'setAnswer', questionId: 'q1', value: 'yes' });
-    state = reportWizardReducer(state, { type: 'previewReady', savedReportId: 'report-1' });
-
-    state = reportWizardReducer(state, { type: 'resetReport' });
-
-    expect(state.step).toBe('start');
-    expect(state.savedReportId).toBeNull();
-    expect(state.lastHandoff).toBeNull();
-    expect(state.draft).toEqual(EMPTY_DRAFT);
-    expect(state.email.source).toBe('generated');
-    expect(state.photoAnalysisUserEnabled).toBe(true);
-    expect(state.profile.name).toBe('Ada');
   });
 
   it('preserves active report progress when enabling photo analysis', () => {

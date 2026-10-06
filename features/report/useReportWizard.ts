@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useReducer } from 'react';
-import { Alert } from 'react-native';
+import { Href, router } from 'expo-router';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { Alert, BackHandler } from 'react-native';
 
 import { loadEmailPolishEnabled, loadPhotoAnalysisEnabled } from '@/lib/aiSettings';
 import { GENERAL_CATEGORY } from '@/lib/categories';
@@ -13,10 +13,12 @@ import { PhotoIssueCandidate, ReportAnswerValue } from '@/lib/types';
 
 import {
   CategoryReturnStep,
+  ReportWizardState,
   ReportWizardStep,
   canContinueFromLocation,
   canPreviewReport,
   createInitialReportWizardState,
+  getPreviousStep,
   filterIssueCategories,
   reportWizardReducer,
 } from './reportWizardState';
@@ -26,10 +28,10 @@ import { useHandoff } from './useHandoff';
 import { useLocationPin } from './useLocationPin';
 import { usePhotoAnalysis } from './usePhotoAnalysis';
 import { usePhotoCapture } from './usePhotoCapture';
-import type { WizardStore } from './wizardTypes';
+import type { ReportWizardParams, WizardStore } from './wizardTypes';
 
 /** Composes the report wizard: one reducer for state, one hook per group of side effects. */
-export function useReportWizard(resumeId?: string) {
+export function useReportWizard(params: ReportWizardParams) {
   const [state, dispatch] = useReducer(
     reportWizardReducer,
     undefined,
@@ -63,11 +65,14 @@ export function useReportWizard(resumeId?: string) {
   );
 
   useWizardSettings(dispatch);
-  useResumeDraft(resumeId, dispatch);
-
-  async function startWithPhoto(capturePhoto: () => Promise<boolean>) {
-    if (await capturePhoto()) dispatch({ type: 'setStep', step: 'location' });
-  }
+  useResumeDraft(params.resumeId, dispatch);
+  useWizardStart(params, async (photoUri) => {
+    if (photoUri && (await capture.storePhoto({ uri: photoUri }))) {
+      dispatch({ type: 'setStep', step: 'location' });
+      return;
+    }
+    dispatch({ type: 'openCategory', returnStep: 'location' });
+  });
 
   async function previewEmail() {
     if (!canContinueFromLocation(draft)) {
@@ -95,40 +100,51 @@ export function useReportWizard(resumeId?: string) {
     dispatch({ type: 'openCategory', returnStep });
   }
 
-  function backFromLocation() {
-    // A manually chosen issue started in search, so Back returns there.
-    if (draft.categoryId && !draft.photoIssueTopic) {
-      openCategory('location');
-      return;
-    }
-    dispatch({ type: 'setStep', step: 'start' });
-  }
-
-  function returnToStart() {
+  /** Leaves the wizard, to `to` if given. The draft is already saved, so nothing is lost. */
+  function exitWizard(to?: Href) {
     void persistence.flush().finally(() => {
       persistence.detach();
-      dispatch({ type: 'resetReport' });
+      if (to) router.dismissTo(to);
+      else if (router.canGoBack()) router.back();
+      else router.replace('/');
     });
   }
 
-  function confirmExitToStart() {
-    if (isDraftEmpty(draft)) {
-      returnToStart();
+  function goBack() {
+    const previous = getPreviousStep(state);
+    if (!previous) exitWizard();
+    // Back into the search must come forward to Location again, not to an older return step.
+    else if (previous === 'category') openCategory('location');
+    else dispatch({ type: 'setStep', step: previous });
+  }
+
+  function confirmExit() {
+    if (isDraftEmpty(draft) || state.step === 'done') {
+      exitWizard();
       return;
     }
 
-    Alert.alert('Return to start?', 'Your draft is saved in History, so you can finish it later.', [
+    Alert.alert('Leave this report?', 'Your draft is saved in History, so you can finish it later.', [
       { text: 'Keep editing', style: 'cancel' },
-      { text: 'Return to start', onPress: returnToStart },
+      { text: 'Leave', onPress: () => exitWizard() },
     ]);
   }
+
+  useEffect(() => {
+    // Android's back button steps back through the wizard instead of closing it.
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      goBack();
+      return true;
+    });
+    return () => subscription.remove();
+  });
 
   function viewLastHandoff() {
     const reportId = state.lastHandoff?.reportId;
     if (!reportId) return;
 
-    dispatch({ type: 'resetReport' });
-    router.push({ pathname: '/report/[id]', params: { id: reportId } });
+    // Returns to the report's detail screen if the draft was resumed from there.
+    exitWizard({ pathname: '/report/[id]', params: { id: reportId } });
   }
 
   return {
@@ -136,11 +152,9 @@ export function useReportWizard(resumeId?: string) {
       ...emailDraft.actions,
       ...handoff.actions,
       analyzeCurrentPhoto: analysis.analyzeCurrentPhoto,
-      backFromCategory: () => dispatch({ type: 'backFromCategory' }),
-      backFromLocation,
       chooseCategory: (categoryId: string | null) => dispatch({ type: 'chooseCategory', categoryId }),
-      choosePhoto: () => startWithPhoto(capture.choosePhoto),
-      confirmExitToStart,
+      confirmExit,
+      goBack,
       dismissContactPrompt: () => dispatch({ type: 'dismissContactPrompt' }),
       enablePhotoAnalysisForCurrentReport: analysis.enableForThisReport,
       insertSuggestedDescription: (suggestion: string) =>
@@ -150,7 +164,6 @@ export function useReportWizard(resumeId?: string) {
         }),
       openCategory,
       previewEmail,
-      reportWithoutPhoto: () => dispatch({ type: 'setStep', step: 'location' }),
       setAddress: location.setAddress,
       setAnswer: (questionId: string, value: ReportAnswerValue) =>
         dispatch({ type: 'setAnswer', questionId, value }),
@@ -159,8 +172,7 @@ export function useReportWizard(resumeId?: string) {
         dispatch({ type: 'setIssueSearchQuery', issueSearchQuery }),
       setLocationNote: (locationNote: string) => dispatch({ type: 'setLocationNote', locationNote }),
       setStep: (step: ReportWizardStep) => dispatch({ type: 'setStep', step }),
-      startNewReport: () => dispatch({ type: 'resetReport' }),
-      takePhoto: () => startWithPhoto(capture.takePhoto),
+      startNewReport: () => exitWizard('/'),
       togglePhotoIssueTopic: (topic: PhotoIssueCandidate) =>
         dispatch({ type: 'togglePhotoIssueTopic', topic }),
       updatePinFromMap: location.updatePinFromMap,
@@ -220,10 +232,7 @@ function useWizardSettings(dispatch: WizardStore['dispatch']) {
   );
 }
 
-/**
- * resumeId is a one-shot command: load the draft, then clear the param so a later reset
- * (Return to start, successful handoff) doesn't reload the same report.
- */
+/** Opens a saved draft for editing. A report that was already sent opens as a report instead. */
 function useResumeDraft(resumeId: string | undefined, dispatch: WizardStore['dispatch']) {
   useEffect(() => {
     if (!resumeId) return;
@@ -231,15 +240,36 @@ function useResumeDraft(resumeId: string | undefined, dispatch: WizardStore['dis
     let active = true;
     getReport(resumeId)
       .then((report) => {
-        if (active && report?.status === 'draft') dispatch({ type: 'resumeReport', report });
+        if (!active) return;
+        if (report?.status === 'draft') {
+          dispatch({ type: 'resumeReport', report });
+        } else if (report) {
+          // Already handed off: show the report instead of an editor.
+          router.replace({ pathname: '/report/[id]', params: { id: report.id } });
+        } else {
+          throw new Error('Draft not found');
+        }
       })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) router.setParams({ resumeId: undefined });
+      .catch(() => {
+        if (!active) return;
+        Alert.alert('Draft not found', 'It may have been deleted.');
+        if (router.canGoBack()) router.back();
+        else router.replace('/');
       });
 
     return () => {
       active = false;
     };
   }, [dispatch, resumeId]);
+}
+
+/** Runs the wizard's opening move once: save the picked photo, or start with the issue search. */
+function useWizardStart(params: ReportWizardParams, start: (photoUri: string | null) => void) {
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    if (!params.resumeId) start(params.photo ?? null);
+  });
 }

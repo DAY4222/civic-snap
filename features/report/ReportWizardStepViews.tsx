@@ -34,66 +34,12 @@ import {
 import { styles } from './reportWizardStyles';
 import { RaccoonSprite } from './RaccoonSprite';
 
-export function StartStep({
-  busy,
-  onChooseIssueType,
-  onChoosePhoto,
-  onReportWithoutPhoto,
-  onTakePhoto,
-}: {
-  busy: boolean;
-  onChooseIssueType: () => void;
-  onChoosePhoto: () => void;
-  onReportWithoutPhoto: () => void;
-  onTakePhoto: () => void;
-}) {
-  return (
-    <View style={styles.stack}>
-      <View>
-        <Text style={styles.eyebrow}>Civic Snap</Text>
-        <RaccoonSprite style={styles.raccoonStage} />
-        <Text style={styles.title}>Snap. Pin. Send to 311.</Text>
-        <Text style={styles.subtitle}>Create a strong report in a few focused steps.</Text>
-      </View>
-      <Notice text="For emergencies or immediate danger, use emergency services instead of this app." />
-      <Button
-        disabled={busy}
-        icon={<FontAwesome name="camera" size={22} color="#fff" />}
-        onPress={onTakePhoto}
-        title="Take photo"
-      />
-      <View style={styles.buttonRow}>
-        <Button
-          disabled={busy}
-          onPress={onReportWithoutPhoto}
-          style={styles.rowButton}
-          title="Report without photo"
-          variant="secondary"
-        />
-        <Button
-          disabled={busy}
-          onPress={onChoosePhoto}
-          style={styles.rowButton}
-          title="Choose photo"
-          variant="secondary"
-        />
-      </View>
-      <Button
-        disabled={busy}
-        onPress={onChooseIssueType}
-        title="Choose issue type"
-        variant="secondary"
-      />
-    </View>
-  );
-}
-
 export function CategoryStep({
   filteredIssueCategories,
   issueSearchQuery,
   onBack,
   onChooseCategory,
-  onExitToStart,
+  onExit,
   onSearchChange,
   selectedCategoryId,
 }: {
@@ -101,7 +47,7 @@ export function CategoryStep({
   issueSearchQuery: string;
   onBack: () => void;
   onChooseCategory: (categoryId: string | null) => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onSearchChange: (value: string) => void;
   selectedCategoryId: string | null;
 }) {
@@ -115,7 +61,7 @@ export function CategoryStep({
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.stack}>
-          <Header title="Search issue types" onBack={onBack} onExitToStart={onExitToStart} />
+          <Header title="Search issue types" onBack={onBack} onExit={onExit} />
           <Field
             label="Search"
             onChangeText={onSearchChange}
@@ -171,7 +117,7 @@ export function LocationStep({
   onAddressChange,
   onBack,
   onContinue,
-  onExitToStart,
+  onExit,
   onLocationNoteChange,
   onUpdatePin,
   onUseCurrentLocation,
@@ -185,7 +131,7 @@ export function LocationStep({
   onAddressChange: (value: string) => void;
   onBack: () => void;
   onContinue: () => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onLocationNoteChange: (value: string) => void;
   onUpdatePin: (region: Region) => void;
   onUseCurrentLocation: () => void;
@@ -194,7 +140,7 @@ export function LocationStep({
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Confirm location" onBack={onBack} onExitToStart={onExitToStart} />
+      <Header title="Confirm location" onBack={onBack} onExit={onExit} />
       {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
       <Button
         disabled={busy}
@@ -242,7 +188,7 @@ export function DetailsStep({
   onAnalyze,
   onBack,
   onDescriptionChange,
-  onExitToStart,
+  onExit,
   onInsertSuggestedDescription,
   onOpenIssueSearch,
   onSetAnswer,
@@ -263,7 +209,7 @@ export function DetailsStep({
   onAnalyze: () => void;
   onBack: () => void;
   onDescriptionChange: (value: string) => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onInsertSuggestedDescription: (value: string) => void;
   onOpenIssueSearch: () => void;
   onSetAnswer: (questionId: string, value: ReportAnswerValue) => void;
@@ -279,7 +225,7 @@ export function DetailsStep({
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Add details" onBack={onBack} onExitToStart={onExitToStart} />
+      <Header title="Add details" onBack={onBack} onExit={onExit} />
       <Text style={styles.categoryTitle}>{category.title}</Text>
       {photoLabelsEnabled && photoUri ? (
         <SuggestedTopicsPanel
@@ -357,7 +303,7 @@ export function PreviewStep({
   onDismissContactPrompt,
   onEmailBodyChange,
   onEmailSubjectChange,
-  onExitToStart,
+  onExit,
   onRebuildEmail,
   photoUri,
   polish,
@@ -373,7 +319,7 @@ export function PreviewStep({
   onDismissContactPrompt: () => void;
   onEmailBodyChange: (value: string) => void;
   onEmailSubjectChange: (value: string) => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onRebuildEmail: () => void;
   photoUri: string | null;
   polish: EmailPolishPanelProps;
@@ -385,7 +331,7 @@ export function PreviewStep({
 
   return (
     <View style={styles.stack}>
-      <Header title="Email preview" onBack={onBack} onExitToStart={onExitToStart} />
+      <Header title="Email preview" onBack={onBack} onExit={onExit} />
       {emailOutOfDate ? (
         <Card style={styles.warningCard} tone="warning">
           <Text style={styles.muted}>
@@ -523,7 +469,7 @@ export function FallbackStep({
   onConfirmSent,
   onCopyEmail,
   onCopyRecipient,
-  onExitToStart,
+  onExit,
   onOpenMailto,
   recipient,
 }: {
@@ -531,13 +477,13 @@ export function FallbackStep({
   onConfirmSent: () => void;
   onCopyEmail: () => void;
   onCopyRecipient: () => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onOpenMailto: () => void;
   recipient: string;
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Send by email" onBack={onBack} onExitToStart={onExitToStart} />
+      <Header title="Send by email" onBack={onBack} onExit={onExit} />
       <Notice
         text={`Open the email in your email app, or copy it and send it to ${recipient}. Attach your photo yourself if you took one.`}
         tone="warning"
@@ -644,11 +590,11 @@ function EmailPolishPanel({
 function Header({
   title,
   onBack,
-  onExitToStart,
+  onExit,
 }: {
   title: string;
   onBack: () => void;
-  onExitToStart: () => void;
+  onExit: () => void;
 }) {
   return (
     <View style={styles.headerRow}>
@@ -662,10 +608,10 @@ function Header({
       </Pressable>
       <Text style={styles.headerTitle}>{title}</Text>
       <Pressable
-        accessibilityLabel="Return to start"
+        accessibilityLabel="Close report"
         accessibilityRole="button"
         hitSlop={10}
-        onPress={onExitToStart}
+        onPress={onExit}
         style={styles.headerIconButton}>
         <FontAwesome name="times" size={18} color={colors.text} />
       </Pressable>
@@ -685,17 +631,11 @@ function categorySourceMatchText(category: IssueCategory) {
   return 'Use these prompts to shape your description.';
 }
 
-export function Progress({ currentStep }: { currentStep: ReportWizardStep }) {
-  const steps: { key: ReportWizardStep; label: string }[] = [
-    { key: 'category', label: 'Issue' },
-    { key: 'location', label: 'Location' },
-    { key: 'details', label: 'Details' },
-    { key: 'preview', label: 'Email' },
-  ];
-  const currentIndex = Math.max(
-    steps.findIndex((step) => step.key === (currentStep === 'fallback' ? 'preview' : currentStep)),
-    0
-  );
+const TRACKER_STEPS = ['Issue', 'Location', 'Details', 'Email'];
+
+export function Progress({ activeIndex }: { activeIndex: number }) {
+  const steps = TRACKER_STEPS.map((label) => ({ key: label, label }));
+  const currentIndex = activeIndex;
 
   return (
     <View style={styles.progressCard}>

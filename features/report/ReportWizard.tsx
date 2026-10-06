@@ -1,5 +1,6 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Platform, Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Platform, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button, Screen, StickyActionBar } from '@/components/ui';
 
@@ -11,15 +12,16 @@ import {
   LocationStep,
   PreviewStep,
   Progress,
-  StartStep,
 } from './ReportWizardStepViews';
 import { EmailPolishConsentSheet } from './EmailPolishConsentSheet';
 import { styles } from './reportWizardStyles';
+import { getTrackerIndex } from './reportWizardState';
 import { useReportWizard } from './useReportWizard';
+import type { ReportWizardParams } from './wizardTypes';
 
 export function ReportWizard() {
-  const { resumeId } = useLocalSearchParams<{ resumeId?: string }>();
-  const wizard = useReportWizard(resumeId);
+  const params = useLocalSearchParams<ReportWizardParams>();
+  const wizard = useReportWizard(params);
   const { actions, category, email, hasIssue, state } = wizard;
   const { draft } = state;
   const previewRequirementText = !draft.description.trim()
@@ -55,10 +57,21 @@ export function ReportWizard() {
     ) : null;
 
   return (
-    <View style={styles.root}>
-      <Screen scroll={state.step !== 'category'} stickyFooter={stickyFooter}>
+    <SafeAreaView edges={['top']} style={styles.root}>
+      {/* Keyed by step so each step opens scrolled to the top. */}
+      <Screen
+        key={state.step}
+        safeBottom
+        scroll={state.step !== 'category'}
+        stickyFooter={stickyFooter}>
         {state.step !== 'start' && state.step !== 'done' ? (
-          <Progress currentStep={state.step} />
+          <Progress activeIndex={getTrackerIndex(state)} />
+        ) : null}
+
+        {state.step === 'start' ? (
+          <View style={styles.startLoading}>
+            <ActivityIndicator />
+          </View>
         ) : null}
 
         {state.step === 'done' && state.lastHandoff ? (
@@ -71,23 +84,13 @@ export function ReportWizard() {
           />
         ) : null}
 
-        {state.step === 'start' ? (
-          <StartStep
-            busy={state.busy}
-            onChoosePhoto={actions.choosePhoto}
-            onChooseIssueType={() => actions.openCategory('location')}
-            onReportWithoutPhoto={actions.reportWithoutPhoto}
-            onTakePhoto={actions.takePhoto}
-          />
-        ) : null}
-
         {state.step === 'category' ? (
           <CategoryStep
             filteredIssueCategories={wizard.filteredIssueCategories}
             issueSearchQuery={state.issueSearchQuery}
-            onBack={actions.backFromCategory}
+            onBack={actions.goBack}
             onChooseCategory={actions.chooseCategory}
-            onExitToStart={actions.confirmExitToStart}
+            onExit={actions.confirmExit}
             onSearchChange={actions.setIssueSearchQuery}
             selectedCategoryId={draft.categoryId}
           />
@@ -100,9 +103,9 @@ export function ReportWizard() {
             canContinue={wizard.canContinueLocation}
             locationNote={draft.locationNote}
             onAddressChange={actions.setAddress}
-            onBack={actions.backFromLocation}
+            onBack={actions.goBack}
             onContinue={() => actions.setStep('details')}
-            onExitToStart={actions.confirmExitToStart}
+            onExit={actions.confirmExit}
             onLocationNoteChange={actions.setLocationNote}
             onUseCurrentLocation={actions.useCurrentLocation}
             onUpdatePin={actions.updatePinFromMap}
@@ -119,9 +122,9 @@ export function ReportWizard() {
             descriptionPlaceholder={wizard.descriptionPlaceholder}
             selectedCategory={hasIssue ? category : null}
             onAnalyze={actions.analyzeCurrentPhoto}
-            onBack={() => actions.setStep('location')}
+            onBack={actions.goBack}
             onDescriptionChange={actions.setDescription}
-            onExitToStart={actions.confirmExitToStart}
+            onExit={actions.confirmExit}
             onInsertSuggestedDescription={actions.insertSuggestedDescription}
             onOpenIssueSearch={() => actions.openCategory('details')}
             onSetAnswer={actions.setAnswer}
@@ -143,7 +146,7 @@ export function ReportWizard() {
             emailOutOfDate={wizard.emailOutOfDate}
             emailRecipient={email.recipient}
             emailSubject={email.subject}
-            onBack={() => actions.setStep('details')}
+            onBack={actions.goBack}
             onDismissContactPrompt={actions.dismissContactPrompt}
             onEmailBodyChange={actions.setEmailBody}
             onEmailSubjectChange={actions.setEmailSubject}
@@ -160,7 +163,7 @@ export function ReportWizard() {
               source: state.email.source,
               status: state.emailPolish.status,
             }}
-            onExitToStart={actions.confirmExitToStart}
+            onExit={actions.confirmExit}
             photoUri={draft.photoUri}
             profile={state.profile}
             usesShareSheet={Platform.OS !== 'web' && wizard.mailComposerAvailable === false}
@@ -169,11 +172,11 @@ export function ReportWizard() {
 
         {state.step === 'fallback' ? (
           <FallbackStep
-            onBack={() => actions.setStep('preview')}
+            onBack={actions.goBack}
             onConfirmSent={actions.confirmSentManually}
             onCopyEmail={actions.copyEmail}
             onCopyRecipient={actions.copyRecipient}
-            onExitToStart={actions.confirmExitToStart}
+            onExit={actions.confirmExit}
             onOpenMailto={actions.openMailto}
             recipient={email.recipient}
           />
@@ -189,6 +192,11 @@ export function ReportWizard() {
           <ActivityIndicator />
         </View>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 }
+
+/**
+ * Both paths show Issue, Location, Details, Email. Searching for an issue from Details stays
+ * on Details instead of jumping back to the first step.
+ */

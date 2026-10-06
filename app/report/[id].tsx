@@ -1,6 +1,6 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Image, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, Field, Screen, colors } from '@/components/ui';
@@ -16,32 +16,34 @@ export default function ReportDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [caseNumber, setCaseNumber] = useState('');
 
-  useEffect(() => {
-    let mounted = true;
-    if (!id) {
-      setLoading(false);
-      return;
-    }
+  // Reloads on focus so a draft resumed and sent from here shows its new status.
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      if (!id) {
+        setLoading(false);
+        return;
+      }
 
-    setError(false);
-    setLoading(true);
-    getReport(id)
-      .then((row) => {
-        if (!mounted) return;
-        setReport(row);
-        setCaseNumber(row?.caseNumber ?? '');
-      })
-      .catch(() => {
-        if (mounted) setError(true);
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
+      setError(false);
+      getReport(id)
+        .then((row) => {
+          if (!mounted) return;
+          setReport(row);
+          setCaseNumber(row?.caseNumber ?? '');
+        })
+        .catch(() => {
+          if (mounted) setError(true);
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
 
-    return () => {
-      mounted = false;
-    };
-  }, [id]);
+      return () => {
+        mounted = false;
+      };
+    }, [id])
+  );
 
   async function saveCaseNumber() {
     if (!id || saving) return;
@@ -141,7 +143,7 @@ export default function ReportDetailScreen() {
         </View>
         {report.status === 'draft' ? (
           <Button
-            onPress={() => router.push({ pathname: '/', params: { resumeId: report.id } })}
+            onPress={() => router.push({ pathname: '/report/new', params: { resumeId: report.id } })}
             title="Resume draft"
             variant="dark"
           />

@@ -26,7 +26,7 @@ export default function HistoryScreen() {
 
   function openReport(report: Report) {
     if (report.status === 'draft') {
-      router.push({ pathname: '/', params: { resumeId: report.id } });
+      router.push({ pathname: '/report/new', params: { resumeId: report.id } });
       return;
     }
 
