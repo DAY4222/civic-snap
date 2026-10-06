@@ -1,12 +1,10 @@
-import { useFocusEffect } from '@react-navigation/native';
 import { Href, router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { Alert, BackHandler } from 'react-native';
 
-import { loadEmailPolishEnabled, loadPhotoAnalysisChoice } from '@/lib/aiSettings';
+import { useAppState, type AppSettings } from '@/lib/appState';
 import { GENERAL_CATEGORY } from '@/lib/categories';
 import { appendSuggestedDescription } from '@/lib/issueSuggestions';
-import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
 import { getDraftCategory, isDraftEmpty } from '@/lib/reportDraft';
 import { getReport } from '@/lib/reports';
 import { PhotoIssueCandidate, ReportAnswerValue } from '@/lib/types';
@@ -33,11 +31,8 @@ import type { ReportWizardParams, WizardStore } from './wizardTypes';
 
 /** Composes the report wizard: one reducer for state, one hook per group of side effects. */
 export function useReportWizard(params: ReportWizardParams) {
-  const [state, dispatch] = useReducer(
-    reportWizardReducer,
-    undefined,
-    createInitialReportWizardState
-  );
+  const app = useAppState();
+  const [state, dispatch] = useReducer(reportWizardReducer, app.settings, initialStateFromSettings);
   const store = { state, dispatch };
   const { draft } = state;
   const category = useMemo(
@@ -65,7 +60,7 @@ export function useReportWizard(params: ReportWizardParams) {
     [state.issueSearchQuery]
   );
 
-  useWizardSettings(dispatch);
+  useSettingsSync(app.settings, dispatch);
   useResumeDraft(params.resumeId, dispatch);
 
   // Details fills the checklist answers that follow from the location (and refreshes them
@@ -227,38 +222,30 @@ export function useReportWizard(params: ReportWizardParams) {
   };
 }
 
-/** Profile and AI settings, reloaded whenever the wizard regains focus (e.g. after Settings). */
-function useWizardSettings(dispatch: WizardStore['dispatch']) {
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
+function initialStateFromSettings(settings: AppSettings) {
+  return {
+    ...createInitialReportWizardState(),
+    emailPolishEnabled: settings.emailPolishEnabled,
+    photoAnalysisChoice: settings.photoAnalysis,
+    profile: settings.profile,
+  };
+}
 
-      loadProfile()
-        .then((profile) => {
-          if (active) dispatch({ type: 'profileLoaded', profile });
-        })
-        .catch(() => {
-          if (active) dispatch({ type: 'profileLoaded', profile: EMPTY_PROFILE });
-        });
-      loadPhotoAnalysisChoice()
-        .then((choice) => {
-          if (active) dispatch({ type: 'setPhotoAnalysisChoice', choice });
-        })
-        .catch(() => {
-          // Unreadable storage could not remember "Not now" either, so don't ask.
-          if (active) dispatch({ type: 'setPhotoAnalysisChoice', choice: 'off' });
-        });
-      loadEmailPolishEnabled()
-        .then((enabled) => {
-          if (active) dispatch({ type: 'setEmailPolishEnabled', enabled });
-        })
-        .catch(() => undefined);
+/** Follows changes made elsewhere, e.g. contact details edited in Settings mid-report. */
+function useSettingsSync(settings: AppSettings, dispatch: WizardStore['dispatch']) {
+  const { emailPolishEnabled, photoAnalysis, profile } = settings;
+  const mounted = useRef(false);
 
-      return () => {
-        active = false;
-      };
-    }, [dispatch])
-  );
+  useEffect(() => {
+    // The first render already started from these values.
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    dispatch({ type: 'profileLoaded', profile });
+    dispatch({ type: 'setPhotoAnalysisChoice', choice: photoAnalysis });
+    dispatch({ type: 'setEmailPolishEnabled', enabled: emailPolishEnabled });
+  }, [dispatch, emailPolishEnabled, photoAnalysis, profile]);
 }
 
 function photoGpsFromParams({ photoLat, photoLng }: ReportWizardParams) {

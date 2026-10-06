@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -12,22 +11,19 @@ import {
 } from 'react-native';
 
 import { Button, Field, Notice, colors } from '@/components/ui';
-import { EMPTY_PROFILE, completeOnboarding, loadProfile, saveProfile } from '@/lib/profile';
+import { useAppState } from '@/lib/appState';
 import { Profile } from '@/lib/types';
 
 const LOGO = require('../assets/images/icon.png');
 
 export default function OnboardingScreen() {
   const [phase, setPhase] = useState<'brand' | 'profile'>('brand');
-  const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
+  const app = useAppState();
+  const [profile, setProfile] = useState<Profile>(app.settings.profile);
   const [busy, setBusy] = useState(false);
   const brandOpacity = useRef(new Animated.Value(1)).current;
   const profileOpacity = useRef(new Animated.Value(0)).current;
   const hasContactInfo = Boolean(profile.name.trim() || profile.phone.trim());
-
-  useEffect(() => {
-    loadProfile().then(setProfile).catch(() => setProfile(EMPTY_PROFILE));
-  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -54,15 +50,15 @@ export default function OnboardingScreen() {
     setBusy(true);
     try {
       if (shouldSaveProfile) {
-        await saveProfile({
+        await app.saveProfile({
           ...profile,
           name: profile.name.trim(),
           phone: profile.phone.trim(),
         });
       }
 
-      await completeOnboarding();
-      router.replace('/');
+      // The root stack opens the app once onboarding is marked complete.
+      await app.completeOnboarding();
     } finally {
       setBusy(false);
     }

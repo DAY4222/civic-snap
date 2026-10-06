@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { saveEmailPolishEnabled } from '@/lib/aiSettings';
+import { useAppState } from '@/lib/appState';
 import { buildEmail } from '@/lib/email';
 import { canRewriteEmailDraft } from '@/lib/emailRewriteClient';
 import type { IssueCategory } from '@/lib/types';
@@ -15,6 +15,7 @@ import type { WizardStore } from './wizardTypes';
  * and AI versions live in state.email, and AI polish runs only when the user asks for it.
  */
 export function useEmailDraft({ state, dispatch }: WizardStore, category: IssueCategory) {
+  const app = useAppState();
   const { draft } = state;
   const polishAbortController = useRef<AbortController | null>(null);
   const polishAvailable = canRewriteEmailDraft();
@@ -84,7 +85,8 @@ export function useEmailDraft({ state, dispatch }: WizardStore, category: IssueC
       },
       allowEmailPolish: () => {
         dispatch({ type: 'setEmailPolishEnabled', enabled: true });
-        saveEmailPolishEnabled(true).catch(() => undefined);
+        // Remembered for this device; the polish runs even if saving the choice fails.
+        app.setEmailPolishEnabled(true).catch(() => undefined);
         void runPolish();
       },
       cancelEmailPolish: () => {

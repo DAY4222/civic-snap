@@ -1,37 +1,23 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Platform, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Button, Card, Field, Screen, colors } from '@/components/ui';
-import {
-  loadEmailPolishEnabled,
-  loadPhotoAnalysisEnabled,
-  saveEmailPolishEnabled,
-  savePhotoAnalysisEnabled,
-} from '@/lib/aiSettings';
+import { useAppState } from '@/lib/appState';
 import { canRewriteEmailDraft } from '@/lib/emailRewriteClient';
-import { EMPTY_PROFILE, loadProfile, saveProfile } from '@/lib/profile';
 import { Profile } from '@/lib/types';
 import { canAnalyzePhotoLabels } from '@/lib/vision';
 
 export default function SettingsScreen() {
+  const app = useAppState();
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
-  const [photoAnalysisEnabled, setPhotoAnalysisEnabled] = useState(false);
-  const [emailPolishEnabled, setEmailPolishEnabled] = useState(false);
+  // The form edits a copy; Save writes it to the store, which every screen reads.
+  const [profile, setProfile] = useState<Profile>(app.settings.profile);
+  const photoAnalysisEnabled = app.settings.photoAnalysis === 'on';
+  const emailPolishEnabled = app.settings.emailPolishEnabled;
   const photoAnalysisAvailable = canAnalyzePhotoLabels();
   const emailPolishAvailable = canRewriteEmailDraft();
-
-  useEffect(() => {
-    loadProfile().then(setProfile).catch(() => setProfile(EMPTY_PROFILE));
-    loadPhotoAnalysisEnabled()
-      .then(setPhotoAnalysisEnabled)
-      .catch(() => setPhotoAnalysisEnabled(false));
-    loadEmailPolishEnabled()
-      .then(setEmailPolishEnabled)
-      .catch(() => setEmailPolishEnabled(false));
-  }, []);
 
   async function save() {
     if (busy) return;
@@ -39,7 +25,7 @@ export default function SettingsScreen() {
     setBusy(true);
     setErrorMessage('');
     try {
-      await saveProfile({
+      await app.saveProfile({
         ...profile,
         email: profile.email.trim(),
         name: profile.name.trim(),
@@ -54,24 +40,20 @@ export default function SettingsScreen() {
   }
 
   async function updateEmailPolishEnabled(enabled: boolean) {
-    setEmailPolishEnabled(enabled);
     setErrorMessage('');
     try {
-      await saveEmailPolishEnabled(enabled);
+      await app.setEmailPolishEnabled(enabled);
     } catch {
-      setEmailPolishEnabled(!enabled);
       setErrorMessage('AI email polish setting was not saved. Try again.');
     }
   }
 
   async function updatePhotoAnalysisEnabled(enabled: boolean) {
-    setPhotoAnalysisEnabled(enabled);
     setErrorMessage('');
     try {
-      await savePhotoAnalysisEnabled(enabled);
+      await app.setPhotoAnalysisEnabled(enabled);
     } catch {
-      setPhotoAnalysisEnabled(!enabled);
-      setErrorMessage('Photo analysis setting was not saved. Try again.');
+      setErrorMessage('Photo suggestions setting was not saved. Try again.');
     }
   }
 
