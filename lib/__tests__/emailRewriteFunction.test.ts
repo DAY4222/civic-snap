@@ -63,6 +63,9 @@ describe('rewrite-email Edge Function logic', () => {
     expect(prompt).toContain('Return JSON only with this shape');
     expect(prompt).toContain('Use plain-text section labels with blank lines');
     expect(prompt).toContain('Do not invent dates, durations, hazards');
+    expect(prompt).toContain('Never add causes, consequences, hazards');
+    expect(prompt).toContain('Keep measurements, directions, counts, and place names exactly as written.');
+    expect(prompt).toContain("stay close to the user's own wording");
     expect(prompt).toContain('"issueLabel":"Road Pothole / Road Damage"');
     expect(prompt).toContain('"guidedAnswers":["Is this on a City road?: Road"]');
   });
