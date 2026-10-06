@@ -9,6 +9,7 @@ import {
   Report,
   ReportAnswerValue,
   ReportDraft,
+  ReportStatus,
 } from '@/lib/types';
 import { BackendError } from '@/lib/backend/client';
 
@@ -73,6 +74,12 @@ export type ReportWizardAction =
   | { type: 'dismissContactPrompt' }
   | { type: 'dismissSavedBanner' }
   | { type: 'draftCreated'; reportId: string }
+  | {
+      type: 'handoffFinished';
+      app: string | null;
+      reportId: string;
+      status: Extract<ReportStatus, 'handed_off' | 'sent'>;
+    }
   | { type: 'openCategory'; returnStep: CategoryReturnStep }
   | { type: 'photoStored'; photoUri: string; thumbnailUri?: string | null }
   | { type: 'previewReady'; savedReportId: string }
@@ -164,6 +171,14 @@ export function reportWizardReducer(
       return { ...state, savedBannerId: null };
     case 'draftCreated':
       return { ...state, savedReportId: state.savedReportId ?? action.reportId };
+    case 'handoffFinished':
+      return {
+        ...createInitialReportWizardState(),
+        emailPolishEnabled: state.emailPolishEnabled,
+        photoAnalysisUserEnabled: state.photoAnalysisUserEnabled,
+        profile: state.profile,
+        savedBannerId: action.reportId,
+      };
     case 'openCategory':
       return {
         ...state,

@@ -22,7 +22,7 @@ import { canRewriteEmailDraft } from '@/lib/emailRewriteClient';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
 import { deleteReportPhotos } from '@/lib/photos';
 import { getDraftCategory, isDraftEmpty } from '@/lib/reportDraft';
-import { getReport } from '@/lib/reports';
+import { getReport, markReportHandedOff } from '@/lib/reports';
 import { PhotoIssueCandidate, ReportAnswerValue } from '@/lib/types';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
@@ -39,7 +39,8 @@ import {
 } from './reportWizardState';
 import {
   getCurrentLocationReportData,
-  openSavedReportMail,
+  handOffReport,
+  isMailComposerAvailable,
   persistWizardPhoto,
   requestPolishedEmail,
   reverseGeocodeReportAddress,
@@ -61,6 +62,8 @@ export function useReportWizard(resumeId?: string) {
   const addressEditVersion = useRef(0);
   const photoAnalysisAbortController = useRef<AbortController | null>(null);
   const emailPolishAbortController = useRef<AbortController | null>(null);
+  const usedMailto = useRef(false);
+  const [mailComposerAvailable, setMailComposerAvailable] = useState<boolean | null>(null);
   const reverseGeocodeRequestId = useRef(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { draft } = state;
@@ -180,6 +183,18 @@ export function useReportWizard(resumeId?: string) {
       emailPolishAbortController.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (state.step !== 'preview') return;
+
+    let active = true;
+    isMailComposerAvailable().then((available) => {
+      if (active) setMailComposerAvailable(available);
+    });
+    return () => {
+      active = false;
+    };
+  }, [state.step]);
 
   useEffect(() => {
     // Leaving the preview cancels a polish that is still running.
@@ -455,28 +470,36 @@ export function useReportWizard(resumeId?: string) {
     dispatch({ type: 'emailPolishFinished' });
   }
 
-  async function openMail() {
-    if (!state.savedReportId) return;
+  async function sendReport() {
+    const reportId = state.savedReportId;
+    if (!reportId) return;
 
     dispatch({ type: 'setBusy', busy: true });
     try {
-      const result = await openSavedReportMail({
+      await persistence.flush();
+      const outcome = await handOffReport({
         emailBody: email.body,
         emailRecipient: email.recipient,
         emailSubject: email.subject,
         photoUri: draft.photoUri,
-        reportId: state.savedReportId,
+        reportId,
       });
-      if (result === 'fallback') {
+      if (outcome.kind === 'cancelled') return;
+      if (outcome.kind === 'unavailable') {
         dispatch({ type: 'setStep', step: 'fallback' });
         return;
       }
 
       persistence.detach();
-      dispatch({ type: 'resetReport', savedBannerId: state.savedReportId });
+      dispatch({
+        type: 'handoffFinished',
+        app: outcome.app,
+        reportId,
+        status: outcome.kind === 'sent' ? 'sent' : 'handed_off',
+      });
     } catch {
       dispatch({ type: 'setStep', step: 'fallback' });
-      Alert.alert('Mail not opened', 'Use the fallback options to copy the draft or open a mailto link.');
+      Alert.alert("Couldn't open your email", 'Copy the email instead, or open it in your email app.');
     } finally {
       dispatch({ type: 'setBusy', busy: false });
     }
@@ -487,11 +510,36 @@ export function useReportWizard(resumeId?: string) {
     Alert.alert('Copied', 'Email subject and body copied.');
   }
 
+  async function copyRecipient() {
+    await Clipboard.setStringAsync(email.recipient);
+    Alert.alert('Copied', `${email.recipient} copied.`);
+  }
+
   function openMailto() {
     const url = `mailto:${email.recipient}?subject=${encodeURIComponent(
       email.subject
     )}&body=${encodeURIComponent(email.body)}`;
-    Linking.openURL(url);
+    usedMailto.current = true;
+    Linking.openURL(url).catch(() => undefined);
+  }
+
+  /** From the fallback screen, once the user has sent the email themselves. */
+  async function confirmSentManually() {
+    const reportId = state.savedReportId;
+    if (!reportId) return;
+
+    try {
+      await persistence.flush();
+      await markReportHandedOff(reportId, {
+        app: null,
+        method: usedMailto.current ? 'mailto' : 'copy',
+        status: 'sent',
+      });
+      persistence.detach();
+      dispatch({ type: 'handoffFinished', app: null, reportId, status: 'sent' });
+    } catch {
+      Alert.alert('Not saved', 'Try again in a moment.');
+    }
   }
 
   function openCategory(returnStep: CategoryReturnStep) {
@@ -551,7 +599,9 @@ export function useReportWizard(resumeId?: string) {
       enablePhotoAnalysisForCurrentReport,
       insertSuggestedDescription,
       openCategory,
-      openMail,
+      sendReport,
+      confirmSentManually,
+      copyRecipient,
       openMailto,
       previewEmail,
       reportWithoutPhoto: () => dispatch({ type: 'setStep', step: 'location' }),
@@ -602,6 +652,7 @@ export function useReportWizard(resumeId?: string) {
     emailPolishAvailable,
     filteredIssueCategories,
     hasIssue,
+    mailComposerAvailable,
     photoAnalysisAvailable,
     photoIssueSuggestions,
     photoLabelsEnabled,

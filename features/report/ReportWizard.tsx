@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 
 import { Button, Screen, StickyActionBar } from '@/components/ui';
 
@@ -26,6 +26,13 @@ export function ReportWizard() {
     : !wizard.canContinueLocation
       ? 'Add an address or GPS pin before previewing the email.'
       : '';
+  // Apple Mail opens prefilled; without it the share sheet picks an email app; web uses fallbacks.
+  const sendButtonTitle =
+    Platform.OS === 'web'
+      ? 'Send by email'
+      : wizard.mailComposerAvailable === false
+        ? 'Choose email app'
+        : 'Open Mail';
   const stickyFooter =
     state.step === 'details' ? (
       <StickyActionBar>
@@ -40,8 +47,8 @@ export function ReportWizard() {
       <StickyActionBar>
         <Button
           disabled={state.busy || !state.savedReportId}
-          onPress={actions.openMail}
-          title="Open Mail"
+          onPress={actions.sendReport}
+          title={sendButtonTitle}
         />
       </StickyActionBar>
     ) : null;
@@ -160,15 +167,19 @@ export function ReportWizard() {
             onExitToStart={actions.confirmExitToStart}
             photoUri={draft.photoUri}
             profile={state.profile}
+            usesShareSheet={Platform.OS !== 'web' && wizard.mailComposerAvailable === false}
           />
         ) : null}
 
         {state.step === 'fallback' ? (
           <FallbackStep
             onBack={() => actions.setStep('preview')}
+            onConfirmSent={actions.confirmSentManually}
             onCopyEmail={actions.copyEmail}
+            onCopyRecipient={actions.copyRecipient}
             onExitToStart={actions.confirmExitToStart}
             onOpenMailto={actions.openMailto}
+            recipient={email.recipient}
           />
         ) : null}
       </Screen>

@@ -4,6 +4,9 @@
  */
 export type ReportStatus = 'draft' | 'handed_off' | 'sent' | 'case_added';
 
+/** How the report left the app: Apple Mail composer, the share sheet, or the web fallbacks. */
+export type HandoffMethod = 'mail-composer' | 'share-sheet' | 'mailto' | 'copy';
+
 /** Whether the saved email is the generated one, the user's edit, or an accepted AI version. */
 export type EmailSource = 'generated' | 'user' | 'ai';
 
@@ -155,6 +158,10 @@ export type Report = ReportDraft & {
   emailSource: EmailSource;
   status: ReportStatus;
   caseNumber: string;
+  handoffMethod: HandoffMethod | null;
+  /** The app the user handed the email to, e.g. "Gmail", when the share sheet reports it. */
+  handoffApp: string | null;
+  handedOffAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

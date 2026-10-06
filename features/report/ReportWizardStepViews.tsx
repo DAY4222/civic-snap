@@ -368,6 +368,7 @@ export function PreviewStep({
   photoUri,
   polish,
   profile,
+  usesShareSheet,
 }: {
   dismissedContactPrompt: boolean;
   emailBody: string;
@@ -383,6 +384,7 @@ export function PreviewStep({
   photoUri: string | null;
   polish: EmailPolishPanelProps;
   profile: { name: string; phone: string };
+  usesShareSheet: boolean;
 }) {
   const missingName = !profile.name.trim();
   const missingPhone = !profile.phone.trim();
@@ -447,6 +449,11 @@ export function PreviewStep({
           />
         </Card>
       ) : null}
+      {usesShareSheet ? (
+        <Notice
+          text={`Apple Mail isn't set up on this phone, so you'll pick your email app next. ${emailRecipient} is copied for you to paste into the To field.`}
+        />
+      ) : null}
       <Notice text="Saved as a draft. You send it from your own email app." />
     </View>
   );
@@ -454,24 +461,32 @@ export function PreviewStep({
 
 export function FallbackStep({
   onBack,
+  onConfirmSent,
   onCopyEmail,
+  onCopyRecipient,
   onExitToStart,
   onOpenMailto,
+  recipient,
 }: {
   onBack: () => void;
+  onConfirmSent: () => void;
   onCopyEmail: () => void;
+  onCopyRecipient: () => void;
   onExitToStart: () => void;
   onOpenMailto: () => void;
+  recipient: string;
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Mail unavailable" onBack={onBack} onExitToStart={onExitToStart} />
+      <Header title="Send by email" onBack={onBack} onExitToStart={onExitToStart} />
       <Notice
-        text="The iOS mail composer is unavailable. Copy the draft, then attach the photo manually if needed."
+        text={`Open the email in your email app, or copy it and send it to ${recipient}. Attach your photo yourself if you took one.`}
         tone="warning"
       />
+      <Button onPress={onOpenMailto} title="Open in email app" variant="secondary" />
       <Button onPress={onCopyEmail} title="Copy email text" variant="secondary" />
-      <Button onPress={onOpenMailto} title="Open mailto link" variant="secondary" />
+      <Button onPress={onCopyRecipient} title={`Copy ${recipient}`} variant="secondary" />
+      <Button onPress={onConfirmSent} title="I've sent it" />
     </View>
   );
 }

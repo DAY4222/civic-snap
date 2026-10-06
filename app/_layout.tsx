@@ -116,7 +116,7 @@ function RootLayoutNav({
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ presentation: 'modal', title: 'Settings' }} />
-        <Stack.Screen name="report/[id]" options={{ title: 'Report detail' }} />
+        <Stack.Screen name="report/[id]" options={{ headerBackTitle: 'Back', title: 'Report detail' }} />
       </Stack>
     </ThemeProvider>
   );

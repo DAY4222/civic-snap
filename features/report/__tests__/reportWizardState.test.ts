@@ -36,6 +36,9 @@ const report: Report = {
   emailSource: 'generated',
   status: 'draft',
   caseNumber: '',
+  handoffMethod: null,
+  handoffApp: null,
+  handedOffAt: null,
   createdAt: '2026-05-20T00:00:00.000Z',
   updatedAt: '2026-05-20T00:00:00.000Z',
 };

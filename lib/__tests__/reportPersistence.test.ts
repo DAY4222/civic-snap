@@ -28,6 +28,9 @@ const baseRow: ReportRow = {
   email_source: null,
   status: 'Definitely sent',
   case_number: '',
+  handoff_method: null,
+  handoff_app: null,
+  handed_off_at: null,
   created_at: '2026-05-20T00:00:00.000Z',
   updated_at: '2026-05-20T00:00:00.000Z',
 };

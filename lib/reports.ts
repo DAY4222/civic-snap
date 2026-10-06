@@ -12,7 +12,7 @@ import {
   toStoredPhotoPath,
 } from './reportPersistence';
 import type { CreateReportInput, ReportRow } from './reportPersistence';
-import type { ReportStatus } from './types';
+import type { HandoffMethod, ReportStatus } from './types';
 
 export type { CreateReportInput } from './reportPersistence';
 
@@ -121,11 +121,29 @@ export async function getReport(id: string) {
   return rows[0] ? rowToReport(rows[0], getReportPhotoBaseDirectory()) : null;
 }
 
-export async function updateReportStatus(id: string, status: ReportStatus) {
+export async function markReportHandedOff(
+  id: string,
+  handoff: { status: Extract<ReportStatus, 'handed_off' | 'sent'>; method: HandoffMethod; app: string | null }
+) {
+  const db = await openDatabase();
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `UPDATE reports SET status = ?, handoff_method = ?, handoff_app = ?, handed_off_at = ?, updated_at = ?
+    WHERE id = ?`,
+    handoff.status,
+    handoff.method,
+    handoff.app,
+    now,
+    now,
+    id
+  );
+}
+
+/** The user confirmed the email went out. Reports with a case number stay as they are. */
+export async function markReportSent(id: string) {
   const db = await openDatabase();
   await db.runAsync(
-    'UPDATE reports SET status = ?, updated_at = ? WHERE id = ?',
-    status,
+    "UPDATE reports SET status = 'sent', updated_at = ? WHERE id = ? AND status IN ('draft', 'handed_off')",
     new Date().toISOString(),
     id
   );
