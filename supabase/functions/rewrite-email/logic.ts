@@ -1,3 +1,5 @@
+import { truncateText } from '../_shared/text.ts';
+
 export type EmailRewriteRequest = {
   contactDetails?: string;
   defaultEmail?: string;
@@ -26,32 +28,19 @@ export const MAX_GUIDED_ANSWERS = 40;
 export const MAX_GUIDED_ANSWER_CHARS = 1_000;
 export const MAX_REWRITTEN_BODY_CHARS = 3_000;
 
+/**
+ * Gemini settings for the rewrite. Thinking is pinned to minimal (Flash-Lite's default today)
+ * so a changed default can't slow the rewrite down. The output cap is about three times the
+ * longest body we keep, so it only stops a runaway answer; typical answers are ~100 tokens.
+ */
+export const REWRITE_GENERATION_CONFIG = {
+  max_output_tokens: 2048,
+  response_mime_type: 'application/json',
+  temperature: 0.2,
+  thinking_config: { thinking_level: 'minimal' },
+} as const;
+
 const MIN_INSTALL_ID_CHARS = 20;
-
-export type RewriteRunCountFilterInput = {
-  endOfDay: Date;
-  installIdHash?: string;
-  model: string;
-  promptVersion: string;
-  provider: string;
-  startOfDay: Date;
-};
-
-export type RewriteRunLogInput = {
-  clientPromptVersion: string;
-  defaultEmailChars: number;
-  errorCode?: string;
-  errorMessage?: string;
-  guidedAnswerCount: number;
-  inputChars: number;
-  installIdHash: string;
-  latencyMs: number;
-  model: string;
-  outputChars: number;
-  promptVersion: string;
-  provider: string;
-  status: 'ok' | 'error';
-};
 
 export function readRewriteLimitConfigFromEnv(getEnv: (name: string) => string | undefined) {
   const maxRewritesPerInstallPerDay = parsePositiveIntegerEnvValue(
@@ -181,46 +170,42 @@ export function normalizeGeminiEmailRewriteResult(body: unknown) {
   return rewrittenBody ? { body: rewrittenBody, outputChars: rewrittenBody.length } : null;
 }
 
-export function buildRewriteRunCountFilters(input: RewriteRunCountFilterInput) {
+/**
+ * The run's columns known before Gemini is called: sizes and versions, never the email or
+ * report text. runs.ts adds the id, created_at, install hash and status.
+ */
+export function buildRewriteRunReservationRow(input: {
+  model: string;
+  promptVersion: string;
+  provider: string;
+  request: ValidEmailRewriteRequest;
+}) {
   return {
-    createdAtEnd: input.endOfDay.toISOString(),
-    createdAtStart: input.startOfDay.toISOString(),
-    installIdHash: input.installIdHash ?? null,
+    client_prompt_version: input.request.clientPromptVersion,
+    default_email_chars: input.request.defaultEmailChars,
+    guided_answer_count: input.request.guidedAnswerCount,
+    input_chars: input.request.inputChars,
     model: input.model,
-    promptVersion: input.promptVersion,
-    provider: input.provider,
-  };
-}
-
-export function buildRewriteRunLogRow(input: RewriteRunLogInput) {
-  return {
-    client_prompt_version: input.clientPromptVersion,
-    default_email_chars: input.defaultEmailChars,
-    error_code: input.errorCode ?? null,
-    error_message: input.errorMessage ?? null,
-    guided_answer_count: input.guidedAnswerCount,
-    input_chars: input.inputChars,
-    install_id_hash: input.installIdHash,
-    latency_ms: input.latencyMs,
-    model: input.model,
-    output_chars: input.outputChars,
     prompt_version: input.promptVersion,
     provider: input.provider,
-    status: input.status,
   };
 }
 
-export function parseJsonText(text: string) {
-  const cleaned = text
-    .trim()
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '');
-  return JSON.parse(cleaned);
-}
-
-export function truncateText(value: string, maxLength: number) {
-  return value.length > maxLength ? value.slice(0, maxLength) : value;
+/** How the run ended. */
+export function buildRewriteRunResultRow(input: {
+  errorCode?: string;
+  errorMessage?: string;
+  latencyMs: number;
+  outputChars: number;
+  status: 'ok' | 'error';
+}) {
+  return {
+    error_code: input.errorCode ?? null,
+    error_message: input.errorMessage ?? null,
+    latency_ms: input.latencyMs,
+    output_chars: input.outputChars,
+    status: input.status,
+  };
 }
 
 function countInputChars(input: {

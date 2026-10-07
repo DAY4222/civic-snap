@@ -1,3 +1,6 @@
+import { truncateText } from '../_shared/text.ts';
+import { SUPPORTED_PHOTO_LABEL_TAXONOMY_VERSIONS } from './versions.ts';
+
 export type AllowedLabel = {
   id: string;
   label: string;
@@ -27,7 +30,11 @@ export type AnalysisRequest = {
     width?: number;
   };
   mimeType?: string;
-  allowedLabels?: AllowedLabel[];
+  /**
+   * Older app builds send their whole label list. It is ignored: the allowed labels always
+   * come from the server's catalog.
+   */
+  allowedLabels?: unknown;
   taxonomyVersion?: string;
 };
 
@@ -106,7 +113,14 @@ export const MAX_ISSUE_CANDIDATES = 3;
 export const MAX_EVIDENCE_CHARS = 240;
 export const MAX_REASON_CHARS = 180;
 export const MAX_DESCRIPTION_CHARS = 180;
-export const SUPPORTED_TAXONOMY_VERSION = 'photo-label-taxonomy-v3';
+
+/**
+ * Taxonomy versions app builds may send, generated from data/issue-rules.json. The server
+ * answers from its own catalog either way, so older app builds keep getting suggestions.
+ */
+export const SUPPORTED_TAXONOMY_VERSIONS: ReadonlySet<string> = new Set(
+  SUPPORTED_PHOTO_LABEL_TAXONOMY_VERSIONS
+);
 
 const MIN_INSTALL_ID_CHARS = 20;
 
@@ -156,7 +170,8 @@ export function validateRequest(
   body: AnalysisRequest,
   limits: Pick<LimitConfig, 'maxImageBase64Bytes'> = DEFAULT_LIMIT_CONFIG,
   issueCatalog: readonly EdgeIssueCatalogItem[] = [],
-  labelDefinitions: readonly AllowedLabel[] = []
+  labelDefinitions: readonly AllowedLabel[] = [],
+  supportedTaxonomyVersions: ReadonlySet<string> = SUPPORTED_TAXONOMY_VERSIONS
 ) {
   const installId = typeof body.installId === 'string' ? body.installId.trim() : '';
   const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
@@ -172,7 +187,7 @@ export function validateRequest(
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
     return { ok: false as const, error: 'unsupported_mime_type' };
   }
-  if (taxonomyVersion !== SUPPORTED_TAXONOMY_VERSION) {
+  if (!supportedTaxonomyVersions.has(taxonomyVersion)) {
     return { ok: false as const, error: 'unsupported_taxonomy_version' };
   }
 
@@ -256,6 +271,63 @@ export function buildServerAllowedLabels(
       ? { id, label: definition.label, description: definition.description }
       : { id, label: definition?.label ?? humanizeLabelId(id) };
   });
+}
+
+/**
+ * The run's columns known before Gemini is called: image size and versions, never the image.
+ * runs.ts adds the id, created_at, install hash and status.
+ */
+export function buildAnalysisRunReservationRow(input: {
+  model: string;
+  promptVersion: string;
+  provider: string;
+  request: ValidAnalysisRequest;
+}) {
+  return {
+    image_bytes: input.request.imageBytes,
+    image_height: input.request.imageHeight,
+    image_mime_type: input.request.mimeType,
+    image_width: input.request.imageWidth,
+    model: input.model,
+    prompt_version: input.promptVersion,
+    provider: input.provider,
+    taxonomy_version: input.request.taxonomyVersion,
+    unknown_observations: [],
+  };
+}
+
+/** How the run ended: label ids with confidences and candidate ids with tiers. */
+export function buildAnalysisRunResultRow(input: {
+  errorCode?: string;
+  errorMessage?: string;
+  issueCandidates: Pick<NormalizedIssueCandidate, 'issueId' | 'confidenceTier'>[];
+  latencyMs: number;
+  status: 'ok' | 'error';
+  suggestedLabels: unknown[];
+}) {
+  return {
+    error_code: input.errorCode ?? null,
+    error_message: input.errorMessage ?? null,
+    issue_candidates: input.issueCandidates.map(({ issueId, confidenceTier }) => ({
+      issueId,
+      confidenceTier,
+    })),
+    latency_ms: input.latencyMs,
+    status: input.status,
+    suggested_labels: summarizeLabelsForLog(input.suggestedLabels),
+  };
+}
+
+function summarizeLabelsForLog(labels: unknown[]) {
+  return labels
+    .map((label) => {
+      if (!label || typeof label !== 'object') return null;
+      const item = label as { id?: unknown; confidence?: unknown };
+      return typeof item.id === 'string'
+        ? { id: item.id, confidence: Number(item.confidence) || 0 }
+        : null;
+    })
+    .filter((label): label is { id: string; confidence: number } => label != null);
 }
 
 function normalizeLabel(
@@ -557,8 +629,4 @@ function getBase64ByteSize(base64: string) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
-}
-
-function truncateText(value: string, maxLength: number) {
-  return value.trim().slice(0, maxLength);
 }

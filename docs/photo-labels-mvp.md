@@ -12,7 +12,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=<shared public anon key>
 
 These values are public Expo client config, not secrets. They point the app at the shared demo Supabase backend. Photo analysis defaults off, so users must opt in from Settings or from the report flow before the app sends a resized photo for labels and issue candidates. Once enabled, analysis starts in the background after a report photo is saved. For this direct `fetch` integration, use the legacy public `anon` key from Supabase as the bearer token. Do not use the `service_role` key in the app.
 
-The app request includes a per-install ID, a resized JPEG analysis copy, image metadata, the allowed photo-label taxonomy, and the taxonomy version. The Edge Function validates the taxonomy version and uses its deployed issue catalog as the source of truth for allowed labels. The request does not include address, GPS, location notes, user-written descriptions, profile fields, or email text.
+The app request includes a per-install ID, a resized JPEG analysis copy, image metadata, and the photo-label taxonomy version (not the label list). The Edge Function accepts any version in its supported set, so app builds on the previous taxonomy keep working after a change, and uses its deployed issue catalog as the source of truth for allowed labels; a label list sent by older builds is ignored. The request does not include address, GPS, location notes, user-written descriptions, profile fields, or email text.
 
 The function response is normalized in the app before use. It can include visible photo labels and up to three issue candidates. Local drafts can persist the normalized analysis result in `photo_vision_result_json` and the user-selected photo issue in `photo_issue_topic_json`.
 
@@ -61,7 +61,7 @@ npx supabase functions deploy rewrite-email
 
 Do not commit Gemini API keys or Supabase service-role keys. They belong in Supabase Edge Function secrets only.
 
-The public shared backend is protected by per-install and global daily rate limits. Server-side analysis logs keep the hashed install ID, image metadata, summarized labels, issue candidate IDs and confidence tiers, status, latency, and error summaries for rate limiting and diagnostics. They do not store the full user report context.
+The public shared backend is protected by per-install and global daily rate limits (UTC days). Each request first writes a `pending` row and counts it with the day's other rows, so parallel requests cannot go past a limit; a refused request's row is deleted, and pending rows older than five minutes stop counting. Counts ignore the model and prompt version, so changing either does not reset anyone's quota. Server-side analysis logs keep the hashed install ID, image metadata, summarized labels, issue candidate IDs and confidence tiers, status, latency, and error summaries for rate limiting and diagnostics. They do not store the full user report context.
 
 ## Gemini setup
 

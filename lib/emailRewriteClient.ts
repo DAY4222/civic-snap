@@ -1,5 +1,6 @@
-import { BackendError, postJson, type FetchImpl } from './backend/client';
+import { BackendError, type FetchImpl } from './backend/client';
 import { backendConfig, isEmailPolishConfigured, type BackendConfig } from './backend/config';
+import { postAsCaller, type UserTokenProvider } from './backend/userToken';
 import {
   EMAIL_REWRITE_PROMPT_VERSION,
   buildEmailRewritePromptPayload,
@@ -18,6 +19,8 @@ export type RewriteEmailDraftOptions = {
   installId?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** Who the function counts the request against; defaults to this install's anonymous user. */
+  tokens?: UserTokenProvider;
 };
 
 export type EmailRewriteResult = {
@@ -46,7 +49,7 @@ export async function rewriteEmailDraft(input: EmailInput, options: RewriteEmail
       buildEmail(input, { includeContact: false, includeCoordinates: false }).body
   );
 
-  const result = await postJson(
+  const result = await postAsCaller(
     config.rewriteEmailUrl,
     {
       installId,
@@ -57,6 +60,7 @@ export async function rewriteEmailDraft(input: EmailInput, options: RewriteEmail
       anonKey: config.anonKey,
       fetchImpl: options.fetchImpl,
       signal: options.signal,
+      tokens: options.tokens,
       timeoutMs: options.timeoutMs ?? DEFAULT_REWRITE_TIMEOUT_MS,
     }
   );

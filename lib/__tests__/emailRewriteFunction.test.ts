@@ -1,10 +1,11 @@
 import {
   MAX_DEFAULT_EMAIL_CHARS,
+  MAX_REWRITTEN_BODY_CHARS,
+  REWRITE_GENERATION_CONFIG,
   buildGeminiEmailRewritePrompt,
-  buildRewriteRunCountFilters,
-  buildRewriteRunLogRow,
+  buildRewriteRunReservationRow,
+  buildRewriteRunResultRow,
   normalizeGeminiEmailRewriteResult,
-  parseJsonText,
   readRewriteLimitConfigFromEnv,
   validateEmailRewriteRequest,
 } from '../../supabase/functions/rewrite-email/logic';
@@ -82,7 +83,7 @@ describe('rewrite-email Edge Function logic', () => {
     expect(normalizeGeminiEmailRewriteResult({ body: '' })).toBeNull();
   });
 
-  it('reads rewrite limits and parses fenced JSON', () => {
+  it('reads rewrite limits', () => {
     expect(
       readRewriteLimitConfigFromEnv((name) =>
         name === 'MAX_EMAIL_REWRITES_PER_INSTALL_PER_DAY' ? '12' : undefined
@@ -95,54 +96,59 @@ describe('rewrite-email Edge Function logic', () => {
       },
     });
     expect(readRewriteLimitConfigFromEnv(() => '0')).toEqual({ ok: false });
-    expect(parseJsonText('```json\n{"body":"ok"}\n```')).toEqual({ body: 'ok' });
   });
 
-  it('builds provider-scoped rate-limit filters', () => {
-    const filters = buildRewriteRunCountFilters({
-      endOfDay: new Date('2026-05-26T00:00:00.000Z'),
-      installIdHash: 'hash-1',
-      model: 'gemini-3.1-flash-lite',
-      promptVersion: 'toronto-311-email-rewrite-v2',
-      provider: 'gemini',
-      startOfDay: new Date('2026-05-25T00:00:00.000Z'),
+  it('builds metadata-only run rows', () => {
+    const validation = validateEmailRewriteRequest({
+      installId: 'install-1234567890abcdef',
+      contactDetails: 'Ada Lovelace, 555-0100',
+      defaultEmail: 'Hello 311 Toronto',
+      guidedAnswers: ['Is this on a City road?: Road', 'Size: Large'],
+      issueDescription: 'Large pothole in curb lane',
+      promptVersion: 'client-v1',
     });
+    if (!validation.ok) throw new Error('Expected a valid request');
 
-    expect(filters).toEqual({
-      createdAtEnd: '2026-05-26T00:00:00.000Z',
-      createdAtStart: '2026-05-25T00:00:00.000Z',
-      installIdHash: 'hash-1',
+    const reservation = buildRewriteRunReservationRow({
       model: 'gemini-3.1-flash-lite',
-      promptVersion: 'toronto-311-email-rewrite-v2',
+      promptVersion: 'toronto-311-email-rewrite-v3',
       provider: 'gemini',
+      request: validation,
     });
-  });
+    const result = buildRewriteRunResultRow({ latencyMs: 250, outputChars: 900, status: 'ok' });
 
-  it('builds metadata-only diagnostic rows', () => {
-    const row = buildRewriteRunLogRow({
-      clientPromptVersion: 'client-v1',
-      defaultEmailChars: 1200,
-      guidedAnswerCount: 2,
-      inputChars: 1500,
-      installIdHash: 'hash-1',
-      latencyMs: 250,
-      model: 'gemini-3.1-flash-lite',
-      outputChars: 900,
-      promptVersion: 'toronto-311-email-rewrite-v2',
-      provider: 'gemini',
-      status: 'ok',
-    });
-
-    expect(row).toMatchObject({
+    expect(reservation).toEqual({
       client_prompt_version: 'client-v1',
-      default_email_chars: 1200,
-      install_id_hash: 'hash-1',
+      default_email_chars: 17,
+      guided_answer_count: 2,
+      input_chars: validation.inputChars,
+      model: 'gemini-3.1-flash-lite',
+      prompt_version: 'toronto-311-email-rewrite-v3',
+      provider: 'gemini',
+    });
+    expect(result).toEqual({
+      error_code: null,
+      error_message: null,
+      latency_ms: 250,
       output_chars: 900,
-      prompt_version: 'toronto-311-email-rewrite-v2',
       status: 'ok',
     });
-    expect(Object.keys(row)).not.toEqual(
-      expect.arrayContaining(['default_email', 'body', 'contact_details'])
-    );
+    expect(
+      buildRewriteRunResultRow({
+        errorCode: 'gemini_request_failed',
+        errorMessage: 'Gemini returned 429',
+        latencyMs: 40,
+        outputChars: 0,
+        status: 'error',
+      })
+    ).toMatchObject({ error_code: 'gemini_request_failed', error_message: 'Gemini returned 429' });
+  });
+});
+
+describe('rewrite generation settings', () => {
+  it('pins minimal thinking and caps output well above the longest kept body', () => {
+    expect(REWRITE_GENERATION_CONFIG.thinking_config.thinking_level).toBe('minimal');
+    // About 4 characters per token: the cap must leave room for a full-length body in JSON.
+    expect(REWRITE_GENERATION_CONFIG.max_output_tokens * 4).toBeGreaterThan(MAX_REWRITTEN_BODY_CHARS * 2);
   });
 });

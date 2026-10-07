@@ -21,7 +21,7 @@ User-facing chips use readable Toronto/311-style wording from `PHOTO_LABELS`; co
 
 ## Discoverability Rules
 
-Each issue is generated from `data/toronto-311-target-issues.json` with one of three flags:
+Each issue is generated from `data/toronto-311-target-issues.json`, with its photo rules (required and supporting labels, photo hint, suppression group, forced confidence tier) from `data/issue-rules.json`, and gets one of three flags:
 
 - `photo`: visible evidence can support the issue directly.
 - `limited-context`: the photo can suggest it, but the checklist must resolve missing context.
@@ -38,7 +38,9 @@ Rules add obvious candidates Gemini misses, remove candidates without required l
 
 ## Refresh
 
-Run catalog generation after intentionally refreshing and reviewing the Toronto 311 target JSON:
+Photo labels, issue rules, and the catalog and taxonomy versions live in `data/issue-rules.json`; the generator validates it (unknown titles, labels, or keys fail the run) and writes the app and Edge Function catalogs plus a `versions.ts` for each side. When the labels change, bump `versions.photoLabelTaxonomy` and move the old value into `versions.olderPhotoLabelTaxonomiesAccepted`, so app builds on it keep getting suggestions until they are gone.
+
+Run catalog generation after editing the rules, or after intentionally refreshing and reviewing the Toronto 311 target JSON:
 
 ```sh
 npm run generate:ai-catalogs

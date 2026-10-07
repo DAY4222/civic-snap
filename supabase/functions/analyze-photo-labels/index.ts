@@ -1,6 +1,10 @@
-// Pinned: an unpinned @2 import picks up new releases whose types break the type check.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
-
+import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
+import { callGemini } from '../_shared/gemini.ts';
+import { sha256 } from '../_shared/hash.ts';
+import { isSignedInUserRequired, resolveCallerIdentity } from '../_shared/identity.ts';
+import { finishRun, reserveRun } from '../_shared/runs.ts';
+import { createServiceClient } from '../_shared/supabase.ts';
+import { describeError } from '../_shared/text.ts';
 import {
   MAX_EVIDENCE_CHARS,
   MAX_DESCRIPTION_CHARS,
@@ -8,32 +12,25 @@ import {
   MAX_LABELS,
   MIN_CONFIDENCE,
   MAX_REASON_CHARS,
+  buildAnalysisRunReservationRow,
+  buildAnalysisRunResultRow,
   normalizeGeminiResult,
   readLimitConfigFromEnv,
   validateRequest,
   type AllowedLabel,
   type AnalysisRequest,
   type EdgeIssueCatalogItem,
-  type LimitConfig,
-  type ValidAnalysisRequest,
 } from './logic.ts';
-import {
-  EDGE_ISSUE_CATALOG,
-  EDGE_ISSUE_CATALOG_VERSION,
-  EDGE_PHOTO_LABELS,
-} from './issueCatalog.ts';
+import { EDGE_ISSUE_CATALOG, EDGE_PHOTO_LABELS } from './issueCatalog.ts';
+import { ISSUE_CATALOG_VERSION } from './versions.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Origin': '*',
-};
-
+const RUNS_TABLE = 'ai_photo_analysis_runs';
 const MODEL = 'gemini-3.1-flash-lite';
 const PROVIDER = 'gemini';
 const PROMPT_VERSION = 'photo-issue-candidates-v2';
 const GEMINI_TIMEOUT_MS = 20_000;
 const LIMIT_CONFIG = readLimitConfigFromEnv((name) => Deno.env.get(name));
+const REQUIRE_SIGNED_IN_USER = isSignedInUserRequired((name) => Deno.env.get(name));
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -45,7 +42,7 @@ Deno.serve(async (request) => {
   }
 
   const startedAt = Date.now();
-  const analyzedAt = new Date().toISOString();
+  const analyzedAt = new Date(startedAt).toISOString();
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -71,28 +68,63 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: validation.error }, 400);
   }
 
+  // A signed-in (anonymous) user counts as one caller however the app was reinstalled.
+  const caller = resolveCallerIdentity(request.headers.get('Authorization'), validation.installId);
+  if (REQUIRE_SIGNED_IN_USER && caller.kind !== 'user') {
+    return jsonResponse({ error: 'sign_in_required' }, 401);
+  }
+
   const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
-  const installIdHash = await sha256(validation.installId);
-  const rateLimit = await checkRateLimit(supabase, installIdHash, LIMIT_CONFIG.config);
-  if (!rateLimit.ok) {
-    return jsonResponse({ error: rateLimit.error }, rateLimit.status);
+  const reservation = await reserveRun(supabase, RUNS_TABLE, {
+    installIdHash: await sha256(caller.key),
+    limits: {
+      global: LIMIT_CONFIG.config.maxAnalysesGlobalPerDay,
+      perInstall: LIMIT_CONFIG.config.maxAnalysesPerInstallPerDay,
+    },
+    now: new Date(startedAt),
+    row: buildAnalysisRunReservationRow({
+      model: MODEL,
+      promptVersion: PROMPT_VERSION,
+      provider: PROVIDER,
+      request: validation,
+    }),
+  });
+  if (!reservation.ok) {
+    return jsonResponse({ error: reservation.error }, reservation.status);
   }
 
   let geminiBody: unknown;
   try {
-    geminiBody = await callGemini(apiKey, validation);
+    geminiBody = await callGemini({
+      apiKey,
+      model: MODEL,
+      parts: [
+        {
+          inline_data: {
+            data: validation.imageBase64,
+            mime_type: validation.mimeType,
+          },
+        },
+        {
+          text: buildPrompt(validation.allowedLabels),
+        },
+      ],
+      generationConfig: {
+        media_resolution: 'MEDIA_RESOLUTION_HIGH',
+        response_mime_type: 'application/json',
+        temperature: 0.1,
+      },
+      timeoutMs: GEMINI_TIMEOUT_MS,
+    });
   } catch (error) {
-    await logAnalysisRun(supabase, {
-      analyzedAt,
+    await finishRun(supabase, RUNS_TABLE, reservation.runId, buildAnalysisRunResultRow({
       errorCode: 'gemini_request_failed',
-      errorMessage: truncateText(error instanceof Error ? error.message : String(error), 240),
-      installIdHash,
+      errorMessage: describeError(error),
+      issueCandidates: [],
       latencyMs: Date.now() - startedAt,
-      request: validation,
       status: 'error',
       suggestedLabels: [],
-      issueCandidates: [],
-    });
+    }));
     return jsonResponse({ error: 'gemini_request_failed' }, 502);
   }
 
@@ -109,7 +141,7 @@ Deno.serve(async (request) => {
     model: MODEL,
     promptVersion: PROMPT_VERSION,
     taxonomyVersion: validation.taxonomyVersion,
-    issueCatalogVersion: EDGE_ISSUE_CATALOG_VERSION,
+    issueCatalogVersion: ISSUE_CATALOG_VERSION,
     analyzedAt,
     latencyMs,
     image: {
@@ -120,144 +152,15 @@ Deno.serve(async (request) => {
     },
   };
 
-  await logAnalysisRun(supabase, {
-    analyzedAt,
-    installIdHash,
+  await finishRun(supabase, RUNS_TABLE, reservation.runId, buildAnalysisRunResultRow({
+    issueCandidates: safeResult.issueCandidates,
     latencyMs,
-    request: validation,
     status: 'ok',
     suggestedLabels: safeResult.suggestedLabels,
-    issueCandidates: safeResult.issueCandidates.map((candidate) => ({
-      issueId: candidate.issueId,
-      confidenceTier: candidate.confidenceTier,
-    })),
-  });
+  }));
 
   return jsonResponse(responseBody);
 });
-
-async function checkRateLimit(
-  supabase: ServiceClient,
-  installIdHash: string,
-  limits: LimitConfig
-) {
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
-
-  const globalCount = await countRuns(supabase, startOfDay, endOfDay);
-  if (!globalCount.ok) return globalCount;
-  if (globalCount.count >= limits.maxAnalysesGlobalPerDay) {
-    return { ok: false as const, error: 'global_daily_limit_reached', status: 429 };
-  }
-
-  const installCount = await countRuns(supabase, startOfDay, endOfDay, installIdHash);
-  if (!installCount.ok) return installCount;
-  if (installCount.count >= limits.maxAnalysesPerInstallPerDay) {
-    return { ok: false as const, error: 'install_daily_limit_reached', status: 429 };
-  }
-
-  return { ok: true as const };
-}
-
-async function countRuns(
-  supabase: ServiceClient,
-  startOfDay: Date,
-  endOfDay: Date,
-  installIdHash?: string
-) {
-  let query = supabase
-    .from('ai_photo_analysis_runs')
-    .select('id', { count: 'exact', head: true })
-    .gte('created_at', startOfDay.toISOString())
-    .lt('created_at', endOfDay.toISOString());
-
-  if (installIdHash) {
-    query = query.eq('install_id_hash', installIdHash);
-  }
-
-  const { count, error } = await query;
-  if (error) {
-    return { ok: false as const, error: 'rate_limit_unavailable', status: 503 };
-  }
-
-  return { ok: true as const, count: count ?? 0 };
-}
-
-/** Gemini answers 500 or 503 when the model is briefly overloaded; one quick retry usually works. */
-const RETRYABLE_GEMINI_STATUSES = new Set([500, 503]);
-const GEMINI_RETRY_DELAY_MS = 800;
-
-async function sendWithOverloadRetry(send: () => Promise<Response>) {
-  const response = await send();
-  if (!RETRYABLE_GEMINI_STATUSES.has(response.status)) return response;
-
-  await response.body?.cancel();
-  await new Promise((resolve) => setTimeout(resolve, GEMINI_RETRY_DELAY_MS));
-  return send();
-}
-
-async function callGemini(apiKey: string, request: ValidAnalysisRequest) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
-
-  try {
-    const response = await sendWithOverloadRetry(() =>
-      fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Keep the key out of the URL: fetch errors can include the URL, and error
-          // messages are written to the runs table.
-          'x-goog-api-key': apiKey,
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inline_data: {
-                    data: request.imageBase64,
-                    mime_type: request.mimeType,
-                  },
-                },
-                {
-                  text: buildPrompt(request.allowedLabels),
-                },
-              ],
-            },
-          ],
-          generation_config: {
-            media_resolution: 'MEDIA_RESOLUTION_HIGH',
-            response_mime_type: 'application/json',
-            temperature: 0.1,
-          },
-        }),
-      })
-    );
-
-    if (!response.ok) {
-      throw new Error(`Gemini returned ${response.status}`);
-    }
-
-    const geminiResponse = await response.json();
-    const text = geminiResponse?.candidates?.[0]?.content?.parts
-      ?.map((part: { text?: string }) => part.text)
-      .filter(Boolean)
-      .join('\n');
-
-    return parseJsonText(text ?? '');
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw new Error('Gemini request timed out');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 function buildPrompt(allowedLabels: AllowedLabel[]) {
   // Read through the general item type: in the as-const catalog, optional fields such as
@@ -306,95 +209,3 @@ function buildPrompt(allowedLabels: AllowedLabel[]) {
     `issueCatalog: ${JSON.stringify(promptIssues)}`,
   ].join('\n');
 }
-
-async function logAnalysisRun(
-  supabase: ServiceClient,
-  input: {
-    analyzedAt: string;
-    errorCode?: string;
-    errorMessage?: string;
-    installIdHash: string;
-    latencyMs: number;
-    request: ValidAnalysisRequest;
-    status: 'ok' | 'error';
-    suggestedLabels: unknown[];
-    issueCandidates: {
-      issueId: string;
-      confidenceTier: string;
-    }[];
-  }
-) {
-  const { error } = await supabase.from('ai_photo_analysis_runs').insert({
-    created_at: input.analyzedAt,
-    error_code: input.errorCode ?? null,
-    error_message: input.errorMessage ?? null,
-    image_bytes: input.request.imageBytes,
-    image_height: input.request.imageHeight,
-    image_mime_type: input.request.mimeType,
-    image_width: input.request.imageWidth,
-    install_id_hash: input.installIdHash,
-    latency_ms: input.latencyMs,
-    model: MODEL,
-    prompt_version: PROMPT_VERSION,
-    provider: PROVIDER,
-    status: input.status,
-    suggested_labels: summarizeLabelsForLog(input.suggestedLabels),
-    issue_candidates: input.issueCandidates,
-    taxonomy_version: input.request.taxonomyVersion,
-    unknown_observations: [],
-  });
-
-  if (error) {
-    console.error('Failed to log photo analysis run', error);
-  }
-}
-
-function summarizeLabelsForLog(labels: unknown[]) {
-  return labels
-    .map((label) => {
-      if (!label || typeof label !== 'object') return null;
-      const item = label as { id?: unknown; confidence?: unknown };
-      return typeof item.id === 'string'
-        ? { id: item.id, confidence: Number(item.confidence) || 0 }
-        : null;
-    })
-    .filter((label): label is { id: string; confidence: number } => label != null);
-}
-
-function parseJsonText(text: string) {
-  const cleaned = text
-    .trim()
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '');
-  return JSON.parse(cleaned);
-}
-
-async function sha256(value: string) {
-  const data = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function truncateText(value: string, maxLength: number) {
-  return value.trim().slice(0, maxLength);
-}
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
-    status,
-  });
-}
-
-/** The runs tables have row level security and no policies, so they need the service-role key. */
-function createServiceClient(supabaseUrl: string, serviceRoleKey: string) {
-  return createClient(supabaseUrl, serviceRoleKey);
-}
-
-// The type of the client this function actually creates. `ReturnType<typeof createClient>` is
-// the generic signature's type, which newer supabase-js typings don't accept here.
-type ServiceClient = ReturnType<typeof createServiceClient>;

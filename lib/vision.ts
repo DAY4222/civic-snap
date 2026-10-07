@@ -1,10 +1,11 @@
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { Image } from 'react-native';
 
-import { BackendError, postJson } from './backend/client';
+import { BackendError } from './backend/client';
 import { backendConfig, isPhotoAnalysisConfigured } from './backend/config';
+import { postAsCaller } from './backend/userToken';
 import { getInstallId } from './installId';
-import { normalizePhotoVisionResponse } from './photoAnalysisContract';
+import { buildPhotoAnalysisRequest, normalizePhotoVisionResponse } from './photoAnalysisContract';
 
 const MAX_ANALYSIS_SIDE = 1024;
 const MAX_IMAGE_BASE64_BYTES = 2_000_000;
@@ -25,7 +26,6 @@ export async function analyzePhotoLabels(photoUri: string, options: AnalyzePhoto
   }
 
   const installId = await getInstallId();
-  const { PHOTO_LABELS, PHOTO_LABEL_TAXONOMY_VERSION } = await import('./photoLabels');
   const analysisImage = await createAnalysisImage(photoUri);
   if (options.signal?.aborted) {
     throw new BackendError('Photo labels were cancelled.', 'cancelled');
@@ -40,9 +40,9 @@ export async function analyzePhotoLabels(photoUri: string, options: AnalyzePhoto
     throw new BackendError('Photo analysis image is too large.', 'payload-too-large');
   }
 
-  const result = await postJson(
+  const result = await postAsCaller(
     backendConfig.analyzePhotoUrl,
-    {
+    buildPhotoAnalysisRequest({
       installId,
       imageBase64: analysisImage.base64,
       image: {
@@ -51,9 +51,7 @@ export async function analyzePhotoLabels(photoUri: string, options: AnalyzePhoto
         width: analysisImage.width,
       },
       mimeType: 'image/jpeg',
-      allowedLabels: PHOTO_LABELS,
-      taxonomyVersion: PHOTO_LABEL_TAXONOMY_VERSION,
-    },
+    }),
     {
       anonKey: backendConfig.anonKey,
       signal: options.signal,
