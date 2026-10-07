@@ -3,6 +3,12 @@ import { StyleSheet } from 'react-native';
 import { colors, radius } from '@/components/ui';
 
 export const styles = StyleSheet.create({
+  startLoading: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    paddingTop: 120,
+  },
   centerText: {
     textAlign: 'center',
   },
@@ -92,6 +98,38 @@ export const styles = StyleSheet.create({
   categoryListContent: {
     gap: 12,
     paddingBottom: 48,
+  },
+  checklistHeader: {
+    gap: 2,
+  },
+  filledText: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  moreQuestionsButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  questionLabel: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 21,
+    textTransform: 'none',
+  },
+  categoryFooter: {
+    marginTop: 4,
+  },
+  redirectCard: {
+    gap: 10,
   },
   categorySectionHeader: {
     gap: 4,
@@ -388,10 +426,6 @@ export const styles = StyleSheet.create({
   },
   quietFallbackText: {
     flexShrink: 1,
-    width: '100%',
-  },
-  raccoonSprite: {
-    height: '100%',
     width: '100%',
   },
   raccoonStage: {

@@ -2,10 +2,14 @@ import {
   canContinueFromLocation,
   canPreviewReport,
   createInitialReportWizardState,
-  filterIssueCategories,
   getPhotoVisionErrorStatus,
   getPhotoVisionStatus,
+  getPreviousStep,
+  getSuggestStepMode,
+  getTrackerIndex,
+  isPhotoVisionFailure,
   reportWizardReducer,
+  searchIssueCategories,
   shouldStartPhotoAnalysis,
 } from '../reportWizardState';
 import { EMPTY_DRAFT, getDraftCategory } from '@/lib/reportDraft';
@@ -61,8 +65,112 @@ describe('report wizard reducer', () => {
     expect(state.draft.photoIssueTopic).toBeNull();
 
     state = reportWizardReducer(state, { type: 'openCategory', returnStep: 'details' });
-    state = reportWizardReducer(state, { type: 'backFromCategory' });
-    expect(state.step).toBe('details');
+    expect(getPreviousStep(state)).toBe('details');
+    expect(getTrackerIndex(state)).toBe(2);
+  });
+
+  it('steps Back through the wizard and leaves it from the first step', () => {
+    const initial = createInitialReportWizardState();
+    const at = (step: typeof initial.step, issueStep: typeof initial.issueStep = 'category') => ({
+      ...initial,
+      issueStep,
+      step,
+    });
+
+    // Without photo suggestions the issue search is the first step.
+    expect(getPreviousStep(at('category'))).toBeNull();
+    expect(getPreviousStep(at('location'))).toBe('category');
+    // With them, the suggest step comes first and the search sits behind it.
+    expect(getPreviousStep(at('suggest', 'suggest'))).toBeNull();
+    expect(getPreviousStep(at('category', 'suggest'))).toBe('suggest');
+    expect(getPreviousStep(at('location', 'suggest'))).toBe('suggest');
+    // Searching from Details returns to Details either way.
+    expect(getPreviousStep({ ...at('category', 'suggest'), categoryReturnStep: 'details' })).toBe(
+      'details'
+    );
+    expect(getPreviousStep(at('details'))).toBe('location');
+    expect(getPreviousStep(at('preview'))).toBe('details');
+    expect(getPreviousStep(at('fallback'))).toBe('preview');
+    expect(getPreviousStep(at('done'))).toBeNull();
+
+    expect(
+      [at('suggest'), at('category'), at('location'), at('details'), at('preview')].map(
+        getTrackerIndex
+      )
+    ).toEqual([0, 0, 1, 2, 3]);
+  });
+
+  it('starts a photo report on the suggest step, or on the search when suggestions are off', () => {
+    const photo = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'photoStored',
+      photoUri: 'file:///photo.jpg',
+    });
+
+    const suggesting = reportWizardReducer(photo, { type: 'startPhotoPath', suggest: true });
+    expect(suggesting.step).toBe('suggest');
+    expect(suggesting.issueStep).toBe('suggest');
+
+    const searching = reportWizardReducer(photo, { type: 'startPhotoPath', suggest: false });
+    expect(searching.step).toBe('category');
+    expect(searching.issueStep).toBe('category');
+    expect(searching.categoryReturnStep).toBe('location');
+  });
+
+  it('takes a suggested issue and moves on, keeping answers for the same issue', () => {
+    let state = createInitialReportWizardState();
+    state = reportWizardReducer(state, { type: 'chooseCategory', categoryId: topic.issueId });
+    state = reportWizardReducer(state, { type: 'setAnswer', questionId: 'q1', value: 'yes' });
+    state = reportWizardReducer(state, { type: 'setStep', step: 'suggest' });
+
+    state = reportWizardReducer(state, { type: 'chooseSuggestedTopic', topic });
+    expect(state.step).toBe('location');
+    expect(state.draft.categoryId).toBe(topic.issueId);
+    expect(state.draft.photoIssueTopic?.issueId).toBe(topic.issueId);
+    expect(state.draft.answers).toEqual({ q1: 'yes' });
+
+    // Choosing it again (after coming back) keeps it selected rather than toggling it off.
+    state = reportWizardReducer(state, { type: 'chooseSuggestedTopic', topic });
+    expect(state.draft.photoIssueTopic?.issueId).toBe(topic.issueId);
+
+    const other = makePhotoIssueCandidate({ issueId: 'damaged-concrete-sidewalk' });
+    state = reportWizardReducer(state, { type: 'chooseSuggestedTopic', topic: other });
+    expect(state.draft.categoryId).toBe('damaged-concrete-sidewalk');
+    expect(state.draft.answers).toEqual({});
+  });
+
+  it('shows the opt-in, then the check, then its result on the suggest step', () => {
+    expect(getSuggestStepMode({ photoAnalysisChoice: 'unset', photoVisionStatus: 'idle' })).toBe(
+      'opt-in'
+    );
+    expect(getSuggestStepMode({ photoAnalysisChoice: 'on', photoVisionStatus: 'idle' })).toBe(
+      'loading'
+    );
+    expect(getSuggestStepMode({ photoAnalysisChoice: 'on', photoVisionStatus: 'loading' })).toBe(
+      'loading'
+    );
+    expect(getSuggestStepMode({ photoAnalysisChoice: 'on', photoVisionStatus: 'ready' })).toBe(
+      'ready'
+    );
+    for (const status of ['empty', 'error', 'offline', 'rate-limited', 'payload-too-large'] as const) {
+      expect(isPhotoVisionFailure(status)).toBe(true);
+      expect(getSuggestStepMode({ photoAnalysisChoice: 'on', photoVisionStatus: status })).toBe(
+        'failed'
+      );
+    }
+  });
+
+  it('remembers the suggest step for a resumed draft that has photo suggestions', () => {
+    const withSuggestions = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'resumeReport',
+      report: { ...report, photoVisionResult },
+    });
+    expect(withSuggestions.issueStep).toBe('suggest');
+
+    const without = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'resumeReport',
+      report: { ...report, photoVisionResult: null },
+    });
+    expect(without.issueStep).toBe('category');
   });
 
   it('keeps photo topic selection mutually exclusive with manual categories', () => {
@@ -173,7 +281,7 @@ describe('report wizard reducer', () => {
 
   it('moves through preview and fallback to the done step without losing stable settings', () => {
     let state = createInitialReportWizardState();
-    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
+    state = reportWizardReducer(state, { type: 'setPhotoAnalysisChoice', choice: 'on' });
     state = reportWizardReducer(state, { type: 'setEmailPolishEnabled', enabled: true });
     state = reportWizardReducer(state, {
       type: 'profileLoaded',
@@ -195,12 +303,12 @@ describe('report wizard reducer', () => {
     expect(state.lastHandoff).toEqual({ app: 'Gmail', reportId: 'report-1', status: 'handed_off' });
     expect(state.savedReportId).toBeNull();
     expect(state.draft).toEqual(EMPTY_DRAFT);
-    expect(state.photoAnalysisUserEnabled).toBe(true);
+    expect(state.photoAnalysisChoice).toBe('on');
     expect(state.emailPolishEnabled).toBe(true);
     expect(state.profile.name).toBe('Ada');
   });
 
-  it('confirms a handed-off report from the done step, then starts a new report', () => {
+  it('confirms a handed-off report from the done step', () => {
     let state = reportWizardReducer(createInitialReportWizardState(), {
       type: 'handoffFinished',
       app: null,
@@ -210,44 +318,6 @@ describe('report wizard reducer', () => {
 
     state = reportWizardReducer(state, { type: 'handoffConfirmed' });
     expect(state.lastHandoff?.status).toBe('sent');
-
-    state = reportWizardReducer(state, { type: 'resetReport' });
-    expect(state.step).toBe('start');
-    expect(state.lastHandoff).toBeNull();
-  });
-
-  it('resets active report progress while preserving stable settings', () => {
-    let state = createInitialReportWizardState();
-    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
-    state = reportWizardReducer(state, {
-      type: 'profileLoaded',
-      profile: { name: 'Ada', email: 'ada@example.com', phone: '555-0100' },
-    });
-    state = reportWizardReducer(state, { type: 'photoStored', photoUri: 'file:///photo.jpg' });
-    state = reportWizardReducer(state, {
-      type: 'chooseCategory',
-      categoryId: 'road-pothole-road-damage',
-    });
-    state = reportWizardReducer(state, { type: 'setAddress', address: '123 Queen St W' });
-    state = reportWizardReducer(state, { type: 'setLocationNote', locationNote: 'south curb' });
-    state = reportWizardReducer(state, {
-      type: 'setPinLocation',
-      latitude: 43.65,
-      longitude: -79.38,
-    });
-    state = reportWizardReducer(state, { type: 'setDescription', description: 'Large pothole.' });
-    state = reportWizardReducer(state, { type: 'setAnswer', questionId: 'q1', value: 'yes' });
-    state = reportWizardReducer(state, { type: 'previewReady', savedReportId: 'report-1' });
-
-    state = reportWizardReducer(state, { type: 'resetReport' });
-
-    expect(state.step).toBe('start');
-    expect(state.savedReportId).toBeNull();
-    expect(state.lastHandoff).toBeNull();
-    expect(state.draft).toEqual(EMPTY_DRAFT);
-    expect(state.email.source).toBe('generated');
-    expect(state.photoAnalysisUserEnabled).toBe(true);
-    expect(state.profile.name).toBe('Ada');
   });
 
   it('preserves active report progress when enabling photo analysis', () => {
@@ -257,9 +327,9 @@ describe('report wizard reducer', () => {
     state = reportWizardReducer(state, { type: 'setAddress', address: '123 Queen St W' });
     state = reportWizardReducer(state, { type: 'setLocationNote', locationNote: 'south curb' });
 
-    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
+    state = reportWizardReducer(state, { type: 'setPhotoAnalysisChoice', choice: 'on' });
 
-    expect(state.photoAnalysisUserEnabled).toBe(true);
+    expect(state.photoAnalysisChoice).toBe('on');
     expect(state.draft.photoUri).toBe('file:///photo.jpg');
     expect(state.step).toBe('location');
     expect(state.draft.address).toBe('123 Queen St W');
@@ -362,7 +432,7 @@ describe('report wizard reducer', () => {
   });
 
   it('uses common issue categories before the user searches', () => {
-    expect(filterIssueCategories('').map((category) => category.id)).toEqual([
+    expect(searchIssueCategories('').categories.map((category) => category.id)).toEqual([
       'road-pothole-road-damage',
       'clean-up-illegal-dumping-on-city-road-allowance',
       'traffic-signal-repair',
@@ -372,7 +442,7 @@ describe('report wizard reducer', () => {
     ]);
 
     expect(
-      filterIssueCategories('pothole').some(
+      searchIssueCategories('pothole').categories.some(
         (category) => category.id === 'road-pothole-road-damage'
       )
     ).toBe(true);
@@ -400,8 +470,10 @@ describe('report wizard reducer', () => {
       type: 'setPinLocation',
       latitude: 43.65,
       longitude: -79.38,
+      source: 'photo',
     });
     expect(canContinueFromLocation(withPin.draft)).toBe(true);
+    expect(withPin.pinSource).toBe('photo');
   });
 
   it('classifies photo vision status from normalized results', () => {

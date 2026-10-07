@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import MapView, { Marker } from '@/components/CivicMap';
 import { Button, colors } from '@/components/ui';
+import { CITY } from '@/lib/city';
 import { useReportsOnFocus } from '@/lib/useReportsOnFocus';
 
 export default function MapScreen() {
@@ -15,10 +16,9 @@ export default function MapScreen() {
   const firstPin = pinnedReports[0];
   const region = useMemo(
     () => ({
-      latitude: firstPin?.latitude ?? 43.6535,
-      longitude: firstPin?.longitude ?? -79.3841,
-      latitudeDelta: 0.025,
-      longitudeDelta: 0.025,
+      ...CITY.defaultRegion,
+      latitude: firstPin?.latitude ?? CITY.defaultRegion.latitude,
+      longitude: firstPin?.longitude ?? CITY.defaultRegion.longitude,
     }),
     [firstPin]
   );

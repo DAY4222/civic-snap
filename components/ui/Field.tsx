@@ -19,6 +19,8 @@ type FieldProps = {
   inputStyle?: StyleProp<TextStyle>;
   keyboardType?: KeyboardTypeOptions;
   label: string;
+  /** Overrides the short uppercase label style, e.g. for full-sentence questions. */
+  labelStyle?: StyleProp<TextStyle>;
   multiline?: boolean;
   onChangeText: (value: string) => void;
   placeholder?: string;
@@ -35,6 +37,7 @@ export function Field({
   inputStyle,
   keyboardType,
   label,
+  labelStyle,
   multiline,
   onChangeText,
   placeholder,
@@ -44,7 +47,7 @@ export function Field({
 }: FieldProps) {
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, labelStyle]}>{label}</Text>
       <TextInput
         accessibilityLabel={accessibilityLabel ?? label}
         autoComplete={autoComplete}

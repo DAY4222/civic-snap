@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
 import { Platform, Share } from 'react-native';
 
+import { formatAddress } from '@/lib/address';
 import { GENERAL_CATEGORY } from '@/lib/categories';
 import { addLocalDetailsToRewrittenBody, buildEmail } from '@/lib/email';
 import { rewriteEmailDraft, type EmailRewriteResult } from '@/lib/emailRewriteClient';
@@ -164,6 +165,3 @@ export async function handOffReport({
   return { kind: 'handed-off', app };
 }
 
-function formatAddress(place: Location.LocationGeocodedAddress) {
-  return [place.name, place.street, place.city, place.region].filter(Boolean).join(', ');
-}

@@ -1,19 +1,23 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Image,
+  Linking,
   Pressable,
   Text,
   View,
 } from 'react-native';
 
-import MapView, { type Region } from '@/components/CivicMap';
+import { type Region } from '@/components/CivicMap';
 import { Button, Card, Field, Notice, colors } from '@/components/ui';
 import { GENERAL_CATEGORY } from '@/lib/categories';
+import { CITY, type NotHandledRedirect } from '@/lib/city';
 import { formatAnswer, isOptionSelected, toggleMultiAnswer } from '@/lib/answers';
 import { getSuggestedAnswerOptions } from '@/lib/issueSuggestions';
+import { isAnswered, splitChecklist } from '@/lib/checklistRules';
 import type {
   CategoryQuestion,
   EmailSource,
@@ -28,131 +32,97 @@ import {
   type EmailPolishStatus,
   type LastHandoff,
   type PhotoVisionStatus,
+  type PinSource,
   type ReportWizardStep,
 } from './reportWizardState';
 import { styles } from './reportWizardStyles';
-import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
-
-export function StartStep({
-  busy,
-  frameIndex,
-  onChooseIssueType,
-  onChoosePhoto,
-  onReportWithoutPhoto,
-  onTakePhoto,
-}: {
-  busy: boolean;
-  frameIndex: number;
-  onChooseIssueType: () => void;
-  onChoosePhoto: () => void;
-  onReportWithoutPhoto: () => void;
-  onTakePhoto: () => void;
-}) {
-  return (
-    <View style={styles.stack}>
-      <View>
-        <Text style={styles.eyebrow}>Civic Snap</Text>
-        <View style={styles.raccoonStage}>
-          <Image
-            resizeMode="contain"
-            source={RACCOON_SWEEPER_FRAMES[frameIndex]}
-            style={styles.raccoonSprite}
-          />
-        </View>
-        <Text style={styles.title}>Snap. Pin. Send to 311.</Text>
-        <Text style={styles.subtitle}>Create a strong report in a few focused steps.</Text>
-      </View>
-      <Notice text="For emergencies or immediate danger, use emergency services instead of this app." />
-      <Button
-        disabled={busy}
-        icon={<FontAwesome name="camera" size={22} color="#fff" />}
-        onPress={onTakePhoto}
-        title="Take photo"
-      />
-      <View style={styles.buttonRow}>
-        <Button
-          disabled={busy}
-          onPress={onReportWithoutPhoto}
-          style={styles.rowButton}
-          title="Report without photo"
-          variant="secondary"
-        />
-        <Button
-          disabled={busy}
-          onPress={onChoosePhoto}
-          style={styles.rowButton}
-          title="Choose photo"
-          variant="secondary"
-        />
-      </View>
-      <Button
-        disabled={busy}
-        onPress={onChooseIssueType}
-        title="Choose issue type"
-        variant="secondary"
-      />
-    </View>
-  );
-}
+import { confidenceTierText, photoSuggestionFallbackText } from './suggestionCopy';
+import { PinMap } from './PinMap';
+import type { LocationStatus } from './useLocationPin';
+import { openAppSettings } from './wizardTypes';
+import { RaccoonSprite } from './RaccoonSprite';
 
 export function CategoryStep({
-  filteredIssueCategories,
+  categories,
   issueSearchQuery,
+  notice,
   onBack,
   onChooseCategory,
-  onExitToStart,
+  onExit,
   onSearchChange,
+  redirects,
   selectedCategoryId,
 }: {
-  filteredIssueCategories: IssueCategory[];
+  categories: IssueCategory[];
   issueSearchQuery: string;
+  /** Why the user landed here, e.g. the photo check found nothing. */
+  notice?: string | null;
   onBack: () => void;
   onChooseCategory: (categoryId: string | null) => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onSearchChange: (value: string) => void;
+  redirects: NotHandledRedirect[];
   selectedCategoryId: string | null;
 }) {
-  const showingCommonIssues = !issueSearchQuery.trim();
+  const searching = Boolean(issueSearchQuery.trim());
+  const generalCard = (
+    <Pressable
+      accessibilityLabel="Choose General 311 report"
+      accessibilityRole="button"
+      accessibilityState={{ selected: selectedCategoryId == null }}
+      onPress={() => onChooseCategory(null)}>
+      <Card selected={selectedCategoryId == null}>
+        <Text style={styles.cardTitle}>General 311 report</Text>
+        <Text style={styles.muted}>
+          {searching
+            ? 'Not listed? Describe it in your own words on the next steps.'
+            : 'Continue with a general 311 report.'}
+        </Text>
+      </Card>
+    </Pressable>
+  );
 
   return (
     <FlatList
       contentContainerStyle={styles.categoryListContent}
-      data={filteredIssueCategories}
+      data={categories}
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.stack}>
-          <Header title="Search issue types" onBack={onBack} onExitToStart={onExitToStart} />
+          <StepHeader title="Search issue types" onBack={onBack} onExit={onExit} />
+          {notice ? <Notice text={notice} /> : null}
           <Field
             label="Search"
             onChangeText={onSearchChange}
-            placeholder="Example: pothole, graffiti, sidewalk"
+            placeholder="Example: pothole, graffiti, trash"
             returnKeyType="search"
             value={issueSearchQuery}
           />
-          <Pressable
-            accessibilityLabel="Choose General 311 report"
-            accessibilityRole="button"
-            accessibilityState={{ selected: selectedCategoryId == null }}
-            onPress={() => onChooseCategory(null)}>
-            <Card selected={selectedCategoryId == null}>
-              <Text style={styles.cardTitle}>General 311 report</Text>
-              <Text style={styles.muted}>Continue with a general 311 report.</Text>
-            </Card>
-          </Pressable>
-          <View style={styles.categorySectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {showingCommonIssues ? 'Common issues' : 'Search results'}
-            </Text>
-            {showingCommonIssues ? (
-              <Text style={styles.muted}>Search to browse all issue types.</Text>
-            ) : null}
-          </View>
+          {redirects.map((redirect) => (
+            <RedirectCard key={redirect.url} redirect={redirect} />
+          ))}
+          {searching ? null : generalCard}
+          {searching && categories.length === 0 ? null : (
+            <View style={styles.categorySectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {searching ? 'Best matches' : 'Common issues'}
+              </Text>
+              {searching ? null : (
+                <Text style={styles.muted}>Search to browse all issue types.</Text>
+              )}
+            </View>
+          )}
         </View>
       }
       ListEmptyComponent={
-        <Text style={styles.muted}>No issue types found. Try a different search term.</Text>
+        searching ? (
+          <Text style={styles.muted}>
+            {`No issue types match "${issueSearchQuery.trim()}". Try other words, or use a general report.`}
+          </Text>
+        ) : null
       }
+      ListFooterComponent={searching ? <View style={styles.categoryFooter}>{generalCard}</View> : null}
       renderItem={({ item }) => (
         <Pressable
           accessibilityLabel={`Choose ${item.title}`}
@@ -170,63 +140,88 @@ export function CategoryStep({
   );
 }
 
+/** "311 doesn't handle this; here is who does." */
+function RedirectCard({ redirect }: { redirect: NotHandledRedirect }) {
+  return (
+    <Card style={styles.redirectCard} tone="warning">
+      <Text style={styles.cardTitle}>{redirect.title}</Text>
+      <Text style={styles.muted}>{redirect.body}</Text>
+      <Button
+        accessibilityHint="Opens their website"
+        icon={<FontAwesome name="external-link" size={15} color={colors.text} />}
+        onPress={() => {
+          Linking.openURL(redirect.url).catch(() => undefined);
+        }}
+        title="Report it there"
+        variant="secondary"
+      />
+    </Card>
+  );
+}
+
 export function LocationStep({
   address,
   busy,
   canContinue,
   locationNote,
+  locationStatus,
   onAddressChange,
   onBack,
   onContinue,
-  onExitToStart,
+  onExit,
   onLocationNoteChange,
   onUpdatePin,
   onUseCurrentLocation,
-  photoUri,
+  outsideCity,
   pinRegion,
+  pinSource,
 }: {
   address: string;
   busy: boolean;
   canContinue: boolean;
   locationNote: string;
+  locationStatus: LocationStatus;
   onAddressChange: (value: string) => void;
   onBack: () => void;
   onContinue: () => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onLocationNoteChange: (value: string) => void;
   onUpdatePin: (region: Region) => void;
   onUseCurrentLocation: () => void;
-  photoUri: string | null;
+  outsideCity: boolean;
   pinRegion: Region | null;
+  pinSource: PinSource | null;
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Confirm location" onBack={onBack} onExitToStart={onExitToStart} />
-      {photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : null}
-      <Button
-        disabled={busy}
-        loading={busy}
-        onPress={onUseCurrentLocation}
-        title="Use current location"
-        variant="secondary"
+      <StepHeader title="Confirm location" onBack={onBack} onExit={onExit} />
+      <PinMap
+        locating={locationStatus === 'locating'}
+        onLocate={onUseCurrentLocation}
+        onPinMoved={onUpdatePin}
+        pinRegion={pinRegion}
+        pinSource={pinSource}
       />
+      {outsideCity ? (
+        <Notice
+          text={`This spot looks outside ${CITY.name}. ${CITY.name} 311 only handles locations in the city.`}
+          tone="warning"
+        />
+      ) : null}
+      {locationStatus === 'denied' && !pinRegion ? (
+        <Pressable
+          accessibilityHint="Opens Settings to allow location for Civic Snap"
+          accessibilityRole="button"
+          onPress={openAppSettings}>
+          <Notice text="Location is off for Civic Snap. Move the map to the spot, type the address, or tap here to allow location in Settings." />
+        </Pressable>
+      ) : null}
       <Field
         label="Address or nearest landmark"
         onChangeText={onAddressChange}
         placeholder="Example: outside library entrance"
         value={address}
       />
-      {pinRegion ? (
-        <View style={styles.pinCard}>
-          <MapView style={styles.pinMap} region={pinRegion} onRegionChangeComplete={onUpdatePin} />
-          <View pointerEvents="none" style={styles.centerPin}>
-            <FontAwesome name="map-marker" size={38} color={colors.danger} />
-          </View>
-          <Text style={styles.mapHelp}>Move the map under the pin. The view is zoomed to about one block.</Text>
-        </View>
-      ) : (
-        <Notice text="Use current location to place an adjustable pin, or enter the address manually." />
-      )}
       <Field
         label="Location note"
         onChangeText={onLocationNoteChange}
@@ -234,7 +229,7 @@ export function LocationStep({
         value={locationNote}
       />
       {!canContinue ? (
-        <Text style={styles.requirementText}>Add an address or use current location to continue.</Text>
+        <Text style={styles.requirementText}>Place the pin or add an address to continue.</Text>
       ) : null}
       <Button disabled={busy || !canContinue} onPress={onContinue} title="Use this spot" />
     </View>
@@ -244,12 +239,13 @@ export function LocationStep({
 export function DetailsStep({
   answers,
   category,
+  checklistFilled,
   description,
   descriptionPlaceholder,
   onAnalyze,
   onBack,
   onDescriptionChange,
-  onExitToStart,
+  onExit,
   onInsertSuggestedDescription,
   onOpenIssueSearch,
   onSetAnswer,
@@ -265,12 +261,14 @@ export function DetailsStep({
 }: {
   answers: ReportAnswers;
   category: IssueCategory;
+  /** Answers the app filled in from the location, by question id. */
+  checklistFilled: Record<string, string>;
   description: string;
   descriptionPlaceholder: string;
   onAnalyze: () => void;
   onBack: () => void;
   onDescriptionChange: (value: string) => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onInsertSuggestedDescription: (value: string) => void;
   onOpenIssueSearch: () => void;
   onSetAnswer: (questionId: string, value: ReportAnswerValue) => void;
@@ -286,7 +284,7 @@ export function DetailsStep({
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Add details" onBack={onBack} onExitToStart={onExitToStart} />
+      <StepHeader title="Add details" onBack={onBack} onExit={onExit} />
       <Text style={styles.categoryTitle}>{category.title}</Text>
       {photoLabelsEnabled && photoUri ? (
         <SuggestedTopicsPanel
@@ -331,16 +329,16 @@ export function DetailsStep({
       ) : null}
       {category.id !== GENERAL_CATEGORY.id ? (
         <>
-          {category.questions.length > 0 ? <Text style={styles.sectionTitle}>Checklist</Text> : null}
-          {category.questions.map((question) => (
-            <QuestionField
-              key={question.id}
-              onChange={(value) => onSetAnswer(question.id, value)}
-              question={question}
+          {category.questions.length > 0 ? (
+            <Checklist
+              answers={answers}
+              filled={checklistFilled}
+              key={category.id}
+              onSetAnswer={onSetAnswer}
+              questions={category.questions}
               selectedCandidate={selectedPhotoIssueTopic}
-              value={answers[question.id]}
             />
-          ))}
+          ) : null}
           <Text style={styles.sectionTitle}>Useful observations</Text>
           {category.observations.map((observation) => (
             <View key={observation} style={styles.observationRow}>
@@ -364,7 +362,7 @@ export function PreviewStep({
   onDismissContactPrompt,
   onEmailBodyChange,
   onEmailSubjectChange,
-  onExitToStart,
+  onExit,
   onRebuildEmail,
   photoUri,
   polish,
@@ -380,7 +378,7 @@ export function PreviewStep({
   onDismissContactPrompt: () => void;
   onEmailBodyChange: (value: string) => void;
   onEmailSubjectChange: (value: string) => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onRebuildEmail: () => void;
   photoUri: string | null;
   polish: EmailPolishPanelProps;
@@ -392,7 +390,7 @@ export function PreviewStep({
 
   return (
     <View style={styles.stack}>
-      <Header title="Email preview" onBack={onBack} onExitToStart={onExitToStart} />
+      <StepHeader title="Email preview" onBack={onBack} onExit={onExit} />
       {emailOutOfDate ? (
         <Card style={styles.warningCard} tone="warning">
           <Text style={styles.muted}>
@@ -461,14 +459,12 @@ export function PreviewStep({
 }
 
 export function DoneStep({
-  frameIndex,
   handoff,
   onConfirmSent,
   onNewReport,
   onViewReport,
   recipient,
 }: {
-  frameIndex: number;
   handoff: LastHandoff;
   onConfirmSent: () => void;
   onNewReport: () => void;
@@ -481,14 +477,7 @@ export function DoneStep({
   return (
     <View style={styles.stack}>
       <View style={styles.doneHero}>
-        <View style={styles.doneRaccoon}>
-          <Image
-            accessibilityIgnoresInvertColors
-            resizeMode="contain"
-            source={RACCOON_SWEEPER_FRAMES[frameIndex]}
-            style={styles.raccoonSprite}
-          />
-        </View>
+        <RaccoonSprite style={styles.doneRaccoon} />
         <Text accessibilityRole="header" style={[styles.title, styles.centerText]}>
           {sent ? 'Sent to 311' : `Ready in ${where}`}
         </Text>
@@ -539,7 +528,7 @@ export function FallbackStep({
   onConfirmSent,
   onCopyEmail,
   onCopyRecipient,
-  onExitToStart,
+  onExit,
   onOpenMailto,
   recipient,
 }: {
@@ -547,13 +536,13 @@ export function FallbackStep({
   onConfirmSent: () => void;
   onCopyEmail: () => void;
   onCopyRecipient: () => void;
-  onExitToStart: () => void;
+  onExit: () => void;
   onOpenMailto: () => void;
   recipient: string;
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Send by email" onBack={onBack} onExitToStart={onExitToStart} />
+      <StepHeader title="Send by email" onBack={onBack} onExit={onExit} />
       <Notice
         text={`Open the email in your email app, or copy it and send it to ${recipient}. Attach your photo yourself if you took one.`}
         tone="warning"
@@ -657,14 +646,14 @@ function EmailPolishPanel({
   );
 }
 
-function Header({
+export function StepHeader({
   title,
   onBack,
-  onExitToStart,
+  onExit,
 }: {
   title: string;
   onBack: () => void;
-  onExitToStart: () => void;
+  onExit: () => void;
 }) {
   return (
     <View style={styles.headerRow}>
@@ -678,10 +667,10 @@ function Header({
       </Pressable>
       <Text style={styles.headerTitle}>{title}</Text>
       <Pressable
-        accessibilityLabel="Return to start"
+        accessibilityLabel="Close report"
         accessibilityRole="button"
         hitSlop={10}
-        onPress={onExitToStart}
+        onPress={onExit}
         style={styles.headerIconButton}>
         <FontAwesome name="times" size={18} color={colors.text} />
       </Pressable>
@@ -691,27 +680,21 @@ function Header({
 
 function categorySourceMatchText(category: IssueCategory) {
   if (category.sourceMatchStatus === 'unmatched') {
-    return 'No exact Toronto 311 source match; review before sending.';
+    return `No exact ${CITY.name} 311 source match; review before sending.`;
   }
 
   if (category.sourceMatchStatus === 'ambiguous') {
-    return 'Multiple exact Toronto 311 source matches; review before sending.';
+    return `Multiple exact ${CITY.name} 311 source matches; review before sending.`;
   }
 
   return 'Use these prompts to shape your description.';
 }
 
-export function Progress({ currentStep }: { currentStep: ReportWizardStep }) {
-  const steps: { key: ReportWizardStep; label: string }[] = [
-    { key: 'category', label: 'Issue' },
-    { key: 'location', label: 'Location' },
-    { key: 'details', label: 'Details' },
-    { key: 'preview', label: 'Email' },
-  ];
-  const currentIndex = Math.max(
-    steps.findIndex((step) => step.key === (currentStep === 'fallback' ? 'preview' : currentStep)),
-    0
-  );
+const TRACKER_STEPS = ['Issue', 'Location', 'Details', 'Email'];
+
+export function Progress({ activeIndex }: { activeIndex: number }) {
+  const steps = TRACKER_STEPS.map((label) => ({ key: label, label }));
+  const currentIndex = activeIndex;
 
   return (
     <View style={styles.progressCard}>
@@ -764,23 +747,97 @@ export function Progress({ currentStep }: { currentStep: ReportWizardStep }) {
   );
 }
 
+/** The issue's 311 questions: what 311 needs first, the optional rest folded away. */
+function Checklist({
+  answers,
+  filled,
+  onSetAnswer,
+  questions,
+  selectedCandidate,
+}: {
+  answers: ReportAnswers;
+  filled: Record<string, string>;
+  onSetAnswer: (questionId: string, value: ReportAnswerValue) => void;
+  questions: CategoryQuestion[];
+  selectedCandidate: PhotoIssueCandidate | null;
+}) {
+  const { required, optional } = splitChecklist(questions);
+  const answeredRequired = required.filter((question) => isAnswered(answers[question.id])).length;
+  const answeredOptional = optional.filter((question) => isAnswered(answers[question.id])).length;
+  const [showOptional, setShowOptional] = useState(answeredOptional > 0);
+
+  const renderQuestion = (question: CategoryQuestion) => (
+    <QuestionField
+      filled={filled[question.id] != null && filled[question.id] === answers[question.id]}
+      key={question.id}
+      onChange={(value) => onSetAnswer(question.id, value)}
+      question={question}
+      selectedCandidate={selectedCandidate}
+      value={answers[question.id]}
+    />
+  );
+
+  return (
+    <View style={styles.stack}>
+      {required.length > 0 ? (
+        <View style={styles.checklistHeader}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>
+            311 needs to know
+          </Text>
+          <Text style={styles.muted}>
+            {answeredRequired} of {required.length} answered
+          </Text>
+        </View>
+      ) : null}
+      {required.map(renderQuestion)}
+      {optional.length > 0 ? (
+        <>
+          <Pressable
+            accessibilityHint={showOptional ? 'Hides the optional questions' : 'Shows the optional questions'}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showOptional }}
+            onPress={() => setShowOptional((shown) => !shown)}
+            style={styles.moreQuestionsButton}>
+            <Text style={styles.inlineButtonText}>
+              {required.length > 0 ? 'More questions' : 'Optional questions'} ({optional.length}
+              {answeredOptional > 0 ? `, ${answeredOptional} answered` : ''})
+            </Text>
+            <FontAwesome
+              color={colors.text}
+              name={showOptional ? 'chevron-up' : 'chevron-down'}
+              size={13}
+            />
+          </Pressable>
+          {showOptional ? optional.map(renderQuestion) : null}
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 function QuestionField({
+  filled,
   onChange,
   question,
   selectedCandidate,
   value,
 }: {
+  /** The app filled this answer in from the location. */
+  filled: boolean;
   onChange: (value: ReportAnswerValue) => void;
   question: CategoryQuestion;
   selectedCandidate: PhotoIssueCandidate | null;
   value: ReportAnswerValue | undefined;
 }) {
   const suggestions = getSuggestedAnswerOptions(question, selectedCandidate);
+  const filledNote = filled ? (
+    <Text style={styles.filledText}>Filled in from your location. Change it if needed.</Text>
+  ) : null;
 
   if (question.options.length > 0) {
     return (
       <View style={styles.field}>
-        <Text style={styles.label}>{question.label}</Text>
+        <Text style={styles.questionLabel}>{question.label}</Text>
         <View style={styles.optionWrap}>
           {question.options.map((option) => {
             const selected = isOptionSelected(question, value, option);
@@ -816,18 +873,23 @@ function QuestionField({
             Suggested by photo: {suggestions.map((option) => option.label).join(', ')}
           </Text>
         ) : null}
+        {filledNote}
       </View>
     );
   }
 
   return (
-    <Field
-      label={question.label}
-      multiline={question.answerType === 'text'}
-      onChangeText={onChange}
-      placeholder={question.placeholder}
-      value={formatAnswer(value)}
-    />
+    <View style={styles.field}>
+      <Field
+        label={question.label}
+        labelStyle={styles.questionLabel}
+        multiline={question.answerType === 'text'}
+        onChangeText={onChange}
+        placeholder={question.placeholder}
+        value={formatAnswer(value)}
+      />
+      {filledNote}
+    </View>
   );
 }
 
@@ -988,30 +1050,4 @@ function ManualIssuePanel({
       </Pressable>
     </Card>
   );
-}
-
-function confidenceTierText(tier: PhotoIssueCandidate['confidenceTier']) {
-  if (tier === 'strong') return 'Strong match';
-  if (tier === 'likely') return 'Likely match';
-  return 'Possible match';
-}
-
-function photoSuggestionFallbackText(status: PhotoVisionStatus) {
-  if (status === 'rate-limited') {
-    return 'Daily photo analysis limit reached. Search all issue types to continue.';
-  }
-
-  if (status === 'payload-too-large') {
-    return 'This photo is too large for analysis. Search all issue types to continue.';
-  }
-
-  if (status === 'offline') {
-    return "Photo suggestions can't connect right now. You can still pick the issue type yourself.";
-  }
-
-  if (status === 'error') {
-    return 'Photo suggestions are unavailable. Search all issue types to continue.';
-  }
-
-  return 'No suggested topics available. Search all issue types to continue.';
 }
