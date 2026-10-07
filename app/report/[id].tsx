@@ -123,9 +123,9 @@ export default function ReportDetailScreen() {
         <Text style={styles.subtitle}>{report.address || 'No address'}</Text>
         <View style={styles.statusPill}>
           <FontAwesome name="circle" size={8} color={colors.primary} />
-          <Text style={styles.statusText}>{report.status === 'Draft' ? 'Draft' : trackingLabel}</Text>
+          <Text style={styles.statusText}>{report.status === 'draft' ? 'Draft' : trackingLabel}</Text>
         </View>
-        {report.status === 'Draft' ? (
+        {report.status === 'draft' ? (
           <Button
             onPress={() => router.push({ pathname: '/', params: { resumeId: report.id } })}
             title="Resume draft"
@@ -150,7 +150,7 @@ export default function ReportDetailScreen() {
           ) : null}
         </Card>
       ) : null}
-      {report.status !== 'Draft' ? (
+      {report.status !== 'draft' ? (
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Local tracking</Text>
           <View style={styles.statusPill}>

@@ -1,4 +1,4 @@
-import { PhotoIssueCandidate, CategoryQuestion, CategoryQuestionOption, PhotoVisionResult } from './types';
+import { PhotoIssueCandidate, CategoryQuestion, PhotoVisionResult } from './types';
 
 const MAX_SUGGESTED_ISSUE_CANDIDATES = 3;
 
@@ -16,18 +16,6 @@ export function getSuggestedAnswerOptions(
   return question.options.filter((option) =>
     option.suggestedLabelIds.some((labelId) => supportingLabels.has(labelId))
   );
-}
-
-export function toggleMultiAnswer(currentValue: string, option: CategoryQuestionOption) {
-  const current = currentValue
-    .split(', ')
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const next = current.includes(option.label)
-    ? current.filter((value) => value !== option.label)
-    : [...current, option.label];
-
-  return next.join(', ');
 }
 
 export function appendSuggestedDescription(currentValue: string, suggestion: string) {

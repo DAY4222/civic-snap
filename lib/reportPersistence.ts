@@ -1,6 +1,6 @@
 import { CATEGORY_TITLE_IDS } from './generated/categoryTitleIds';
 import { parseStoredPhotoVisionResult } from './photoAnalysisContract';
-import { PhotoIssueCandidate, Report, ReportStatus } from './types';
+import { PhotoIssueCandidate, Report, ReportAnswers, ReportStatus } from './types';
 
 export type ReportRow = {
   id: string;
@@ -9,6 +9,7 @@ export type ReportRow = {
   description: string;
   answers_json: string;
   address: string;
+  location_note: string | null;
   latitude: number | null;
   longitude: number | null;
   photo_uri: string | null;
@@ -23,56 +24,11 @@ export type ReportRow = {
   updated_at: string;
 };
 
+/** A report as saved from the wizard: the draft plus its issue title and current email. */
 export type CreateReportInput = Omit<
   Report,
   'id' | 'status' | 'caseNumber' | 'createdAt' | 'updatedAt'
 >;
-
-export const REPORTS_SCHEMA_VERSION = 1;
-
-export const CREATE_REPORTS_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS reports (
-    id TEXT PRIMARY KEY NOT NULL,
-    category_id TEXT,
-    category TEXT NOT NULL,
-    description TEXT NOT NULL,
-    answers_json TEXT NOT NULL,
-    address TEXT NOT NULL,
-    latitude REAL,
-    longitude REAL,
-    photo_uri TEXT,
-    thumbnail_uri TEXT,
-    photo_vision_result_json TEXT,
-    photo_issue_topic_json TEXT,
-    email_subject TEXT NOT NULL,
-    email_body TEXT NOT NULL,
-    status TEXT NOT NULL,
-    case_number TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-`;
-
-const COLUMN_BACKFILLS = [
-  { name: 'category_id', sql: 'ALTER TABLE reports ADD COLUMN category_id TEXT;' },
-  {
-    name: 'thumbnail_uri',
-    sql: 'ALTER TABLE reports ADD COLUMN thumbnail_uri TEXT;',
-  },
-  {
-    name: 'photo_vision_result_json',
-    sql: 'ALTER TABLE reports ADD COLUMN photo_vision_result_json TEXT;',
-  },
-  {
-    name: 'photo_issue_topic_json',
-    sql: 'ALTER TABLE reports ADD COLUMN photo_issue_topic_json TEXT;',
-  },
-] as const;
-
-export function getMissingReportColumnMigrations(columnNames: string[]) {
-  const existing = new Set(columnNames);
-  return COLUMN_BACKFILLS.filter((column) => !existing.has(column.name)).map((column) => column.sql);
-}
 
 export function createReportId() {
   return (
@@ -81,7 +37,7 @@ export function createReportId() {
   );
 }
 
-export function serializeAnswers(answers: Record<string, string>) {
+export function serializeAnswers(answers: ReportAnswers) {
   return JSON.stringify(answers);
 }
 
@@ -121,6 +77,7 @@ export function rowToReport(row: ReportRow, photoDirectory: string | null = null
     description: stringValue(row.description),
     answers: parseAnswers(row.answers_json),
     address: stringValue(row.address),
+    locationNote: stringValue(row.location_note),
     latitude: nullableNumber(row.latitude),
     longitude: nullableNumber(row.longitude),
     photoUri,
@@ -136,16 +93,19 @@ export function rowToReport(row: ReportRow, photoDirectory: string | null = null
   };
 }
 
-export function parseAnswers(raw: string | null) {
+export function parseAnswers(raw: string | null): ReportAnswers {
   const parsed = parseJson(raw);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
 
-  return Object.fromEntries(
-    Object.entries(parsed).filter(
-      (entry): entry is [string, string] =>
-        typeof entry[0] === 'string' && typeof entry[1] === 'string'
-    )
-  );
+  const answers: ReportAnswers = {};
+  for (const [questionId, value] of Object.entries(parsed)) {
+    if (typeof value === 'string') {
+      answers[questionId] = value;
+    } else if (Array.isArray(value)) {
+      answers[questionId] = value.filter((item): item is string => typeof item === 'string');
+    }
+  }
+  return answers;
 }
 
 export function parsePhotoVisionResult(raw: string | null) {
@@ -174,9 +134,16 @@ export function parsePhotoIssueTopic(raw: string | null): PhotoIssueCandidate | 
   };
 }
 
+/** Status labels stored before migration 3 replaced them with codes. */
+export const LEGACY_STATUSES: Record<string, ReportStatus> = {
+  Draft: 'draft',
+  'Mail opened': 'handed_off',
+  'Case added': 'case_added',
+};
+
 export function parseReportStatus(raw: string): ReportStatus {
-  if (raw === 'Draft' || raw === 'Mail opened' || raw === 'Case added') return raw;
-  return 'Draft';
+  if (raw === 'draft' || raw === 'handed_off' || raw === 'sent' || raw === 'case_added') return raw;
+  return LEGACY_STATUSES[raw] ?? 'draft';
 }
 
 function parseJson(raw: string | null): unknown {

@@ -1,4 +1,5 @@
 import { ISSUE_CATEGORIES } from '../categories';
+import { EMPTY_DRAFT } from '../reportDraft';
 import {
   DEFAULT_REWRITE_TIMEOUT_MS,
   EmailRewriteError,
@@ -6,9 +7,10 @@ import {
   normalizeEmailRewriteResponse,
   rewriteEmailDraft,
 } from '../emailRewriteClient';
-import type { DraftReportInput } from '../types';
+import type { EmailInput } from '../types';
 
-const baseInput: DraftReportInput = {
+const baseInput: EmailInput = {
+  ...EMPTY_DRAFT,
   category: ISSUE_CATEGORIES[0],
   description: 'Damaged residential bin lid',
   answers: {

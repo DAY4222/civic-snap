@@ -14,8 +14,10 @@ import {
 } from '@/lib/issueSuggestions';
 import { loadPhotoAnalysisEnabled, savePhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
+import { deleteReportPhotos } from '@/lib/photos';
+import { getDraftCategory, isDraftEmpty } from '@/lib/reportDraft';
 import { getReport } from '@/lib/reports';
-import { PhotoIssueCandidate } from '@/lib/types';
+import { PhotoIssueCandidate, ReportAnswerValue } from '@/lib/types';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
 import {
@@ -25,18 +27,18 @@ import {
   canPreviewReport,
   createInitialReportWizardState,
   filterIssueCategories,
-  getWizardCategory,
   profilesEqual,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from './reportWizardState';
 import {
+  buildPreviewEmail,
   getCurrentLocationReportData,
   openSavedReportMail,
   persistWizardPhoto,
   reverseGeocodeReportAddress,
-  saveReportDraft,
 } from './reportWizardServices';
+import { useDraftPersistence } from './useDraftPersistence';
 import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
 
 const BLOCK_LEVEL_DELTA = 0.0012;
@@ -53,65 +55,54 @@ export function useReportWizard(resumeId?: string) {
   const photoAnalysisAbortController = useRef<AbortController | null>(null);
   const reverseGeocodeRequestId = useRef(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { category, manualCategory, photoIssueCategory } = useMemo(
-    () => getWizardCategory(state),
-    [state.selectedCategoryId, state.selectedPhotoIssueTopic]
+  const { draft } = state;
+  const category = useMemo(
+    () => getDraftCategory(draft),
+    [draft.categoryId, draft.photoIssueTopic]
   );
+  const hasIssue = category.id !== GENERAL_CATEGORY.id;
   const photoAnalysisAvailable = canAnalyzePhotoLabels();
   const photoLabelsEnabled = photoAnalysisAvailable && state.photoAnalysisUserEnabled;
-  const currentIssueTitle =
-    manualCategory?.title ?? state.selectedPhotoIssueTopic?.title ?? GENERAL_CATEGORY.title;
   const photoIssueSuggestions = useMemo(
-    () => getSuggestedIssueCandidates(state.photoVisionResult),
-    [state.photoVisionResult]
+    () => getSuggestedIssueCandidates(draft.photoVisionResult),
+    [draft.photoVisionResult]
   );
   const filteredIssueCategories = useMemo(
     () => filterIssueCategories(state.issueSearchQuery),
     [state.issueSearchQuery]
   );
-  const canContinueLocation = canContinueFromLocation(state);
-  const canPreviewEmail = canPreviewReport(state);
-  const descriptionPlaceholder =
-    manualCategory || photoIssueCategory
-      ? `Describe the ${category.subjectLabel}, exact location, and what crews should know.`
-      : 'Example: pothole in the curb lane near the crosswalk';
+  const canContinueLocation = canContinueFromLocation(draft);
+  const canPreviewEmail = canPreviewReport(draft);
+  const descriptionPlaceholder = hasIssue
+    ? `Describe the ${category.subjectLabel}, exact location, and what crews should know.`
+    : 'Example: pothole in the curb lane near the crosswalk';
   const email = useMemo(
-    () =>
-      buildEmail({
-        category,
-        description: state.description,
-        answers: state.answers,
-        address: state.address,
-        locationNote: state.locationNote,
-        latitude: state.latitude,
-        longitude: state.longitude,
-        photoUri: state.photoUri,
-        photoIssueTopic: state.selectedPhotoIssueTopic,
-        profile: state.profile,
-      }),
-    [
-      category,
-      state.address,
-      state.answers,
-      state.description,
-      state.latitude,
-      state.locationNote,
-      state.longitude,
-      state.photoUri,
-      state.profile,
-      state.selectedPhotoIssueTopic,
-    ]
+    () => buildEmail({ ...draft, category, profile: state.profile }),
+    [category, draft, state.profile]
   );
   const pinRegion = useMemo<Region | null>(() => {
-    if (state.latitude == null || state.longitude == null) return null;
+    if (draft.latitude == null || draft.longitude == null) return null;
 
     return {
-      latitude: state.latitude,
-      longitude: state.longitude,
+      latitude: draft.latitude,
+      longitude: draft.longitude,
       latitudeDelta: BLOCK_LEVEL_DELTA,
       longitudeDelta: BLOCK_LEVEL_DELTA,
     };
-  }, [state.latitude, state.longitude]);
+  }, [draft.latitude, draft.longitude]);
+  const emailToSave = useMemo(
+    () =>
+      state.emailBody ? { subject: state.emailSubject, body: state.emailBody } : email,
+    [email, state.emailBody, state.emailSubject]
+  );
+  const persistence = useDraftPersistence({
+    category,
+    draft,
+    email: emailToSave,
+    enabled: true,
+    onCreated: (reportId) => dispatch({ type: 'draftCreated', reportId }),
+    savedReportId: state.savedReportId,
+  });
   const draftSnapshot = useRef({ category, state });
   draftSnapshot.current = { category, state };
 
@@ -134,27 +125,13 @@ export function useReportWizard(resumeId?: string) {
           let nextEmailSubject: string | undefined;
           if (current.state.step === 'preview') {
             const currentEmail = buildEmail({
+              ...current.state.draft,
               category: current.category,
-              description: current.state.description,
-              answers: current.state.answers,
-              address: current.state.address,
-              locationNote: current.state.locationNote,
-              latitude: current.state.latitude,
-              longitude: current.state.longitude,
-              photoUri: current.state.photoUri,
-              photoIssueTopic: current.state.selectedPhotoIssueTopic,
               profile: currentProfile,
             });
             const updatedEmail = buildEmail({
+              ...current.state.draft,
               category: current.category,
-              description: current.state.description,
-              answers: current.state.answers,
-              address: current.state.address,
-              locationNote: current.state.locationNote,
-              latitude: current.state.latitude,
-              longitude: current.state.longitude,
-              photoUri: current.state.photoUri,
-              photoIssueTopic: current.state.selectedPhotoIssueTopic,
               profile: nextProfile,
             });
 
@@ -230,7 +207,7 @@ export function useReportWizard(resumeId?: string) {
     let active = true;
     getReport(resumeId)
       .then((report) => {
-        if (active && report?.status === 'Draft') dispatch({ type: 'resumeReport', report });
+        if (active && report?.status === 'draft') dispatch({ type: 'resumeReport', report });
       })
       .catch(() => undefined)
       .finally(() => {
@@ -243,10 +220,10 @@ export function useReportWizard(resumeId?: string) {
   }, [resumeId]);
 
   const analyzeCurrentPhoto = useCallback(async () => {
-    const photoUri = state.photoUri;
+    const photoUri = draft.photoUri;
     if (!photoUri) return;
 
-    if (state.photoVisionResult && state.photoVisionPhotoUri === photoUri) {
+    if (draft.photoVisionResult && state.photoVisionPhotoUri === photoUri) {
       return;
     }
 
@@ -267,7 +244,7 @@ export function useReportWizard(resumeId?: string) {
         photoAnalysisAbortController.current = null;
       }
     }
-  }, [state.photoUri, state.photoVisionPhotoUri, state.photoVisionResult]);
+  }, [draft.photoUri, draft.photoVisionResult, state.photoVisionPhotoUri]);
 
   useEffect(() => {
     if (!shouldStartPhotoAnalysis(state, photoLabelsEnabled)) return;
@@ -276,7 +253,7 @@ export function useReportWizard(resumeId?: string) {
   }, [
     analyzeCurrentPhoto,
     photoLabelsEnabled,
-    state.photoUri,
+    draft.photoUri,
     state.photoVisionPhotoUri,
     state.photoVisionStatus,
   ]);
@@ -293,6 +270,9 @@ export function useReportWizard(resumeId?: string) {
   }
 
   async function storePhoto(uri: string) {
+    // A retaken photo that no saved draft points to can go now; saved ones are cleaned up by
+    // the startup sweep once the draft has been re-saved with the new photo.
+    const replacedPhotos = state.savedReportId ? [] : [draft.photoUri, draft.thumbnailUri];
     dispatch({ type: 'setBusy', busy: true });
     try {
       const persisted = await persistWizardPhoto(uri);
@@ -301,6 +281,7 @@ export function useReportWizard(resumeId?: string) {
         photoUri: persisted.photoUri,
         thumbnailUri: persisted.thumbnailUri,
       });
+      void deleteReportPhotos(replacedPhotos);
     } catch {
       Alert.alert('Photo not saved', 'The report can continue without a saved photo.');
     } finally {
@@ -413,28 +394,27 @@ export function useReportWizard(resumeId?: string) {
   }
 
   async function previewEmail() {
-    if (!canContinueFromLocation(state)) {
+    if (!canContinueFromLocation(draft)) {
       Alert.alert('Add a location', 'Enter an address or nearest landmark.');
       return;
     }
 
-    if (!state.description.trim()) {
+    if (!draft.description.trim()) {
       Alert.alert('Add a short description', 'One sentence is enough for the MVP.');
       return;
     }
 
     dispatch({ type: 'setBusy', busy: true });
     try {
-      const { email: nextEmail, id } = await saveReportDraft({
-        category,
-        savedReportId: state.savedReportId,
-        state,
-      });
+      const reportId = await persistence.flush();
+      if (!reportId) throw new Error('Draft was not saved.');
+
+      const nextEmail = await buildPreviewEmail({ ...draft, category, profile: state.profile });
       dispatch({
         type: 'previewReady',
         emailBody: nextEmail.body,
         emailSubject: nextEmail.subject,
-        savedReportId: id,
+        savedReportId: reportId,
       });
     } catch {
       Alert.alert('Draft not saved', 'Try again. Your current report is still on this screen.');
@@ -452,7 +432,7 @@ export function useReportWizard(resumeId?: string) {
         emailBody: state.emailBody,
         emailRecipient: email.recipient,
         emailSubject: state.emailSubject,
-        photoUri: state.photoUri,
+        photoUri: draft.photoUri,
         reportId: state.savedReportId,
       });
       if (result === 'fallback') {
@@ -460,6 +440,7 @@ export function useReportWizard(resumeId?: string) {
         return;
       }
 
+      persistence.detach();
       dispatch({ type: 'resetReport', savedBannerId: state.savedReportId });
     } catch {
       dispatch({ type: 'setStep', step: 'fallback' });
@@ -486,7 +467,8 @@ export function useReportWizard(resumeId?: string) {
   }
 
   function backFromLocation() {
-    if (state.selectedCategoryId) {
+    // A manually chosen issue started in search, so Back returns there.
+    if (draft.categoryId && !draft.photoIssueTopic) {
       openCategory('location');
       return;
     }
@@ -501,22 +483,26 @@ export function useReportWizard(resumeId?: string) {
   function insertSuggestedDescription(suggestion: string) {
     dispatch({
       type: 'appendDescription',
-      value: appendSuggestedDescription(state.description, suggestion),
+      value: appendSuggestedDescription(draft.description, suggestion),
+    });
+  }
+
+  function returnToStart() {
+    void persistence.flush().finally(() => {
+      persistence.detach();
+      dispatch({ type: 'resetReport' });
     });
   }
 
   function confirmExitToStart() {
-    const message = state.savedReportId
-      ? 'This will return to the start screen. Your saved draft will stay in History.'
-      : 'This will return to the start screen and clear the current report progress.';
+    if (isDraftEmpty(draft)) {
+      returnToStart();
+      return;
+    }
 
-    Alert.alert('Return to start?', message, [
+    Alert.alert('Return to start?', 'Your draft is saved in History, so you can finish it later.', [
       { text: 'Keep editing', style: 'cancel' },
-      {
-        text: 'Return to start',
-        style: 'destructive',
-        onPress: () => dispatch({ type: 'resetReport' }),
-      },
+      { text: 'Return to start', onPress: returnToStart },
     ]);
   }
 
@@ -541,7 +527,7 @@ export function useReportWizard(resumeId?: string) {
         addressEditVersion.current += 1;
         dispatch({ type: 'setAddress', address });
       },
-      setAnswer: (questionId: string, value: string) =>
+      setAnswer: (questionId: string, value: ReportAnswerValue) =>
         dispatch({ type: 'setAnswer', questionId, value }),
       setDescription: (description: string) => dispatch({ type: 'setDescription', description }),
       setEmailBody: (emailBody: string) => dispatch({ type: 'setEmailBody', emailBody }),
@@ -560,11 +546,10 @@ export function useReportWizard(resumeId?: string) {
     category,
     canContinueLocation,
     canPreviewEmail,
-    currentIssueTitle,
     descriptionPlaceholder,
     email,
     filteredIssueCategories,
-    manualCategory,
+    hasIssue,
     photoAnalysisAvailable,
     photoIssueSuggestions,
     photoLabelsEnabled,

@@ -5,7 +5,7 @@ import {
 } from './emailRewrite';
 import { buildEmail } from './email';
 import { getInstallId } from './installId';
-import type { DraftReportInput } from './types';
+import type { EmailInput } from './types';
 
 export const DEFAULT_REWRITE_TIMEOUT_MS = 8_000;
 const REWRITE_EMAIL_URL = process.env.EXPO_PUBLIC_SUPABASE_REWRITE_EMAIL_URL ?? '';
@@ -50,7 +50,7 @@ export function canRewriteEmailDraft(config: EmailRewriteConfig = getEmailRewrit
 }
 
 export async function rewriteEmailDraft(
-  input: DraftReportInput,
+  input: EmailInput,
   options: RewriteEmailDraftOptions = {}
 ) {
   const config = options.config ?? getEmailRewriteConfig();

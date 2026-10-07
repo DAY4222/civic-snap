@@ -1,11 +1,11 @@
-import * as SQLite from 'expo-sqlite';
-
-import { deleteReportPhotos, getReportPhotoBaseDirectory } from './photos';
+import { openDatabase } from './db';
 import {
-  CREATE_REPORTS_TABLE_SQL,
-  REPORTS_SCHEMA_VERSION,
+  deleteOrphanReportPhotos,
+  deleteReportPhotos,
+  getReportPhotoBaseDirectory,
+} from './photos';
+import {
   createReportId,
-  getMissingReportColumnMigrations,
   rowToReport,
   serializeAnswers,
   serializeNullableJson,
@@ -16,52 +16,24 @@ import type { ReportStatus } from './types';
 
 export type { CreateReportInput } from './reportPersistence';
 
-let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
-
-async function getDatabase() {
-  if (!databasePromise) {
-    databasePromise = SQLite.openDatabaseAsync('civic-snap.db');
-  }
-
-  const db = await databasePromise;
-  await migrateReportsSchema(db);
-  return db;
-}
-
-async function migrateReportsSchema(db: SQLite.SQLiteDatabase) {
-  await db.execAsync(CREATE_REPORTS_TABLE_SQL);
-
-  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(reports)');
-  for (const migrationSql of getMissingReportColumnMigrations(
-    columns.map((column) => column.name)
-  )) {
-    await db.execAsync(migrationSql);
-  }
-
-  const versionRows = await db.getAllAsync<{ user_version: number }>('PRAGMA user_version');
-  const userVersion = Number(versionRows[0]?.user_version) || 0;
-  if (userVersion < REPORTS_SCHEMA_VERSION) {
-    await db.execAsync(`PRAGMA user_version = ${REPORTS_SCHEMA_VERSION};`);
-  }
-}
-
 export async function createDraftReport(input: CreateReportInput) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   const id = createReportId();
   const now = new Date().toISOString();
 
   await db.runAsync(
     `INSERT INTO reports (
-      id, category_id, category, description, answers_json, address, latitude, longitude,
+      id, category_id, category, description, answers_json, address, location_note, latitude, longitude,
       photo_uri, thumbnail_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, status, case_number,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.categoryId,
     input.category,
     input.description,
     serializeAnswers(input.answers),
     input.address,
+    input.locationNote,
     input.latitude,
     input.longitude,
     toStoredPhotoPath(input.photoUri),
@@ -70,7 +42,7 @@ export async function createDraftReport(input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
-    'Draft',
+    'draft',
     '',
     now,
     now
@@ -79,8 +51,12 @@ export async function createDraftReport(input: CreateReportInput) {
   return id;
 }
 
+/**
+ * Saves the wizard's latest content. Only drafts are updated, so a save that lands after the
+ * report was handed off can't overwrite it or turn it back into a draft.
+ */
 export async function updateDraftReport(id: string, input: CreateReportInput) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   await db.runAsync(
     `UPDATE reports SET
       category_id = ?,
@@ -88,6 +64,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       description = ?,
       answers_json = ?,
       address = ?,
+      location_note = ?,
       latitude = ?,
       longitude = ?,
       photo_uri = ?,
@@ -96,14 +73,14 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       photo_issue_topic_json = ?,
       email_subject = ?,
       email_body = ?,
-      status = ?,
       updated_at = ?
-    WHERE id = ?`,
+    WHERE id = ? AND status = 'draft'`,
     input.categoryId,
     input.category,
     input.description,
     serializeAnswers(input.answers),
     input.address,
+    input.locationNote,
     input.latitude,
     input.longitude,
     toStoredPhotoPath(input.photoUri),
@@ -112,14 +89,13 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
-    'Draft',
     new Date().toISOString(),
     id
   );
 }
 
 export async function updateReportEmail(id: string, emailSubject: string, emailBody: string) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   await db.runAsync(
     'UPDATE reports SET email_subject = ?, email_body = ?, updated_at = ? WHERE id = ?',
     emailSubject,
@@ -130,20 +106,20 @@ export async function updateReportEmail(id: string, emailSubject: string, emailB
 }
 
 export async function listReports() {
-  const db = await getDatabase();
+  const db = await openDatabase();
   const rows = await db.getAllAsync<ReportRow>('SELECT * FROM reports ORDER BY created_at DESC');
   const photoDirectory = getReportPhotoBaseDirectory();
   return rows.map((row) => rowToReport(row, photoDirectory));
 }
 
 export async function getReport(id: string) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   const rows = await db.getAllAsync<ReportRow>('SELECT * FROM reports WHERE id = ?', id);
   return rows[0] ? rowToReport(rows[0], getReportPhotoBaseDirectory()) : null;
 }
 
 export async function updateReportStatus(id: string, status: ReportStatus) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   await db.runAsync(
     'UPDATE reports SET status = ?, updated_at = ? WHERE id = ?',
     status,
@@ -153,11 +129,11 @@ export async function updateReportStatus(id: string, status: ReportStatus) {
 }
 
 export async function updateCaseNumber(id: string, caseNumber: string) {
-  const db = await getDatabase();
+  const db = await openDatabase();
   await db.runAsync(
     'UPDATE reports SET case_number = ?, status = ?, updated_at = ? WHERE id = ?',
     caseNumber,
-    caseNumber ? 'Case added' : 'Mail opened',
+    caseNumber ? 'case_added' : 'sent',
     new Date().toISOString(),
     id
   );
@@ -165,8 +141,19 @@ export async function updateCaseNumber(id: string, caseNumber: string) {
 
 export async function deleteReport(id: string) {
   const report = await getReport(id);
-  const db = await getDatabase();
+  const db = await openDatabase();
 
   await db.runAsync('DELETE FROM reports WHERE id = ?', id);
   await deleteReportPhotos([report?.photoUri, report?.thumbnailUri]);
+}
+
+/** Removes photo files no report uses: leftovers from crashes or abandoned retakes. */
+export async function sweepOrphanReportPhotos() {
+  if (!getReportPhotoBaseDirectory()) return 0;
+
+  const db = await openDatabase();
+  const rows = await db.getAllAsync<{ photo_uri: string | null; thumbnail_uri: string | null }>(
+    'SELECT photo_uri, thumbnail_uri FROM reports'
+  );
+  return deleteOrphanReportPhotos(rows.flatMap((row) => [row.photo_uri, row.thumbnail_uri]));
 }

@@ -3,7 +3,6 @@ import {
   appendSuggestedDescription,
   getSuggestedAnswerOptions,
   getSuggestedIssueCandidates,
-  toggleMultiAnswer,
 } from '../issueSuggestions';
 import { makePhotoIssueCandidate, makePhotoVisionResult } from '../testUtils/photoVisionFixtures';
 import type { PhotoIssueCandidate, PhotoVisionResult } from '../types';
@@ -70,18 +69,5 @@ describe('issue suggestions', () => {
         selectedCandidate.suggestedDescription
       )
     ).toBe(selectedCandidate.suggestedDescription);
-  });
-
-  it('toggles multipicklist answers without duplicating options', () => {
-    const option = {
-      label: 'Lid',
-      value: 'lid',
-      isEligibleResponse: true,
-      suggestedLabelIds: ['bin-lid-damaged'],
-    };
-
-    expect(toggleMultiAnswer('', option)).toBe('Lid');
-    expect(toggleMultiAnswer('Body', option)).toBe('Body, Lid');
-    expect(toggleMultiAnswer('Body, Lid', option)).toBe('Body');
   });
 });

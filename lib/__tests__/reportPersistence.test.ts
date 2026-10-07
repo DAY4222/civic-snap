@@ -1,5 +1,4 @@
 import {
-  getMissingReportColumnMigrations,
   parseAnswers,
   parsePhotoIssueTopic,
   parseReportStatus,
@@ -8,6 +7,7 @@ import {
   toStoredPhotoPath,
 } from '../reportPersistence';
 import type { ReportRow } from '../reportPersistence';
+import { getMissingReportColumnMigrations } from '../reportMigrations';
 
 const baseRow: ReportRow = {
   id: 'report-1',
@@ -16,6 +16,7 @@ const baseRow: ReportRow = {
   description: 'Pothole in road.',
   answers_json: '{"q1":"yes","q2":2}',
   address: '123 Queen St W',
+  location_note: 'north curb',
   latitude: 43.65,
   longitude: -79.38,
   photo_uri: null,
@@ -41,6 +42,9 @@ describe('report persistence helpers', () => {
 
   it('keeps malformed answers from escaping storage parsing', () => {
     expect(parseAnswers('{"a":"one","b":2,"c":false}')).toEqual({ a: 'one' });
+    expect(parseAnswers('{"multi":["Lid","Body, handle or frame",3]}')).toEqual({
+      multi: ['Lid', 'Body, handle or frame'],
+    });
     expect(parseAnswers('not json')).toEqual({});
     expect(parseAnswers('["nope"]')).toEqual({});
   });
@@ -50,7 +54,9 @@ describe('report persistence helpers', () => {
 
     expect(report.categoryId).toBe('road-pothole-road-damage');
     expect(report.answers).toEqual({ q1: 'yes' });
-    expect(report.status).toBe('Draft');
+    expect(report.locationNote).toBe('north curb');
+    expect(rowToReport({ ...baseRow, location_note: null }).locationNote).toBe('');
+    expect(report.status).toBe('draft');
   });
 
   it('drops malformed stored coordinates instead of leaking NaN into reports', () => {
@@ -106,8 +112,10 @@ describe('report persistence helpers', () => {
   });
 
   it('normalizes status and photo topic JSON', () => {
-    expect(parseReportStatus('Case added')).toBe('Case added');
-    expect(parseReportStatus('unknown')).toBe('Draft');
+    expect(parseReportStatus('case_added')).toBe('case_added');
+    expect(parseReportStatus('Case added')).toBe('case_added');
+    expect(parseReportStatus('Mail opened')).toBe('handed_off');
+    expect(parseReportStatus('unknown')).toBe('draft');
     expect(parsePhotoIssueTopic('not json')).toBeNull();
     expect(
       parsePhotoIssueTopic(
