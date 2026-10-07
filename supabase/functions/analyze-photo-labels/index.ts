@@ -1,4 +1,5 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Pinned: an unpinned @2 import picks up new releases whose types break the type check.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
 
 import {
   MAX_EVIDENCE_CHARS,
@@ -12,6 +13,7 @@ import {
   validateRequest,
   type AllowedLabel,
   type AnalysisRequest,
+  type EdgeIssueCatalogItem,
   type LimitConfig,
   type ValidAnalysisRequest,
 } from './logic.ts';
@@ -69,7 +71,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: validation.error }, 400);
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
   const installIdHash = await sha256(validation.installId);
   const rateLimit = await checkRateLimit(supabase, installIdHash, LIMIT_CONFIG.config);
   if (!rateLimit.ok) {
@@ -135,7 +137,7 @@ Deno.serve(async (request) => {
 });
 
 async function checkRateLimit(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   installIdHash: string,
   limits: LimitConfig
 ) {
@@ -160,7 +162,7 @@ async function checkRateLimit(
 }
 
 async function countRuns(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   startOfDay: Date,
   endOfDay: Date,
   installIdHash?: string
@@ -246,7 +248,10 @@ async function callGemini(apiKey: string, request: ValidAnalysisRequest) {
 }
 
 function buildPrompt(allowedLabels: AllowedLabel[]) {
-  const promptIssues = EDGE_ISSUE_CATALOG.filter(
+  // Read through the general item type: in the as-const catalog, optional fields such as
+  // photoHint exist on only some issues, which strict type-checking rejects.
+  const issueCatalog: readonly EdgeIssueCatalogItem[] = EDGE_ISSUE_CATALOG;
+  const promptIssues = issueCatalog.filter(
     (issue) => issue.discoverability !== 'not-discoverable'
   ).map((issue) => ({
     id: issue.id,
@@ -291,7 +296,7 @@ function buildPrompt(allowedLabels: AllowedLabel[]) {
 }
 
 async function logAnalysisRun(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceClient,
   input: {
     analyzedAt: string;
     errorCode?: string;
@@ -372,3 +377,12 @@ function jsonResponse(body: unknown, status = 200) {
     status,
   });
 }
+
+/** The runs tables have row level security and no policies, so they need the service-role key. */
+function createServiceClient(supabaseUrl: string, serviceRoleKey: string) {
+  return createClient(supabaseUrl, serviceRoleKey);
+}
+
+// The type of the client this function actually creates. `ReturnType<typeof createClient>` is
+// the generic signature's type, which newer supabase-js typings don't accept here.
+type ServiceClient = ReturnType<typeof createServiceClient>;
