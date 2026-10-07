@@ -19,7 +19,13 @@ type AnalyzePhotoLabelsOptions = {
 export class PhotoVisionError extends Error {
   constructor(
     message: string,
-    readonly code: 'disabled' | 'payload-too-large' | 'network' | 'rate-limited' | 'server'
+    readonly code:
+      | 'disabled'
+      | 'payload-too-large'
+      | 'network'
+      | 'offline'
+      | 'rate-limited'
+      | 'server'
   ) {
     super(message);
   }
@@ -74,13 +80,21 @@ export async function analyzePhotoLabels(photoUri: string, options: AnalyzePhoto
     if (abortSignal.didTimeout()) {
       throw new PhotoVisionError('Photo labels took too long.', 'network');
     }
-    throw new PhotoVisionError('Photo labels are unavailable.', 'network');
+    if (options.signal?.aborted) {
+      throw new PhotoVisionError('Photo labels were cancelled.', 'network');
+    }
+    // The request never reached the service: no connection, or the backend is down or paused.
+    throw new PhotoVisionError('Photo labels could not connect.', 'offline');
   } finally {
     abortSignal.cleanup();
   }
 
   if (response.status === 429) {
     throw new PhotoVisionError('Photo label limit reached for today.', 'rate-limited');
+  }
+
+  if (response.status === 503) {
+    throw new PhotoVisionError('Photo labels are temporarily unavailable.', 'offline');
   }
 
   if (!response.ok) {

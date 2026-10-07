@@ -73,7 +73,7 @@ describe('email rewrite client', () => {
       apikey: 'anon-key',
     });
     expect(JSON.parse(String(requestInit?.body))).toMatchObject({
-      contactDetails: 'Name: Ada Lovelace\nEmail: ada@example.com\nPhone: 555-0100',
+      contactDetails: '',
       defaultEmail: 'Prebuilt local draft body',
       guidedAnswers: [
         'What is this request about?: Request Repairs for a Damaged Bin',

@@ -155,7 +155,8 @@ export function readLimitConfigFromEnv(getEnv: (name: string) => string | undefi
 export function validateRequest(
   body: AnalysisRequest,
   limits: Pick<LimitConfig, 'maxImageBase64Bytes'> = DEFAULT_LIMIT_CONFIG,
-  issueCatalog: readonly EdgeIssueCatalogItem[] = []
+  issueCatalog: readonly EdgeIssueCatalogItem[] = [],
+  labelDefinitions: readonly AllowedLabel[] = []
 ) {
   const installId = typeof body.installId === 'string' ? body.installId.trim() : '';
   const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
@@ -180,7 +181,7 @@ export function validateRequest(
     return { ok: false as const, error: 'image_too_large' };
   }
 
-  const allowedLabels = buildServerAllowedLabels(issueCatalog);
+  const allowedLabels = buildServerAllowedLabels(issueCatalog, labelDefinitions);
 
   if (allowedLabels.length === 0) {
     return { ok: false as const, error: 'server_label_catalog_unavailable' };
@@ -232,8 +233,12 @@ export function normalizeGeminiResult(
   return { suggestedLabels, issueCandidates };
 }
 
-export function buildServerAllowedLabels(issueCatalog: readonly EdgeIssueCatalogItem[]) {
+export function buildServerAllowedLabels(
+  issueCatalog: readonly EdgeIssueCatalogItem[],
+  labelDefinitions: readonly AllowedLabel[] = []
+): AllowedLabel[] {
   const labelIds = new Set<string>();
+  const definitionsById = new Map(labelDefinitions.map((label) => [label.id, label]));
 
   for (const issue of issueCatalog) {
     for (const labelId of [
@@ -245,10 +250,12 @@ export function buildServerAllowedLabels(issueCatalog: readonly EdgeIssueCatalog
     }
   }
 
-  return [...labelIds].map((id) => ({
-    id,
-    label: humanizeLabelId(id),
-  }));
+  return [...labelIds].map((id) => {
+    const definition = definitionsById.get(id);
+    return definition?.description
+      ? { id, label: definition.label, description: definition.description }
+      : { id, label: definition?.label ?? humanizeLabelId(id) };
+  });
 }
 
 function normalizeLabel(

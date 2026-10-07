@@ -5,6 +5,7 @@ import {
   filterIssueCategories,
   getPhotoVisionErrorStatus,
   getPhotoVisionStatus,
+  getWizardCategory,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from '../reportWizardState';
@@ -256,6 +257,24 @@ describe('report wizard reducer', () => {
     expect(shouldStartPhotoAnalysis(state, true)).toBe(false);
   });
 
+  it('falls back to general or the suggested title, never another catalog issue', () => {
+    expect(
+      getWizardCategory({ selectedCategoryId: 'retired-issue-id', selectedPhotoIssueTopic: null })
+        .category.id
+    ).toBe('general');
+
+    const unknownTopic = makePhotoIssueCandidate({
+      issueId: 'issue-from-newer-catalog',
+      title: 'Issue From Newer Catalog',
+    });
+    const { category } = getWizardCategory({
+      selectedCategoryId: null,
+      selectedPhotoIssueTopic: unknownTopic,
+    });
+    expect(category.title).toBe('Issue From Newer Catalog');
+    expect(category.questions).toEqual([]);
+  });
+
   it('uses common issue categories before the user searches', () => {
     expect(filterIssueCategories('').map((category) => category.id)).toEqual([
       'road-pothole-road-damage',
@@ -326,6 +345,9 @@ describe('report wizard reducer', () => {
         new PhotoVisionError('Photo analysis image is too large.', 'payload-too-large')
       )
     ).toBe('payload-too-large');
+    expect(
+      getPhotoVisionErrorStatus(new PhotoVisionError('Photo labels could not connect.', 'offline'))
+    ).toBe('offline');
     expect(getPhotoVisionErrorStatus(new Error('network failed'))).toBe('error');
   });
 });

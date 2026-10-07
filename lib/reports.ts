@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
-import { deleteReportPhotos } from './photos';
+import { deleteReportPhotos, getReportPhotoBaseDirectory } from './photos';
 import {
   CREATE_REPORTS_TABLE_SQL,
   REPORTS_SCHEMA_VERSION,
@@ -9,6 +9,7 @@ import {
   rowToReport,
   serializeAnswers,
   serializeNullableJson,
+  toStoredPhotoPath,
 } from './reportPersistence';
 import type { CreateReportInput, ReportRow } from './reportPersistence';
 import type { ReportStatus } from './types';
@@ -63,8 +64,8 @@ export async function createDraftReport(input: CreateReportInput) {
     input.address,
     input.latitude,
     input.longitude,
-    input.photoUri,
-    input.thumbnailUri,
+    toStoredPhotoPath(input.photoUri),
+    toStoredPhotoPath(input.thumbnailUri),
     serializeNullableJson(input.photoVisionResult),
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
@@ -105,8 +106,8 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     input.address,
     input.latitude,
     input.longitude,
-    input.photoUri,
-    input.thumbnailUri,
+    toStoredPhotoPath(input.photoUri),
+    toStoredPhotoPath(input.thumbnailUri),
     serializeNullableJson(input.photoVisionResult),
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
@@ -131,13 +132,14 @@ export async function updateReportEmail(id: string, emailSubject: string, emailB
 export async function listReports() {
   const db = await getDatabase();
   const rows = await db.getAllAsync<ReportRow>('SELECT * FROM reports ORDER BY created_at DESC');
-  return rows.map(rowToReport);
+  const photoDirectory = getReportPhotoBaseDirectory();
+  return rows.map((row) => rowToReport(row, photoDirectory));
 }
 
 export async function getReport(id: string) {
   const db = await getDatabase();
   const rows = await db.getAllAsync<ReportRow>('SELECT * FROM reports WHERE id = ?', id);
-  return rows[0] ? rowToReport(rows[0]) : null;
+  return rows[0] ? rowToReport(rows[0], getReportPhotoBaseDirectory()) : null;
 }
 
 export async function updateReportStatus(id: string, status: ReportStatus) {

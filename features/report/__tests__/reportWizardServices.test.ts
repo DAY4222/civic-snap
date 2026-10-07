@@ -69,8 +69,13 @@ describe('report wizard services', () => {
     expect(rewriteDraft).toHaveBeenCalledWith(baseInput, {
       defaultEmailBody: expect.stringContaining('Hello 311 Toronto,'),
     });
+    const sentDraft = (rewriteDraft.mock.calls[0] as unknown[])[1] as { defaultEmailBody: string };
+    expect(sentDraft.defaultEmailBody).not.toContain('Ada Lovelace');
+    expect(sentDraft.defaultEmailBody).not.toContain('GPS:');
     expect(email.subject).toBe('311 service request: Residential Bin Lid Damaged');
-    expect(email.body).toBe('Improved 311 email body');
+    expect(email.body).toContain('Improved 311 email body');
+    expect(email.body).toContain('GPS: 43.653481, -79.383935');
+    expect(email.body).toContain('Contact:\nName: Ada Lovelace\nPhone: 555-0100');
   });
 
   it('falls back to the deterministic local draft when rewriting fails', async () => {
@@ -108,11 +113,11 @@ describe('report wizard services', () => {
     expect(mockUpdateDraftReport).toHaveBeenCalledWith(
       'report-1',
       expect.objectContaining({
-        emailBody: 'Improved 311 email body',
+        emailBody: expect.stringContaining('Improved 311 email body'),
       })
     );
     expect(result).toMatchObject({
-      email: { body: 'Improved 311 email body' },
+      email: { body: expect.stringContaining('Improved 311 email body') },
       id: 'report-1',
     });
   });

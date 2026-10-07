@@ -10,7 +10,10 @@ import {
   type AnalysisRequest,
   type EdgeIssueCatalogItem,
 } from '../../supabase/functions/analyze-photo-labels/logic';
-import { EDGE_ISSUE_CATALOG } from '../../supabase/functions/analyze-photo-labels/issueCatalog';
+import {
+  EDGE_ISSUE_CATALOG,
+  EDGE_PHOTO_LABELS,
+} from '../../supabase/functions/analyze-photo-labels/issueCatalog';
 
 const allowedLabels = [
   { id: 'road-pothole', label: 'Road pothole' },
@@ -107,6 +110,17 @@ describe('photo label Edge Function logic', () => {
     expect(labels.find((label) => label.id === 'road-pothole')).toMatchObject({
       label: 'Road Pothole',
     });
+  });
+
+  it('gives Gemini the generated label wording and descriptions when they are available', () => {
+    const labels = buildServerAllowedLabels(EDGE_ISSUE_CATALOG, EDGE_PHOTO_LABELS);
+
+    expect(labels.find((label) => label.id === 'road-pothole')).toEqual({
+      id: 'road-pothole',
+      label: 'Road pothole',
+      description: 'Visible pothole in the road surface.',
+    });
+    expect(labels.every((label) => label.description)).toBe(true);
   });
 
   it('normalizes non-object Gemini output to empty safe arrays', () => {

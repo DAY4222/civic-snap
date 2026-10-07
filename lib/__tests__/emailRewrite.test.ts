@@ -44,12 +44,21 @@ describe('buildEmailRewritePromptPayload', () => {
     expect(payload.issue_label).toBe('Residential Bin Lid Damaged');
     expect(payload.issue_description).toBe('Damaged residential bin lid');
     expect(payload.default_email).toBe('Local draft body');
-    expect(payload.location).toBe('123 Queen St W\nLocation note: north curb\nGPS: 43.653481, -79.383935');
+    expect(payload.location).toBe('123 Queen St W\nLocation note: north curb');
     expect(payload.guided_answers).toEqual([
       'What is this request about?: Request Repairs for a Damaged Bin',
       'What part is damaged?: Lid',
     ]);
-    expect(payload.contact_details).toBe('Name: Ada Lovelace\nEmail: ada@example.com\nPhone: 555-0100');
+    expect(payload.contact_details).toBe('');
+  });
+
+  it('never sends contact details or exact GPS to the model', () => {
+    const serialized = JSON.stringify(buildEmailRewritePromptPayload(baseInput, 'Local draft body'));
+
+    expect(serialized).not.toContain('Ada');
+    expect(serialized).not.toContain('ada@example.com');
+    expect(serialized).not.toContain('555-0100');
+    expect(serialized).not.toContain('43.653481');
   });
 
   it('summarizes photo topic evidence without exposing local file paths', () => {

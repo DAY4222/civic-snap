@@ -1,7 +1,8 @@
 import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
 
-import { buildEmail } from '@/lib/email';
+import { GENERAL_CATEGORY } from '@/lib/categories';
+import { addLocalDetailsToRewrittenBody, buildEmail } from '@/lib/email';
 import {
   canRewriteEmailDraft,
   rewriteEmailDraft,
@@ -16,7 +17,7 @@ import {
 } from '@/lib/reports';
 import type { DraftReportInput, IssueCategory } from '@/lib/types';
 
-import { GENERAL_CATEGORY, type ReportWizardState } from './reportWizardState';
+import { type ReportWizardState } from './reportWizardState';
 
 export async function persistWizardPhoto(uri: string) {
   return persistReportPhoto(uri);
@@ -88,8 +89,11 @@ export async function buildPreviewEmail(
   if (rewriteDraft === rewriteEmailDraft && !canRewriteEmailDraft()) return email;
 
   try {
-    const rewritten = await rewriteDraft(input, { defaultEmailBody: email.body });
-    return { ...email, body: rewritten.body };
+    const rewritten = await rewriteDraft(input, {
+      defaultEmailBody: buildEmail(input, { includeContact: false, includeCoordinates: false })
+        .body,
+    });
+    return { ...email, body: addLocalDetailsToRewrittenBody(rewritten.body, input) };
   } catch {
     return email;
   }

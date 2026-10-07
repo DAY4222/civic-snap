@@ -1,4 +1,9 @@
-import { ISSUE_CATEGORIES, getCategory } from '@/lib/categories';
+import {
+  GENERAL_CATEGORY,
+  ISSUE_CATEGORIES,
+  categoryFromPhotoTopic,
+  getCategory,
+} from '@/lib/categories';
 import { EMPTY_PROFILE } from '@/lib/profile';
 import {
   IssueCategory,
@@ -17,23 +22,9 @@ export type PhotoVisionStatus =
   | 'ready'
   | 'empty'
   | 'error'
+  | 'offline'
   | 'rate-limited'
   | 'payload-too-large';
-
-export const GENERAL_CATEGORY: IssueCategory = {
-  id: 'general',
-  title: 'General 311 report',
-  subjectLabel: 'local issue',
-  categoryPath: [],
-  description: '',
-  discoverability: 'not-discoverable',
-  visualCueLabelIds: [],
-  requiredAnyLabelIds: [],
-  requiredAllLabelIds: [],
-  observations: [],
-  questions: [],
-  emailGuidanceChecklist: [],
-};
 
 const COMMON_ISSUE_CATEGORY_IDS = [
   'road-pothole-road-damage',
@@ -64,7 +55,6 @@ export type ReportWizardState = {
   photoVisionResult: PhotoVisionResult | null;
   photoVisionStatus: PhotoVisionStatus;
   profile: Profile;
-  resumedReportId: string | null;
   savedBannerId: string | null;
   savedReportId: string | null;
   selectedCategoryId: string | null;
@@ -122,7 +112,6 @@ export function createInitialReportWizardState(): ReportWizardState {
     photoVisionResult: null,
     photoVisionStatus: 'idle',
     profile: EMPTY_PROFILE,
-    resumedReportId: null,
     savedBannerId: null,
     savedReportId: null,
     selectedCategoryId: null,
@@ -214,7 +203,6 @@ export function reportWizardReducer(
         photoVisionPhotoUri: action.report.photoVisionResult ? action.report.photoUri : null,
         photoVisionResult: action.report.photoVisionResult,
         photoVisionStatus: getPhotoVisionStatus(action.report.photoVisionResult),
-        resumedReportId: action.report.id,
         savedBannerId: null,
         savedReportId: action.report.id,
         selectedCategoryId: action.report.photoIssueTopic ? null : action.report.categoryId,
@@ -296,6 +284,7 @@ export function getPhotoVisionStatus(result: PhotoVisionResult | null): PhotoVis
 
 export function getPhotoVisionErrorStatus(error: unknown): PhotoVisionStatus {
   if (error instanceof PhotoVisionError) {
+    if (error.code === 'offline') return 'offline';
     if (error.code === 'rate-limited') return 'rate-limited';
     if (error.code === 'payload-too-large') return 'payload-too-large';
   }
@@ -315,10 +304,15 @@ export function shouldStartPhotoAnalysis(
   );
 }
 
-export function getWizardCategory(state: ReportWizardState) {
-  const manualCategory = state.selectedCategoryId ? getCategory(state.selectedCategoryId) : null;
-  const photoIssueCategory = state.selectedPhotoIssueTopic
-    ? getCategory(state.selectedPhotoIssueTopic.issueId)
+export function getWizardCategory(
+  state: Pick<ReportWizardState, 'selectedCategoryId' | 'selectedPhotoIssueTopic'>
+) {
+  const manualCategory = state.selectedCategoryId
+    ? getCategory(state.selectedCategoryId) ?? null
+    : null;
+  const topic = state.selectedPhotoIssueTopic;
+  const photoIssueCategory = topic
+    ? getCategory(topic.issueId) ?? categoryFromPhotoTopic(topic)
     : null;
 
   return {

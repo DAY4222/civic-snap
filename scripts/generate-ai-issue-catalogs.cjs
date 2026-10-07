@@ -536,6 +536,8 @@ function buildEdgeCatalogTs(issues) {
   return `${generatedHeader()}
 export const EDGE_ISSUE_CATALOG_VERSION = ${JSON.stringify(ISSUE_CATALOG_VERSION)};
 
+export const EDGE_PHOTO_LABELS = ${json(PHOTO_LABELS)} as const;
+
 export const EDGE_ISSUE_CATALOG = ${json(issues)} as const;
 
 export type EdgeIssueCatalogItem = (typeof EDGE_ISSUE_CATALOG)[number];

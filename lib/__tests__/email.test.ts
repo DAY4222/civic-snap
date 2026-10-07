@@ -1,5 +1,5 @@
 import { ISSUE_CATEGORIES } from '../categories';
-import { buildEmail } from '../email';
+import { addLocalDetailsToRewrittenBody, buildEmail } from '../email';
 import type { DraftReportInput, IssueCategory, PhotoIssueCandidate } from '../types';
 
 const baseInput: DraftReportInput = {
@@ -99,5 +99,48 @@ describe('buildEmail', () => {
 
     expect(email.subject).toBe('311 service request: Residential Bin Lid Damaged');
     expect(email.body).toContain('Photo evidence: Road pothole');
+  });
+
+  it('builds a privacy-safe draft for AI rewriting without contact details or GPS', () => {
+    const email = buildEmail(baseInput, { includeContact: false, includeCoordinates: false });
+
+    expect(email.body).not.toContain('Ada Lovelace');
+    expect(email.body).not.toContain('555-0100');
+    expect(email.body).not.toContain('GPS:');
+    expect(email.body).toContain('Location note: north curb');
+  });
+
+  it('adds GPS and contact details back to a rewritten body before the sign-off', () => {
+    const body = addLocalDetailsToRewrittenBody(
+      'Issue: Damaged bin lid\n\nRequest: Please repair it.\n\nThank you.',
+      baseInput
+    );
+
+    expect(body).toBe(
+      [
+        'Issue: Damaged bin lid',
+        '',
+        'Request: Please repair it.',
+        '',
+        'GPS: 43.653481, -79.383935',
+        '',
+        'Contact:',
+        'Name: Ada Lovelace',
+        'Phone: 555-0100',
+        '',
+        'Thank you.',
+      ].join('\n')
+    );
+  });
+
+  it('appends local details when the rewritten body has no sign-off', () => {
+    const body = addLocalDetailsToRewrittenBody('Issue: Damaged bin lid', {
+      ...baseInput,
+      latitude: null,
+      longitude: null,
+      profile: { name: 'Ada', email: '', phone: '' },
+    });
+
+    expect(body).toBe('Issue: Damaged bin lid\n\nContact:\nName: Ada');
   });
 });

@@ -3,6 +3,11 @@ import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 
 const PHOTO_DIR = `${FileSystem.documentDirectory}reports/`;
 
+/** Base directory that stored (relative) report photo paths resolve against. */
+export function getReportPhotoBaseDirectory() {
+  return FileSystem.documentDirectory;
+}
+
 export async function persistReportPhoto(uri: string) {
   await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true }).catch(() => undefined);
 

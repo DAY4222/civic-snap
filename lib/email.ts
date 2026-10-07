@@ -1,14 +1,19 @@
-import { DraftReportInput } from './types';
+import { DraftReportInput, Profile } from './types';
 
 const RECIPIENT = '311@toronto.ca';
 
-export function buildEmail(input: DraftReportInput) {
+type BuildEmailOptions = {
+  /** Contact details and exact GPS stay on the device when the draft is sent for AI rewriting. */
+  includeContact?: boolean;
+  includeCoordinates?: boolean;
+};
+
+export function buildEmail(
+  input: DraftReportInput,
+  { includeContact = true, includeCoordinates = true }: BuildEmailOptions = {}
+) {
   const subject = `311 service request: ${input.category.title}`;
-  const profileLines = [
-    input.profile.name.trim() ? `Name: ${input.profile.name.trim()}` : null,
-    input.profile.email.trim() ? `Email: ${input.profile.email.trim()}` : null,
-    input.profile.phone.trim() ? `Phone: ${input.profile.phone.trim()}` : null,
-  ].filter((line): line is string => line != null);
+  const contactLines = includeContact ? formatContactLines(input.profile) : [];
 
   const answerLines = input.category.questions
     .map((question) => {
@@ -17,10 +22,9 @@ export function buildEmail(input: DraftReportInput) {
     })
     .filter(Boolean);
 
-  const coordinateLine =
-    input.latitude != null && input.longitude != null
-      ? `GPS: ${input.latitude.toFixed(6)}, ${input.longitude.toFixed(6)}`
-      : 'GPS: not available';
+  const coordinateLine = includeCoordinates
+    ? formatCoordinateLine(input) ?? 'GPS: not available'
+    : null;
   const categoryPath = input.category.categoryPath?.join(' > ') ?? '';
 
   const body = [
@@ -45,9 +49,9 @@ export function buildEmail(input: DraftReportInput) {
     ...answerLines,
     input.photoUri ? '- Photo attached' : '- No photo attached',
     '',
-    profileLines.length ? 'Contact:' : null,
-    ...profileLines,
-    profileLines.length ? '' : null,
+    contactLines.length ? 'Contact:' : null,
+    ...contactLines,
+    contactLines.length ? '' : null,
     'Thank you.',
   ]
     .filter((line): line is string => line != null)
@@ -58,4 +62,38 @@ export function buildEmail(input: DraftReportInput) {
     subject,
     body,
   };
+}
+
+/**
+ * The AI rewrite never sees contact details or exact GPS, so add them back to the rewritten
+ * body locally, before the closing thank-you when there is one.
+ */
+export function addLocalDetailsToRewrittenBody(body: string, input: DraftReportInput) {
+  const coordinateLine = formatCoordinateLine(input);
+  const contactLines = formatContactLines(input.profile);
+  const blocks = [
+    coordinateLine,
+    contactLines.length ? ['Contact:', ...contactLines].join('\n') : null,
+  ].filter((block): block is string => block != null);
+  if (blocks.length === 0) return body;
+
+  const localDetails = blocks.join('\n\n');
+  const signOff = body.match(/\n+(thank you[^\n]*)\s*$/i);
+  if (!signOff || signOff.index == null) return `${body.trimEnd()}\n\n${localDetails}`;
+
+  return `${body.slice(0, signOff.index)}\n\n${localDetails}\n\n${signOff[1]}`;
+}
+
+function formatCoordinateLine(input: Pick<DraftReportInput, 'latitude' | 'longitude'>) {
+  return input.latitude != null && input.longitude != null
+    ? `GPS: ${input.latitude.toFixed(6)}, ${input.longitude.toFixed(6)}`
+    : null;
+}
+
+function formatContactLines(profile: Profile) {
+  return [
+    profile.name.trim() ? `Name: ${profile.name.trim()}` : null,
+    profile.email.trim() ? `Email: ${profile.email.trim()}` : null,
+    profile.phone.trim() ? `Phone: ${profile.phone.trim()}` : null,
+  ].filter((line): line is string => line != null);
 }
