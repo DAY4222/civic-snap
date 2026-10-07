@@ -1,183 +1,149 @@
-import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button, Field, Notice, colors } from '@/components/ui';
-import { EMPTY_PROFILE, completeOnboarding, loadProfile, saveProfile } from '@/lib/profile';
-import { Profile } from '@/lib/types';
+import { Button, colors, radius } from '@/components/ui';
+import { RaccoonSprite } from '@/features/report/RaccoonSprite';
+import { useAppState } from '@/lib/appState';
+import { CITY } from '@/lib/city';
 
-const LOGO = require('../assets/images/icon.png');
+const STEPS: { icon: 'camera' | 'envelope-o' | 'paper-plane-o'; text: string }[] = [
+  { icon: 'camera', text: 'Take a photo of the problem and pin where it is.' },
+  { icon: 'envelope-o', text: `Civic Snap writes the ${CITY.name} 311 email for you.` },
+  { icon: 'paper-plane-o', text: 'You check it and send it from your own email app.' },
+];
 
+/** First launch: what the app does and what stays private, then straight to reporting. */
 export default function OnboardingScreen() {
-  const [phase, setPhase] = useState<'brand' | 'profile'>('brand');
-  const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
+  const app = useAppState();
   const [busy, setBusy] = useState(false);
-  const brandOpacity = useRef(new Animated.Value(1)).current;
-  const profileOpacity = useRef(new Animated.Value(0)).current;
-  const hasContactInfo = Boolean(profile.name.trim() || profile.phone.trim());
 
-  useEffect(() => {
-    loadProfile().then(setProfile).catch(() => setProfile(EMPTY_PROFILE));
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      Animated.timing(brandOpacity, {
-        duration: 180,
-        toValue: 0,
-        useNativeDriver: true,
-      }).start(() => {
-        setPhase('profile');
-        Animated.timing(profileOpacity, {
-          duration: 220,
-          toValue: 1,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 650);
-
-    return () => clearTimeout(timer);
-  }, [brandOpacity, profileOpacity]);
-
-  async function finish(shouldSaveProfile: boolean) {
+  async function getStarted() {
     if (busy) return;
-
     setBusy(true);
     try {
-      if (shouldSaveProfile) {
-        await saveProfile({
-          ...profile,
-          name: profile.name.trim(),
-          phone: profile.phone.trim(),
-        });
-      }
-
-      await completeOnboarding();
-      router.replace('/');
+      // The root stack opens the app once onboarding is marked complete.
+      await app.completeOnboarding();
     } finally {
       setBusy(false);
     }
   }
 
-  if (phase === 'brand') {
-    return (
-      <View style={styles.brandContainer}>
-        <Animated.View style={[styles.brandLockup, { opacity: brandOpacity }]}>
-          <Image source={LOGO} resizeMode="contain" style={styles.logo} />
-          <Text style={styles.brandTitle}>Civic Snap</Text>
-        </Animated.View>
-      </View>
-    );
-  }
-
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.select({ ios: 'padding', default: undefined })}
-      style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Animated.View style={[styles.profileCard, { opacity: profileOpacity }]}>
-          <View>
-            <Text style={styles.eyebrow}>Optional</Text>
-            <Text style={styles.title}>Add contact info for 311 follow-up</Text>
-            <Text style={styles.subtitle}>
-              Civic Snap can include your name and phone number in the 311 email it prepares. You can skip this and add
-              it later in Settings.
-            </Text>
-          </View>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.root}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.hero}>
+          <RaccoonSprite style={styles.raccoon} />
+          <Text accessibilityRole="header" style={styles.title}>
+            Civic Snap
+          </Text>
+          <Text style={styles.subtitle}>Report a city problem in about a minute.</Text>
+        </View>
 
-          <Notice text="Stored on this device. Included only in email drafts you choose to send." />
+        <View style={styles.steps}>
+          {STEPS.map((step, index) => (
+            <View key={step.icon} style={styles.step}>
+              <View style={styles.stepIcon}>
+                <FontAwesome color={colors.primary} name={step.icon} size={20} />
+              </View>
+              <Text style={styles.stepText}>
+                <Text style={styles.stepNumber}>{index + 1}. </Text>
+                {step.text}
+              </Text>
+            </View>
+          ))}
+        </View>
 
-          <Field
-            autoCapitalize="words"
-            label="Name"
-            value={profile.name}
-            onChangeText={(name) => setProfile((current) => ({ ...current, name }))}
-            textContentType="name"
-          />
-          <Field
-            label="Phone"
-            value={profile.phone}
-            onChangeText={(phone) => setProfile((current) => ({ ...current, phone }))}
-            keyboardType="phone-pad"
-            textContentType="telephoneNumber"
-          />
-
-          <Button
-            disabled={busy}
-            loading={busy}
-            onPress={() => finish(hasContactInfo)}
-            title={hasContactInfo ? 'Save and continue' : 'Continue to report'}
-          />
-          <Button
-            disabled={busy}
-            onPress={() => finish(false)}
-            title="Skip for now"
-            variant="plain"
-          />
-        </Animated.View>
+        <View style={styles.privacy}>
+          <FontAwesome color={colors.mutedStrong} name="lock" size={16} />
+          <Text style={styles.privacyText}>
+            Your reports stay on this phone. AI help is optional and always asks first.
+          </Text>
+        </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+
+      <View style={styles.footer}>
+        <Button loading={busy} onPress={getStarted} title="Get started" />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  brandContainer: {
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    flex: 1,
+  content: {
+    flexGrow: 1,
+    gap: 28,
     justifyContent: 'center',
+    padding: 24,
   },
-  brandLockup: {
+  footer: {
+    paddingBottom: 12,
+    paddingHorizontal: 24,
+  },
+  hero: {
     alignItems: 'center',
-    gap: 18,
+    gap: 8,
   },
-  logo: {
-    height: 96,
-    width: 96,
+  privacy: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.infoBackground,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 14,
   },
-  brandTitle: {
-    color: '#1d1d1f',
-    fontSize: 28,
-    fontWeight: '800',
+  privacyText: {
+    color: colors.mutedStrong,
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 21,
   },
-  container: {
+  raccoon: {
+    aspectRatio: 1,
+    width: 112,
+  },
+  root: {
     backgroundColor: colors.background,
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
+  step: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 14,
+  },
+  stepIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 44,
     justifyContent: 'center',
-    padding: 20,
+    width: 44,
   },
-  profileCard: {
-    gap: 16,
-  },
-  eyebrow: {
+  stepNumber: {
     color: colors.primary,
-    fontSize: 13,
     fontWeight: '800',
-    textTransform: 'uppercase',
   },
-  title: {
+  stepText: {
     color: colors.text,
-    fontSize: 30,
-    fontWeight: '800',
-    lineHeight: 35,
-    marginTop: 8,
+    flex: 1,
+    fontSize: 17,
+    lineHeight: 23,
+  },
+  steps: {
+    gap: 16,
   },
   subtitle: {
     color: colors.muted,
-    fontSize: 16,
+    fontSize: 17,
     lineHeight: 23,
-    marginTop: 10,
+    textAlign: 'center',
+  },
+  title: {
+    color: colors.text,
+    fontSize: 32,
+    fontWeight: '800',
   },
 });

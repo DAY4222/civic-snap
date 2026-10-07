@@ -16,8 +16,14 @@
 - Hand off through Apple Mail when it is set up (its result maps to sent/handed off/cancelled), otherwise the share sheet; web uses copy/mailto and "I've sent it".
 - Make email preview editable before handoff; the email is tracked as generated, user-edited, or AI-polished, and user edits are never overwritten.
 - Store report photo paths relative to the document directory, because iOS can move the app container.
-- Keep draft reports resumable from History and report detail.
-- Use a fixed center pin for report location adjustment; users move the map under the pin for better mobile precision.
+- Keep draft reports resumable from History, report detail and the home screen's "Continue your draft" card.
+- The report wizard is its own full-screen route (`/report/new`) above the tabs; Back steps through it and leaves from the first step, and the swipe-back gesture is off so leaving always saves.
+- A photo report starts with "What's the issue?" (photo suggestions) when they are on, otherwise with the issue search; a report without a photo starts with the search.
+- Use a fixed center pin for report location adjustment; users move the map under the pin for better mobile precision. The pin starts at the photo's GPS position, then the phone's location; only the user's own map moves set it.
+- Issue search ranks by word-prefix matches over titles, curated everyday words (`data/search-synonyms.json`, read at runtime), category paths and checklist questions; things 311 doesn't handle (streetlights) point to who does.
+- Checklist questions 311's form marks required come first; the app fills the exact-location and Toronto Island answers from the location and never overwrites the user's answers.
+- Profile, AI choices and the onboarding flag load once into `lib/appState.tsx`; onboarding is gated with `Stack.Protected`.
+- Everything Toronto-specific outside the issue catalog lives in `lib/city.ts`.
 - Use `react-native-maps` for native map surfaces; reports without coordinates show in History but not on Map.
 - Keep report creation in `features/report/` with a reducer for pure draft state and a hook for async device/app side effects.
 - Share only small, repeated UI primitives in `components/ui/`; avoid a broad design system until the prototype stabilizes.
@@ -35,6 +41,8 @@
 - Saved report photos stay on-device; only the analysis copy is sent for photo analysis.
 - Public Expo env vars configure the demo backend. Gemini API keys and Supabase service-role keys stay in Edge Function secrets, never in the app.
 - Server-side analysis logs are used for rate limiting and diagnostics; retention policy is still an open operations decision.
+- Photo suggestions are a three-way setting: on, off ("Not now" or Settings), or never asked (the first photo report asks inline).
+- Daily limits reserve a row before calling Gemini, so parallel requests can't pass a cap. A caller is the install's anonymous Supabase Auth user when anonymous sign-ins are on, otherwise the install id; `REQUIRE_SIGNED_IN_USER=true` makes the user required (for launch).
 
 ## AI Email Polish Boundary
 
@@ -45,7 +53,7 @@
 ## Placeholders And Out Of Scope
 
 - Face redaction/anonymization is not active yet.
-- Auth, cloud sync, direct 311 submission/status APIs, councillor routing, overdue follow-up automation, and analytics dashboards are out of scope.
+- Accounts, cloud sync, direct 311 submission/status APIs, councillor routing, overdue follow-up automation, and analytics dashboards are out of scope. (Anonymous sign-in exists only to count AI requests per install; it holds no data.)
 - Councillor lookup, service targets, and direct backend-backed follow-up should not be implied by MVP UI copy.
 - The app still hands off an email draft to the user's mail client; it does not submit directly to Toronto 311.
 

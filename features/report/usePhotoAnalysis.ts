@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert } from 'react-native';
 
-import { savePhotoAnalysisEnabled } from '@/lib/aiSettings';
+import { useAppState } from '@/lib/appState';
 import { getSuggestedIssueCandidates } from '@/lib/issueSuggestions';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
@@ -10,6 +10,7 @@ import type { WizardStore } from './wizardTypes';
 
 /** Background photo suggestions: starts when a photo is stored and the user has opted in. */
 export function usePhotoAnalysis({ state, dispatch }: WizardStore) {
+  const app = useAppState();
   const { draft } = state;
   const abortController = useRef<AbortController | null>(null);
   const available = canAnalyzePhotoLabels();
@@ -64,7 +65,7 @@ export function usePhotoAnalysis({ state, dispatch }: WizardStore) {
     if (!available) return;
 
     try {
-      await savePhotoAnalysisEnabled(true);
+      await app.setPhotoAnalysisEnabled(true);
       dispatch({ type: 'setPhotoAnalysisChoice', choice: 'on' });
     } catch {
       Alert.alert('Photo suggestions not turned on', 'Try again from Settings.');
@@ -75,7 +76,7 @@ export function usePhotoAnalysis({ state, dispatch }: WizardStore) {
   function decline() {
     dispatch({ type: 'setPhotoAnalysisChoice', choice: 'off' });
     dispatch({ type: 'openCategory', returnStep: 'location' });
-    savePhotoAnalysisEnabled(false).catch(() => undefined);
+    app.setPhotoAnalysisEnabled(false).catch(() => undefined);
   }
 
   return { analyzeCurrentPhoto, available, decline, enable, enabled, suggestions };

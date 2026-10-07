@@ -1,12 +1,13 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack, router, usePathname } from 'expo-router';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { hasCompletedOnboarding } from '@/lib/profile';
+import { AppStateProvider, useAppState } from '@/lib/appState';
 import { sweepOrphanReportPhotos } from '@/lib/reports';
 
 export {
@@ -25,42 +26,11 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
-  const [checkedOnboarding, setCheckedOnboarding] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!loaded) return;
-
-    hasCompletedOnboarding()
-      .then((completed) => {
-        if (!active) return;
-
-        setShowOnboarding(!completed);
-      })
-      .catch(() => {
-        if (active) setShowOnboarding(true);
-      })
-      .finally(() => {
-        if (active) setCheckedOnboarding(true);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [loaded]);
-
-  useEffect(() => {
-    if (loaded && checkedOnboarding) {
-      SplashScreen.hideAsync();
-    }
-  }, [checkedOnboarding, loaded]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -69,56 +39,44 @@ export default function RootLayout() {
     sweepOrphanReportPhotos().catch(() => undefined);
   }, [loaded]);
 
-  if (!loaded || !checkedOnboarding) {
+  if (!loaded) {
     return null;
   }
 
-  return <RootLayoutNav setShowOnboarding={setShowOnboarding} showOnboarding={showOnboarding} />;
+  // The splash screen stays up until the settings are loaded too.
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppStateProvider>
+        <RootLayoutNav />
+      </AppStateProvider>
+    </GestureHandlerRootView>
+  );
 }
 
-function RootLayoutNav({
-  setShowOnboarding,
-  showOnboarding,
-}: {
-  setShowOnboarding: (showOnboarding: boolean) => void;
-  showOnboarding: boolean;
-}) {
-  const pathname = usePathname();
+function RootLayoutNav() {
+  const { settings } = useAppState();
 
   useEffect(() => {
-    let active = true;
-
-    if (!showOnboarding || pathname === '/onboarding') return;
-
-    hasCompletedOnboarding()
-      .then((completed) => {
-        if (!active) return;
-
-        if (completed) {
-          setShowOnboarding(false);
-          return;
-        }
-
-        router.replace('/onboarding');
-      })
-      .catch(() => {
-        if (active) router.replace('/onboarding');
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [pathname, setShowOnboarding, showOnboarding]);
+    SplashScreen.hideAsync();
+  }, []);
 
   return (
     <ThemeProvider value={DefaultTheme}>
-      <Stack initialRouteName={showOnboarding ? 'onboarding' : '(tabs)'}>
-        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ presentation: 'modal', title: 'Settings' }} />
-        <Stack.Screen name="report/[id]" options={{ headerBackTitle: 'Back', title: 'Report detail' }} />
-        {/* The wizard handles its own Back; a swipe would skip the save-and-confirm step. */}
-        <Stack.Screen name="report/new" options={{ gestureEnabled: false, headerShown: false }} />
+      <Stack>
+        {/* Until onboarding is done it is the only screen; finishing it opens the app. */}
+        <Stack.Protected guard={!settings.onboardingComplete}>
+          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={settings.onboardingComplete}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ presentation: 'modal', title: 'Settings' }} />
+          <Stack.Screen
+            name="report/[id]"
+            options={{ headerBackTitle: 'Back', title: 'Report detail' }}
+          />
+          {/* The wizard handles its own Back; a swipe would skip the save-and-confirm step. */}
+          <Stack.Screen name="report/new" options={{ gestureEnabled: false, headerShown: false }} />
+        </Stack.Protected>
       </Stack>
     </ThemeProvider>
   );
