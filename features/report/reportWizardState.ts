@@ -9,11 +9,39 @@ import {
   Report,
   ReportAnswerValue,
   ReportDraft,
+  ReportStatus,
 } from '@/lib/types';
-import { PhotoVisionError } from '@/lib/vision';
+import { BackendError } from '@/lib/backend/client';
 
-export type ReportWizardStep = 'start' | 'category' | 'location' | 'details' | 'preview' | 'fallback';
+import {
+  INITIAL_EMAIL_DRAFT,
+  acceptPendingAiEmail,
+  dismissPendingAiEmail,
+  editEmail,
+  emailDraftFromSaved,
+  receiveAiEmail,
+  undoAiEmail,
+  type EmailContent,
+  type EmailDraftState,
+} from './emailDraft';
+
+export type ReportWizardStep =
+  | 'start'
+  | 'category'
+  | 'location'
+  | 'details'
+  | 'preview'
+  | 'fallback'
+  | 'done';
+
+export type LastHandoff = {
+  reportId: string;
+  status: Extract<ReportStatus, 'handed_off' | 'sent'>;
+  /** The app the email went to, when known ("Mail", "Gmail"). */
+  app: string | null;
+};
 export type CategoryReturnStep = 'location' | 'details';
+export type EmailPolishStatus = 'idle' | 'consent' | 'loading' | 'error';
 export type PhotoVisionStatus =
   | 'idle'
   | 'loading'
@@ -39,14 +67,17 @@ export type ReportWizardState = {
   busy: boolean;
   categoryReturnStep: CategoryReturnStep;
   dismissedContactPrompt: boolean;
-  emailBody: string;
-  emailSubject: string;
+  email: EmailDraftState;
+  emailPolish: { status: EmailPolishStatus; message: string | null };
+  /** The user agreed to send report text (never contact details) for AI email polish. */
+  emailPolishEnabled: boolean;
   issueSearchQuery: string;
   photoAnalysisUserEnabled: boolean;
   photoVisionPhotoUri: string | null;
   photoVisionStatus: PhotoVisionStatus;
   profile: Profile;
-  savedBannerId: string | null;
+  /** The report just handed off, shown on the done step. */
+  lastHandoff: LastHandoff | null;
   savedReportId: string | null;
   step: ReportWizardStep;
 };
@@ -56,20 +87,24 @@ export type ReportWizardAction =
   | { type: 'backFromCategory' }
   | { type: 'chooseCategory'; categoryId: string | null }
   | { type: 'dismissContactPrompt' }
-  | { type: 'dismissSavedBanner' }
   | { type: 'draftCreated'; reportId: string }
+  | {
+      type: 'handoffFinished';
+      app: string | null;
+      reportId: string;
+      status: Extract<ReportStatus, 'handed_off' | 'sent'>;
+    }
   | { type: 'openCategory'; returnStep: CategoryReturnStep }
   | { type: 'photoStored'; photoUri: string; thumbnailUri?: string | null }
-  | { type: 'previewReady'; emailBody: string; emailSubject: string; savedReportId: string }
-  | { type: 'profileLoaded'; profile: Profile; emailBody?: string; emailSubject?: string }
-  | { type: 'resetReport'; savedBannerId?: string | null }
+  | { type: 'previewReady'; savedReportId: string }
+  | { type: 'profileLoaded'; profile: Profile }
+  | { type: 'resetReport' }
+  | { type: 'handoffConfirmed' }
   | { type: 'resumeReport'; report: Report }
   | { type: 'setAddress'; address: string }
   | { type: 'setAnswer'; questionId: string; value: ReportAnswerValue }
   | { type: 'setBusy'; busy: boolean }
   | { type: 'setDescription'; description: string }
-  | { type: 'setEmailBody'; emailBody: string }
-  | { type: 'setEmailSubject'; emailSubject: string }
   | { type: 'setIssueSearchQuery'; issueSearchQuery: string }
   | { type: 'setLocationNote'; locationNote: string }
   | { type: 'setPhotoAnalysisUserEnabled'; enabled: boolean }
@@ -79,7 +114,18 @@ export type ReportWizardAction =
   | { type: 'setPinLocation'; latitude: number; longitude: number }
   | { type: 'setStep'; step: ReportWizardStep }
   | { type: 'setResolvedAddress'; address: string }
-  | { type: 'togglePhotoIssueTopic'; topic: PhotoIssueCandidate };
+  | { type: 'togglePhotoIssueTopic'; topic: PhotoIssueCandidate }
+  | { type: 'editEmail'; content: EmailContent; generated: EmailContent }
+  | { type: 'aiEmailReady'; content: EmailContent; generated: EmailContent }
+  | { type: 'acceptPendingAiEmail'; generated: EmailContent }
+  | { type: 'dismissPendingAiEmail' }
+  | { type: 'undoAiEmail' }
+  | { type: 'rebuildEmail' }
+  | { type: 'setEmailPolishEnabled'; enabled: boolean }
+  | { type: 'emailPolishConsentRequested' }
+  | { type: 'emailPolishStarted' }
+  | { type: 'emailPolishFinished' }
+  | { type: 'emailPolishFailed'; message: string };
 
 export function createInitialReportWizardState(): ReportWizardState {
   return {
@@ -87,18 +133,21 @@ export function createInitialReportWizardState(): ReportWizardState {
     busy: false,
     categoryReturnStep: 'location',
     dismissedContactPrompt: false,
-    emailBody: '',
-    emailSubject: '',
+    email: INITIAL_EMAIL_DRAFT,
+    emailPolish: IDLE_EMAIL_POLISH,
+    emailPolishEnabled: false,
     issueSearchQuery: '',
     photoAnalysisUserEnabled: false,
     photoVisionPhotoUri: null,
     photoVisionStatus: 'idle',
     profile: EMPTY_PROFILE,
-    savedBannerId: null,
+    lastHandoff: null,
     savedReportId: null,
     step: 'start',
   };
 }
+
+const IDLE_EMAIL_POLISH: ReportWizardState['emailPolish'] = { status: 'idle', message: null };
 
 function updateDraft(state: ReportWizardState, patch: Partial<ReportDraft>): ReportWizardState {
   return { ...state, draft: { ...state.draft, ...patch } };
@@ -133,10 +182,21 @@ export function reportWizardReducer(
       };
     case 'dismissContactPrompt':
       return { ...state, dismissedContactPrompt: true };
-    case 'dismissSavedBanner':
-      return { ...state, savedBannerId: null };
     case 'draftCreated':
       return { ...state, savedReportId: state.savedReportId ?? action.reportId };
+    case 'handoffFinished':
+      return {
+        ...createInitialReportWizardState(),
+        emailPolishEnabled: state.emailPolishEnabled,
+        photoAnalysisUserEnabled: state.photoAnalysisUserEnabled,
+        lastHandoff: { app: action.app, reportId: action.reportId, status: action.status },
+        profile: state.profile,
+        step: 'done',
+      };
+    case 'handoffConfirmed':
+      return state.lastHandoff
+        ? { ...state, lastHandoff: { ...state.lastHandoff, status: 'sent' } }
+        : state;
     case 'openCategory':
       return {
         ...state,
@@ -161,39 +221,29 @@ export function reportWizardReducer(
       };
     }
     case 'previewReady':
-      return {
-        ...state,
-        dismissedContactPrompt: false,
-        emailBody: action.emailBody,
-        emailSubject: action.emailSubject,
-        savedReportId: action.savedReportId,
-        step: 'preview',
-      };
+      return { ...state, savedReportId: action.savedReportId, step: 'preview' };
     case 'profileLoaded':
-      return {
-        ...state,
-        emailBody: action.emailBody ?? state.emailBody,
-        emailSubject: action.emailSubject ?? state.emailSubject,
-        profile: action.profile,
-      };
+      return { ...state, profile: action.profile };
     case 'resetReport':
       return {
         ...createInitialReportWizardState(),
+        emailPolishEnabled: state.emailPolishEnabled,
         photoAnalysisUserEnabled: state.photoAnalysisUserEnabled,
         profile: state.profile,
-        savedBannerId: action.savedBannerId ?? null,
       };
     case 'resumeReport':
       return {
         ...state,
         draft: draftFromReport(action.report),
         dismissedContactPrompt: false,
-        emailBody: action.report.emailBody,
-        emailSubject: action.report.emailSubject,
+        email: emailDraftFromSaved(action.report.emailSource, {
+          subject: action.report.emailSubject,
+          body: action.report.emailBody,
+        }),
         issueSearchQuery: '',
         photoVisionPhotoUri: action.report.photoVisionResult ? action.report.photoUri : null,
         photoVisionStatus: getPhotoVisionStatus(action.report.photoVisionResult),
-        savedBannerId: null,
+        lastHandoff: null,
         savedReportId: action.report.id,
         step: 'details',
       };
@@ -207,10 +257,6 @@ export function reportWizardReducer(
       return { ...state, busy: action.busy };
     case 'setDescription':
       return updateDraft(state, { description: action.description });
-    case 'setEmailBody':
-      return { ...state, emailBody: action.emailBody };
-    case 'setEmailSubject':
-      return { ...state, emailSubject: action.emailSubject };
     case 'setIssueSearchQuery':
       return { ...state, issueSearchQuery: action.issueSearchQuery };
     case 'setLocationNote':
@@ -253,6 +299,32 @@ export function reportWizardReducer(
         photoIssueTopic: deselecting ? null : action.topic,
       });
     }
+    case 'editEmail':
+      return { ...state, email: editEmail(action.content, action.generated) };
+    case 'aiEmailReady':
+      return {
+        ...state,
+        email: receiveAiEmail(state.email, action.content, action.generated),
+        emailPolish: IDLE_EMAIL_POLISH,
+      };
+    case 'acceptPendingAiEmail':
+      return { ...state, email: acceptPendingAiEmail(state.email, action.generated) };
+    case 'dismissPendingAiEmail':
+      return { ...state, email: dismissPendingAiEmail(state.email) };
+    case 'undoAiEmail':
+      return { ...state, email: undoAiEmail(state.email) };
+    case 'rebuildEmail':
+      return { ...state, email: INITIAL_EMAIL_DRAFT };
+    case 'setEmailPolishEnabled':
+      return { ...state, emailPolishEnabled: action.enabled };
+    case 'emailPolishConsentRequested':
+      return { ...state, emailPolish: { status: 'consent', message: null } };
+    case 'emailPolishStarted':
+      return { ...state, emailPolish: { status: 'loading', message: null } };
+    case 'emailPolishFinished':
+      return { ...state, emailPolish: IDLE_EMAIL_POLISH };
+    case 'emailPolishFailed':
+      return { ...state, emailPolish: { status: 'error', message: action.message } };
     default:
       return state;
   }
@@ -264,7 +336,7 @@ export function getPhotoVisionStatus(result: PhotoVisionResult | null): PhotoVis
 }
 
 export function getPhotoVisionErrorStatus(error: unknown): PhotoVisionStatus {
-  if (error instanceof PhotoVisionError) {
+  if (error instanceof BackendError) {
     if (error.code === 'offline') return 'offline';
     if (error.code === 'rate-limited') return 'rate-limited';
     if (error.code === 'payload-too-large') return 'payload-too-large';
@@ -315,6 +387,16 @@ export function canPreviewReport(
   return Boolean(draft.description.trim() && canContinueFromLocation(draft));
 }
 
-export function profilesEqual(left: Profile, right: Profile) {
-  return left.name === right.name && left.email === right.email && left.phone === right.phone;
+export function describeEmailPolishError(error: unknown) {
+  const code = error instanceof BackendError ? error.code : null;
+  if (code === 'rate-limited') {
+    return "AI polish has reached today's limit. Your email is ready to send as it is.";
+  }
+  if (code === 'offline') {
+    return "AI polish can't connect right now. Your email is ready to send as it is.";
+  }
+  if (code === 'timeout') {
+    return 'AI polish took too long. Try again, or send the email as it is.';
+  }
+  return "AI polish didn't work this time. Your email is ready to send as it is.";
 }

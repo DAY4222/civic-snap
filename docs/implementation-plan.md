@@ -2,6 +2,20 @@
 
 Written 2026-10-05 from two reviews done against `main` at `e747143`: an architecture review of the code (findings `A1`–`A21`) and a product/design review of the running app in the iPhone simulator (findings `P1`–`P16`). Nothing in this plan has been implemented yet.
 
+## Progress
+
+Last updated 2026-10-05. Decisions taken: AI polish opt-in per device; Apple Mail when set up, share sheet otherwise; free-tier keep-alive. Phase 0 skipped for now.
+
+| Item | Status | Notes |
+|---|---|---|
+| 1.1–1.7 | Done (branch `phase-1/stabilize`) | 1.4 and 3.4 deployed both Edge Functions. 1.4 also pulled the label descriptions forward from 5.2. |
+| 1.8 | Not started | Needs your OK before deleting branches and worktrees. |
+| 2.1–2.5 | Done (branch `phase-2/report-model`) | Migrations 2–4. |
+| 3.1–3.7 | Done (branch `phase-3/send-path`) | Migrations 5–6. 3.4 also retries Gemini 500/503 once. |
+| 4–7 | Not started | |
+
+Not verified locally: the Deno type-check job in CI (Deno isn't installed here), and Apple Mail's own composer path (the simulator has no Mail account; the share-sheet and web paths were tested).
+
 ## How to use this document
 
 - Work the phases top to bottom. Each phase is a set of small PRs that merge independently; a phase is done when its verification list passes.

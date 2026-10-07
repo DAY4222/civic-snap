@@ -12,11 +12,17 @@ import {
   appendSuggestedDescription,
   getSuggestedIssueCandidates,
 } from '@/lib/issueSuggestions';
-import { loadPhotoAnalysisEnabled, savePhotoAnalysisEnabled } from '@/lib/photoAnalysisSettings';
+import {
+  loadEmailPolishEnabled,
+  loadPhotoAnalysisEnabled,
+  saveEmailPolishEnabled,
+  savePhotoAnalysisEnabled,
+} from '@/lib/aiSettings';
+import { canRewriteEmailDraft } from '@/lib/emailRewriteClient';
 import { EMPTY_PROFILE, loadProfile } from '@/lib/profile';
 import { deleteReportPhotos } from '@/lib/photos';
 import { getDraftCategory, isDraftEmpty } from '@/lib/reportDraft';
-import { getReport } from '@/lib/reports';
+import { getReport, markReportHandedOff, markReportSent } from '@/lib/reports';
 import { PhotoIssueCandidate, ReportAnswerValue } from '@/lib/types';
 import { analyzePhotoLabels, canAnalyzePhotoLabels } from '@/lib/vision';
 
@@ -26,18 +32,20 @@ import {
   canContinueFromLocation,
   canPreviewReport,
   createInitialReportWizardState,
+  describeEmailPolishError,
   filterIssueCategories,
-  profilesEqual,
   reportWizardReducer,
   shouldStartPhotoAnalysis,
 } from './reportWizardState';
 import {
-  buildPreviewEmail,
   getCurrentLocationReportData,
-  openSavedReportMail,
+  handOffReport,
+  isMailComposerAvailable,
   persistWizardPhoto,
+  requestPolishedEmail,
   reverseGeocodeReportAddress,
 } from './reportWizardServices';
+import { getDisplayedEmail, isEmailOutOfDate } from './emailDraft';
 import { useDraftPersistence } from './useDraftPersistence';
 import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
 
@@ -53,6 +61,9 @@ export function useReportWizard(resumeId?: string) {
   const [raccoonFrameIndex, setRaccoonFrameIndex] = useState(0);
   const addressEditVersion = useRef(0);
   const photoAnalysisAbortController = useRef<AbortController | null>(null);
+  const emailPolishAbortController = useRef<AbortController | null>(null);
+  const usedMailto = useRef(false);
+  const [mailComposerAvailable, setMailComposerAvailable] = useState<boolean | null>(null);
   const reverseGeocodeRequestId = useRef(0);
   const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { draft } = state;
@@ -63,6 +74,7 @@ export function useReportWizard(resumeId?: string) {
   const hasIssue = category.id !== GENERAL_CATEGORY.id;
   const photoAnalysisAvailable = canAnalyzePhotoLabels();
   const photoLabelsEnabled = photoAnalysisAvailable && state.photoAnalysisUserEnabled;
+  const emailPolishAvailable = canRewriteEmailDraft();
   const photoIssueSuggestions = useMemo(
     () => getSuggestedIssueCandidates(draft.photoVisionResult),
     [draft.photoVisionResult]
@@ -76,10 +88,20 @@ export function useReportWizard(resumeId?: string) {
   const descriptionPlaceholder = hasIssue
     ? `Describe the ${category.subjectLabel}, exact location, and what crews should know.`
     : 'Example: pothole in the curb lane near the crosswalk';
-  const email = useMemo(
+  // The generated email always reflects the report; edits and AI versions live in state.email.
+  const generatedEmail = useMemo(
     () => buildEmail({ ...draft, category, profile: state.profile }),
     [category, draft, state.profile]
   );
+  const email = useMemo(
+    () => ({
+      ...getDisplayedEmail(state.email, generatedEmail),
+      recipient: generatedEmail.recipient,
+      source: state.email.source,
+    }),
+    [generatedEmail, state.email]
+  );
+  const emailOutOfDate = isEmailOutOfDate(state.email, generatedEmail);
   const pinRegion = useMemo<Region | null>(() => {
     if (draft.latitude == null || draft.longitude == null) return null;
 
@@ -90,67 +112,23 @@ export function useReportWizard(resumeId?: string) {
       longitudeDelta: BLOCK_LEVEL_DELTA,
     };
   }, [draft.latitude, draft.longitude]);
-  const emailToSave = useMemo(
-    () =>
-      state.emailBody ? { subject: state.emailSubject, body: state.emailBody } : email,
-    [email, state.emailBody, state.emailSubject]
-  );
   const persistence = useDraftPersistence({
     category,
     draft,
-    email: emailToSave,
+    email,
     enabled: true,
     onCreated: (reportId) => dispatch({ type: 'draftCreated', reportId }),
     savedReportId: state.savedReportId,
   });
-  const draftSnapshot = useRef({ category, state });
-  draftSnapshot.current = { category, state };
-
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
+      // A profile change rebuilds the generated email on its own; an edited or AI email is
+      // flagged as out of date instead of being changed under the user.
       loadProfile()
         .then((nextProfile) => {
-          if (!active) return;
-
-          const current = draftSnapshot.current;
-          const currentProfile = current.state.profile;
-          if (profilesEqual(currentProfile, nextProfile)) {
-            dispatch({ type: 'profileLoaded', profile: nextProfile });
-            return;
-          }
-
-          let nextEmailBody: string | undefined;
-          let nextEmailSubject: string | undefined;
-          if (current.state.step === 'preview') {
-            const currentEmail = buildEmail({
-              ...current.state.draft,
-              category: current.category,
-              profile: currentProfile,
-            });
-            const updatedEmail = buildEmail({
-              ...current.state.draft,
-              category: current.category,
-              profile: nextProfile,
-            });
-
-            nextEmailSubject =
-              current.state.emailSubject === currentEmail.subject
-                ? updatedEmail.subject
-                : current.state.emailSubject;
-            nextEmailBody =
-              current.state.emailBody === currentEmail.body
-                ? updatedEmail.body
-                : current.state.emailBody;
-          }
-
-          dispatch({
-            type: 'profileLoaded',
-            emailBody: nextEmailBody,
-            emailSubject: nextEmailSubject,
-            profile: nextProfile,
-          });
+          if (active) dispatch({ type: 'profileLoaded', profile: nextProfile });
         })
         .catch(() => {
           if (active) dispatch({ type: 'profileLoaded', profile: EMPTY_PROFILE });
@@ -164,6 +142,12 @@ export function useReportWizard(resumeId?: string) {
           if (active) dispatch({ type: 'setPhotoAnalysisUserEnabled', enabled: false });
         });
 
+      loadEmailPolishEnabled()
+        .then((enabled) => {
+          if (active) dispatch({ type: 'setEmailPolishEnabled', enabled });
+        })
+        .catch(() => undefined);
+
       return () => {
         active = false;
       };
@@ -171,7 +155,7 @@ export function useReportWizard(resumeId?: string) {
   );
 
   useEffect(() => {
-    if (state.step !== 'start') return;
+    if (state.step !== 'start' && state.step !== 'done') return;
 
     const frameTimer = setInterval(() => {
       setRaccoonFrameIndex((currentFrame) => (currentFrame + 1) % RACCOON_SWEEPER_FRAMES.length);
@@ -181,23 +165,36 @@ export function useReportWizard(resumeId?: string) {
   }, [state.step]);
 
   useEffect(() => {
-    if (!state.savedBannerId) return;
-
-    const savedBannerTimer = setTimeout(() => {
-      dispatch({ type: 'dismissSavedBanner' });
-    }, 5000);
-
-    return () => clearTimeout(savedBannerTimer);
-  }, [state.savedBannerId]);
-
-  useEffect(() => {
     return () => {
       if (reverseGeocodeTimeout.current) {
         clearTimeout(reverseGeocodeTimeout.current);
       }
       photoAnalysisAbortController.current?.abort();
+      emailPolishAbortController.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (state.step !== 'preview') return;
+
+    let active = true;
+    isMailComposerAvailable().then((available) => {
+      if (active) setMailComposerAvailable(available);
+    });
+    return () => {
+      active = false;
+    };
+  }, [state.step]);
+
+  useEffect(() => {
+    // Leaving the preview cancels a polish that is still running.
+    if (state.step === 'preview') return;
+    if (emailPolishAbortController.current) {
+      emailPolishAbortController.current.abort();
+      emailPolishAbortController.current = null;
+      dispatch({ type: 'emailPolishFinished' });
+    }
+  }, [state.step]);
 
   useEffect(() => {
     if (!resumeId) return;
@@ -409,13 +406,7 @@ export function useReportWizard(resumeId?: string) {
       const reportId = await persistence.flush();
       if (!reportId) throw new Error('Draft was not saved.');
 
-      const nextEmail = await buildPreviewEmail({ ...draft, category, profile: state.profile });
-      dispatch({
-        type: 'previewReady',
-        emailBody: nextEmail.body,
-        emailSubject: nextEmail.subject,
-        savedReportId: reportId,
-      });
+      dispatch({ type: 'previewReady', savedReportId: reportId });
     } catch {
       Alert.alert('Draft not saved', 'Try again. Your current report is still on this screen.');
     } finally {
@@ -423,43 +414,143 @@ export function useReportWizard(resumeId?: string) {
     }
   }
 
-  async function openMail() {
-    if (!state.savedReportId) return;
+  async function runEmailPolish() {
+    emailPolishAbortController.current?.abort();
+    const controller = new AbortController();
+    emailPolishAbortController.current = controller;
+
+    dispatch({ type: 'emailPolishStarted' });
+    try {
+      const content = await requestPolishedEmail(
+        { ...draft, category, profile: state.profile },
+        { signal: controller.signal }
+      );
+      if (controller.signal.aborted) return;
+      dispatch({ type: 'aiEmailReady', content, generated: generatedEmail });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      dispatch({ type: 'emailPolishFailed', message: describeEmailPolishError(error) });
+    } finally {
+      if (emailPolishAbortController.current === controller) {
+        emailPolishAbortController.current = null;
+      }
+    }
+  }
+
+  function polishEmail() {
+    if (!emailPolishAvailable) return;
+
+    if (!state.emailPolishEnabled) {
+      dispatch({ type: 'emailPolishConsentRequested' });
+      return;
+    }
+
+    void runEmailPolish();
+  }
+
+  function allowEmailPolish() {
+    dispatch({ type: 'setEmailPolishEnabled', enabled: true });
+    saveEmailPolishEnabled(true).catch(() => undefined);
+    void runEmailPolish();
+  }
+
+  function cancelEmailPolish() {
+    emailPolishAbortController.current?.abort();
+    emailPolishAbortController.current = null;
+    dispatch({ type: 'emailPolishFinished' });
+  }
+
+  async function sendReport() {
+    const reportId = state.savedReportId;
+    if (!reportId) return;
 
     dispatch({ type: 'setBusy', busy: true });
     try {
-      const result = await openSavedReportMail({
-        emailBody: state.emailBody,
+      await persistence.flush();
+      const outcome = await handOffReport({
+        emailBody: email.body,
         emailRecipient: email.recipient,
-        emailSubject: state.emailSubject,
+        emailSubject: email.subject,
         photoUri: draft.photoUri,
-        reportId: state.savedReportId,
+        reportId,
       });
-      if (result === 'fallback') {
+      if (outcome.kind === 'cancelled') return;
+      if (outcome.kind === 'unavailable') {
         dispatch({ type: 'setStep', step: 'fallback' });
         return;
       }
 
       persistence.detach();
-      dispatch({ type: 'resetReport', savedBannerId: state.savedReportId });
+      dispatch({
+        type: 'handoffFinished',
+        app: outcome.app,
+        reportId,
+        status: outcome.kind === 'sent' ? 'sent' : 'handed_off',
+      });
     } catch {
       dispatch({ type: 'setStep', step: 'fallback' });
-      Alert.alert('Mail not opened', 'Use the fallback options to copy the draft or open a mailto link.');
+      Alert.alert("Couldn't open your email", 'Copy the email instead, or open it in your email app.');
     } finally {
       dispatch({ type: 'setBusy', busy: false });
     }
   }
 
   async function copyEmail() {
-    await Clipboard.setStringAsync(`${state.emailSubject}\n\n${state.emailBody}`);
+    await Clipboard.setStringAsync(`${email.subject}\n\n${email.body}`);
     Alert.alert('Copied', 'Email subject and body copied.');
+  }
+
+  async function copyRecipient() {
+    await Clipboard.setStringAsync(email.recipient);
+    Alert.alert('Copied', `${email.recipient} copied.`);
   }
 
   function openMailto() {
     const url = `mailto:${email.recipient}?subject=${encodeURIComponent(
-      state.emailSubject
-    )}&body=${encodeURIComponent(state.emailBody)}`;
-    Linking.openURL(url);
+      email.subject
+    )}&body=${encodeURIComponent(email.body)}`;
+    usedMailto.current = true;
+    Linking.openURL(url).catch(() => undefined);
+  }
+
+  /** From the done screen, after handing off to another app. */
+  async function confirmLastHandoffSent() {
+    const reportId = state.lastHandoff?.reportId;
+    if (!reportId) return;
+
+    try {
+      await markReportSent(reportId);
+      dispatch({ type: 'handoffConfirmed' });
+    } catch {
+      Alert.alert('Not saved', 'Try again in a moment.');
+    }
+  }
+
+  function viewLastHandoff() {
+    const reportId = state.lastHandoff?.reportId;
+    if (!reportId) return;
+
+    dispatch({ type: 'resetReport' });
+    router.push({ pathname: '/report/[id]', params: { id: reportId } });
+  }
+
+  /** From the fallback screen, once the user has sent the email themselves. */
+  async function confirmSentManually() {
+    const reportId = state.savedReportId;
+    if (!reportId) return;
+
+    try {
+      await persistence.flush();
+      await markReportHandedOff(reportId, {
+        app: null,
+        method: usedMailto.current ? 'mailto' : 'copy',
+        status: 'sent',
+      });
+      persistence.detach();
+      dispatch({ type: 'handoffFinished', app: null, reportId, status: 'sent' });
+    } catch {
+      Alert.alert('Not saved', 'Try again in a moment.');
+    }
   }
 
   function openCategory(returnStep: CategoryReturnStep) {
@@ -519,7 +610,12 @@ export function useReportWizard(resumeId?: string) {
       enablePhotoAnalysisForCurrentReport,
       insertSuggestedDescription,
       openCategory,
-      openMail,
+      sendReport,
+      confirmLastHandoffSent,
+      confirmSentManually,
+      startNewReport: () => dispatch({ type: 'resetReport' }),
+      viewLastHandoff,
+      copyRecipient,
       openMailto,
       previewEmail,
       reportWithoutPhoto: () => dispatch({ type: 'setStep', step: 'location' }),
@@ -530,9 +626,27 @@ export function useReportWizard(resumeId?: string) {
       setAnswer: (questionId: string, value: ReportAnswerValue) =>
         dispatch({ type: 'setAnswer', questionId, value }),
       setDescription: (description: string) => dispatch({ type: 'setDescription', description }),
-      setEmailBody: (emailBody: string) => dispatch({ type: 'setEmailBody', emailBody }),
-      setEmailSubject: (emailSubject: string) =>
-        dispatch({ type: 'setEmailSubject', emailSubject }),
+      setEmailBody: (body: string) =>
+        dispatch({
+          type: 'editEmail',
+          content: { subject: email.subject, body },
+          generated: generatedEmail,
+        }),
+      setEmailSubject: (subject: string) =>
+        dispatch({
+          type: 'editEmail',
+          content: { subject, body: email.body },
+          generated: generatedEmail,
+        }),
+      rebuildEmail: () => dispatch({ type: 'rebuildEmail' }),
+      polishEmail,
+      allowEmailPolish,
+      cancelEmailPolish,
+      dismissEmailPolishConsent: () => dispatch({ type: 'emailPolishFinished' }),
+      undoAiEmail: () => dispatch({ type: 'undoAiEmail' }),
+      acceptPendingAiEmail: () =>
+        dispatch({ type: 'acceptPendingAiEmail', generated: generatedEmail }),
+      dismissPendingAiEmail: () => dispatch({ type: 'dismissPendingAiEmail' }),
       setIssueSearchQuery: (issueSearchQuery: string) =>
         dispatch({ type: 'setIssueSearchQuery', issueSearchQuery }),
       setLocationNote: (locationNote: string) => dispatch({ type: 'setLocationNote', locationNote }),
@@ -548,8 +662,11 @@ export function useReportWizard(resumeId?: string) {
     canPreviewEmail,
     descriptionPlaceholder,
     email,
+    emailOutOfDate,
+    emailPolishAvailable,
     filteredIssueCategories,
     hasIssue,
+    mailComposerAvailable,
     photoAnalysisAvailable,
     photoIssueSuggestions,
     photoLabelsEnabled,

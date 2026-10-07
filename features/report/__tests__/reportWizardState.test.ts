@@ -14,7 +14,7 @@ import {
   makePhotoVisionResult,
 } from '@/lib/testUtils/photoVisionFixtures';
 import type { PhotoIssueCandidate, PhotoVisionResult, Report } from '@/lib/types';
-import { PhotoVisionError } from '@/lib/vision';
+import { BackendError } from '@/lib/backend/client';
 
 const topic: PhotoIssueCandidate = makePhotoIssueCandidate();
 
@@ -33,8 +33,12 @@ const report: Report = {
   thumbnailUri: 'file:///photo-thumb.jpg',
   emailSubject: '311 service request: Road Pothole / Road Damage',
   emailBody: 'Hello',
+  emailSource: 'generated',
   status: 'draft',
   caseNumber: '',
+  handoffMethod: null,
+  handoffApp: null,
+  handedOffAt: null,
   createdAt: '2026-05-20T00:00:00.000Z',
   updatedAt: '2026-05-20T00:00:00.000Z',
 };
@@ -103,6 +107,39 @@ describe('report wizard reducer', () => {
     expect(state.draft.locationNote).toBe('south curb');
   });
 
+  it('restores an edited email as written, and a generated one as generated', () => {
+    const edited = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'resumeReport',
+      report: { ...report, emailSource: 'user', emailBody: 'My own words' },
+    });
+    expect(edited.email.source).toBe('user');
+    expect(edited.email.override?.body).toBe('My own words');
+
+    const generated = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'resumeReport',
+      report,
+    });
+    expect(generated.email.source).toBe('generated');
+    expect(generated.email.override).toBeNull();
+  });
+
+  it('keeps user edits through profile changes and clears them on rebuild', () => {
+    const generatedEmail = { subject: 'Subject', body: 'Generated' };
+    let state = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'editEmail',
+      content: { subject: 'Subject', body: 'Edited' },
+      generated: generatedEmail,
+    });
+    state = reportWizardReducer(state, {
+      type: 'profileLoaded',
+      profile: { name: 'Ada', email: '', phone: '' },
+    });
+    expect(state.email.override?.body).toBe('Edited');
+
+    state = reportWizardReducer(state, { type: 'rebuildEmail' });
+    expect(state.email.source).toBe('generated');
+  });
+
   it('turns legacy joined multi-choice answers into lists when resuming', () => {
     const multiQuestion = getDraftCategory({
       categoryId: 'construction-noise',
@@ -134,46 +171,49 @@ describe('report wizard reducer', () => {
     expect(state.savedReportId).toBe('report-1');
   });
 
-  it('moves through preview, fallback, and reset without losing stable settings', () => {
+  it('moves through preview and fallback to the done step without losing stable settings', () => {
     let state = createInitialReportWizardState();
     state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
+    state = reportWizardReducer(state, { type: 'setEmailPolishEnabled', enabled: true });
     state = reportWizardReducer(state, {
       type: 'profileLoaded',
       profile: { name: 'Ada', email: '', phone: '555-0100' },
     });
-    state = reportWizardReducer(state, {
-      type: 'previewReady',
-      emailBody: 'Body',
-      emailSubject: 'Subject',
-      savedReportId: 'report-1',
-    });
+    state = reportWizardReducer(state, { type: 'previewReady', savedReportId: 'report-1' });
     expect(state.step).toBe('preview');
 
     state = reportWizardReducer(state, { type: 'setStep', step: 'fallback' });
     expect(state.step).toBe('fallback');
 
-    state = reportWizardReducer(state, { type: 'resetReport', savedBannerId: 'report-1' });
-    expect(state.step).toBe('start');
-    expect(state.savedBannerId).toBe('report-1');
+    state = reportWizardReducer(state, {
+      type: 'handoffFinished',
+      app: 'Gmail',
+      reportId: 'report-1',
+      status: 'handed_off',
+    });
+    expect(state.step).toBe('done');
+    expect(state.lastHandoff).toEqual({ app: 'Gmail', reportId: 'report-1', status: 'handed_off' });
+    expect(state.savedReportId).toBeNull();
+    expect(state.draft).toEqual(EMPTY_DRAFT);
     expect(state.photoAnalysisUserEnabled).toBe(true);
+    expect(state.emailPolishEnabled).toBe(true);
     expect(state.profile.name).toBe('Ada');
   });
 
-  it('dismisses the saved report banner without changing stable settings', () => {
-    let state = createInitialReportWizardState();
-    state = reportWizardReducer(state, { type: 'setPhotoAnalysisUserEnabled', enabled: true });
-    state = reportWizardReducer(state, {
-      type: 'profileLoaded',
-      profile: { name: 'Ada', email: '', phone: '555-0100' },
+  it('confirms a handed-off report from the done step, then starts a new report', () => {
+    let state = reportWizardReducer(createInitialReportWizardState(), {
+      type: 'handoffFinished',
+      app: null,
+      reportId: 'report-1',
+      status: 'handed_off',
     });
-    state = reportWizardReducer(state, { type: 'resetReport', savedBannerId: 'report-1' });
 
-    state = reportWizardReducer(state, { type: 'dismissSavedBanner' });
+    state = reportWizardReducer(state, { type: 'handoffConfirmed' });
+    expect(state.lastHandoff?.status).toBe('sent');
 
+    state = reportWizardReducer(state, { type: 'resetReport' });
     expect(state.step).toBe('start');
-    expect(state.savedBannerId).toBeNull();
-    expect(state.photoAnalysisUserEnabled).toBe(true);
-    expect(state.profile.name).toBe('Ada');
+    expect(state.lastHandoff).toBeNull();
   });
 
   it('resets active report progress while preserving stable settings', () => {
@@ -197,21 +237,15 @@ describe('report wizard reducer', () => {
     });
     state = reportWizardReducer(state, { type: 'setDescription', description: 'Large pothole.' });
     state = reportWizardReducer(state, { type: 'setAnswer', questionId: 'q1', value: 'yes' });
-    state = reportWizardReducer(state, {
-      type: 'previewReady',
-      emailBody: 'Body',
-      emailSubject: 'Subject',
-      savedReportId: 'report-1',
-    });
+    state = reportWizardReducer(state, { type: 'previewReady', savedReportId: 'report-1' });
 
     state = reportWizardReducer(state, { type: 'resetReport' });
 
     expect(state.step).toBe('start');
     expect(state.savedReportId).toBeNull();
-    expect(state.savedBannerId).toBeNull();
+    expect(state.lastHandoff).toBeNull();
     expect(state.draft).toEqual(EMPTY_DRAFT);
-    expect(state.emailBody).toBe('');
-    expect(state.emailSubject).toBe('');
+    expect(state.email.source).toBe('generated');
     expect(state.photoAnalysisUserEnabled).toBe(true);
     expect(state.profile.name).toBe('Ada');
   });
@@ -390,15 +424,15 @@ describe('report wizard reducer', () => {
 
   it('maps photo vision errors to user-facing statuses', () => {
     expect(
-      getPhotoVisionErrorStatus(new PhotoVisionError('Photo label limit reached.', 'rate-limited'))
+      getPhotoVisionErrorStatus(new BackendError('Photo label limit reached.', 'rate-limited'))
     ).toBe('rate-limited');
     expect(
       getPhotoVisionErrorStatus(
-        new PhotoVisionError('Photo analysis image is too large.', 'payload-too-large')
+        new BackendError('Photo analysis image is too large.', 'payload-too-large')
       )
     ).toBe('payload-too-large');
     expect(
-      getPhotoVisionErrorStatus(new PhotoVisionError('Photo labels could not connect.', 'offline'))
+      getPhotoVisionErrorStatus(new BackendError('Photo labels could not connect.', 'offline'))
     ).toBe('offline');
     expect(getPhotoVisionErrorStatus(new Error('network failed'))).toBe('error');
   });

@@ -1,17 +1,19 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 
 import { Button, Screen, StickyActionBar } from '@/components/ui';
 
 import {
   CategoryStep,
   DetailsStep,
+  DoneStep,
   FallbackStep,
   LocationStep,
   PreviewStep,
   Progress,
   StartStep,
 } from './ReportWizardStepViews';
+import { EmailPolishConsentSheet } from './EmailPolishConsentSheet';
 import { styles } from './reportWizardStyles';
 import { useReportWizard } from './useReportWizard';
 
@@ -25,6 +27,13 @@ export function ReportWizard() {
     : !wizard.canContinueLocation
       ? 'Add an address or GPS pin before previewing the email.'
       : '';
+  // Apple Mail opens prefilled; without it the share sheet picks an email app; web uses fallbacks.
+  const sendButtonTitle =
+    Platform.OS === 'web'
+      ? 'Send by email'
+      : wizard.mailComposerAvailable === false
+        ? 'Choose email app'
+        : 'Open Mail';
   const stickyFooter =
     state.step === 'details' ? (
       <StickyActionBar>
@@ -39,8 +48,8 @@ export function ReportWizard() {
       <StickyActionBar>
         <Button
           disabled={state.busy || !state.savedReportId}
-          onPress={actions.openMail}
-          title="Open Mail"
+          onPress={actions.sendReport}
+          title={sendButtonTitle}
         />
       </StickyActionBar>
     ) : null;
@@ -48,23 +57,20 @@ export function ReportWizard() {
   return (
     <View style={styles.root}>
       <Screen scroll={state.step !== 'category'} stickyFooter={stickyFooter}>
-        {state.savedBannerId ? (
-          <View style={styles.banner}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.bannerTitle}>Report saved</Text>
-              <Text style={styles.muted}>Mail was opened. Tracking is local.</Text>
-            </View>
-            <Button
-              onPress={() =>
-                router.push({ pathname: '/report/[id]', params: { id: state.savedBannerId } })
-              }
-              style={styles.bannerButton}
-              textStyle={styles.bannerButtonText}
-              title="View"
-            />
-          </View>
+        {state.step !== 'start' && state.step !== 'done' ? (
+          <Progress currentStep={state.step} />
         ) : null}
-        {state.step !== 'start' ? <Progress currentStep={state.step} /> : null}
+
+        {state.step === 'done' && state.lastHandoff ? (
+          <DoneStep
+            frameIndex={wizard.raccoonFrameIndex}
+            handoff={state.lastHandoff}
+            onConfirmSent={actions.confirmLastHandoffSent}
+            onNewReport={actions.startNewReport}
+            onViewReport={actions.viewLastHandoff}
+            recipient={email.recipient}
+          />
+        ) : null}
 
         {state.step === 'start' ? (
           <StartStep
@@ -135,28 +141,51 @@ export function ReportWizard() {
         {state.step === 'preview' ? (
           <PreviewStep
             dismissedContactPrompt={state.dismissedContactPrompt}
-            emailBody={state.emailBody}
+            emailBody={email.body}
+            emailOutOfDate={wizard.emailOutOfDate}
             emailRecipient={email.recipient}
-            emailSubject={state.emailSubject}
+            emailSubject={email.subject}
             onBack={() => actions.setStep('details')}
             onDismissContactPrompt={actions.dismissContactPrompt}
             onEmailBodyChange={actions.setEmailBody}
             onEmailSubjectChange={actions.setEmailSubject}
+            onRebuildEmail={actions.rebuildEmail}
+            polish={{
+              available: wizard.emailPolishAvailable,
+              hasPendingAi: Boolean(state.email.pendingAi),
+              message: state.emailPolish.message,
+              onAcceptPendingAi: actions.acceptPendingAiEmail,
+              onCancel: actions.cancelEmailPolish,
+              onDismissPendingAi: actions.dismissPendingAiEmail,
+              onPolish: actions.polishEmail,
+              onUndoAi: actions.undoAiEmail,
+              source: state.email.source,
+              status: state.emailPolish.status,
+            }}
             onExitToStart={actions.confirmExitToStart}
             photoUri={draft.photoUri}
             profile={state.profile}
+            usesShareSheet={Platform.OS !== 'web' && wizard.mailComposerAvailable === false}
           />
         ) : null}
 
         {state.step === 'fallback' ? (
           <FallbackStep
             onBack={() => actions.setStep('preview')}
+            onConfirmSent={actions.confirmSentManually}
             onCopyEmail={actions.copyEmail}
+            onCopyRecipient={actions.copyRecipient}
             onExitToStart={actions.confirmExitToStart}
             onOpenMailto={actions.openMailto}
+            recipient={email.recipient}
           />
         ) : null}
       </Screen>
+      <EmailPolishConsentSheet
+        onAllow={actions.allowEmailPolish}
+        onDismiss={actions.dismissEmailPolishConsent}
+        visible={state.emailPolish.status === 'consent'}
+      />
       {state.busy ? (
         <View pointerEvents="none" style={styles.busyOverlay}>
           <ActivityIndicator />

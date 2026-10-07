@@ -1,126 +1,72 @@
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { Image } from 'react-native';
 
+import { BackendError, postJson } from './backend/client';
+import { backendConfig, isPhotoAnalysisConfigured } from './backend/config';
 import { getInstallId } from './installId';
 import { normalizePhotoVisionResponse } from './photoAnalysisContract';
 
 const MAX_ANALYSIS_SIDE = 1024;
 const MAX_IMAGE_BASE64_BYTES = 2_000_000;
 const DEFAULT_ANALYSIS_TIMEOUT_MS = 20_000;
-const PHOTO_LABELS_ENABLED = process.env.EXPO_PUBLIC_PHOTO_LABELS_ENABLED === 'true';
-const ANALYZE_PHOTO_URL = process.env.EXPO_PUBLIC_SUPABASE_ANALYZE_PHOTO_URL ?? '';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 type AnalyzePhotoLabelsOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
 };
 
-export class PhotoVisionError extends Error {
-  constructor(
-    message: string,
-    readonly code:
-      | 'disabled'
-      | 'payload-too-large'
-      | 'network'
-      | 'offline'
-      | 'rate-limited'
-      | 'server'
-  ) {
-    super(message);
-  }
-}
-
 export function canAnalyzePhotoLabels() {
-  return PHOTO_LABELS_ENABLED && ANALYZE_PHOTO_URL.length > 0 && SUPABASE_ANON_KEY.length > 0;
+  return isPhotoAnalysisConfigured();
 }
 
 export async function analyzePhotoLabels(photoUri: string, options: AnalyzePhotoLabelsOptions = {}) {
   if (!canAnalyzePhotoLabels()) {
-    throw new PhotoVisionError('Photo labels are not configured.', 'disabled');
+    throw new BackendError('Photo labels are not configured.', 'disabled');
   }
 
   const installId = await getInstallId();
   const { PHOTO_LABELS, PHOTO_LABEL_TAXONOMY_VERSION } = await import('./photoLabels');
   const analysisImage = await createAnalysisImage(photoUri);
   if (options.signal?.aborted) {
-    throw new PhotoVisionError('Photo labels are unavailable.', 'network');
+    throw new BackendError('Photo labels were cancelled.', 'cancelled');
   }
 
   if (!analysisImage.base64) {
-    throw new PhotoVisionError('Photo analysis image was not created.', 'server');
+    throw new BackendError('Photo analysis image was not created.', 'server');
   }
 
   const imageBytes = getBase64ByteSize(analysisImage.base64);
   if (imageBytes > MAX_IMAGE_BASE64_BYTES) {
-    throw new PhotoVisionError('Photo analysis image is too large.', 'payload-too-large');
+    throw new BackendError('Photo analysis image is too large.', 'payload-too-large');
   }
 
-  let response: Response;
-  const abortSignal = createTimeoutSignal(options.signal, options.timeoutMs ?? DEFAULT_ANALYSIS_TIMEOUT_MS);
-  try {
-    response = await fetch(ANALYZE_PHOTO_URL, {
-      method: 'POST',
-      headers: getAnalyzePhotoHeaders(),
-      signal: abortSignal.signal,
-      body: JSON.stringify({
-        installId,
-        imageBase64: analysisImage.base64,
-        image: {
-          bytes: imageBytes,
-          height: analysisImage.height,
-          width: analysisImage.width,
-        },
-        mimeType: 'image/jpeg',
-        allowedLabels: PHOTO_LABELS,
-        taxonomyVersion: PHOTO_LABEL_TAXONOMY_VERSION,
-      }),
-    });
-  } catch {
-    if (abortSignal.didTimeout()) {
-      throw new PhotoVisionError('Photo labels took too long.', 'network');
+  const result = await postJson(
+    backendConfig.analyzePhotoUrl,
+    {
+      installId,
+      imageBase64: analysisImage.base64,
+      image: {
+        bytes: imageBytes,
+        height: analysisImage.height,
+        width: analysisImage.width,
+      },
+      mimeType: 'image/jpeg',
+      allowedLabels: PHOTO_LABELS,
+      taxonomyVersion: PHOTO_LABEL_TAXONOMY_VERSION,
+    },
+    {
+      anonKey: backendConfig.anonKey,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs ?? DEFAULT_ANALYSIS_TIMEOUT_MS,
     }
-    if (options.signal?.aborted) {
-      throw new PhotoVisionError('Photo labels were cancelled.', 'network');
-    }
-    // The request never reached the service: no connection, or the backend is down or paused.
-    throw new PhotoVisionError('Photo labels could not connect.', 'offline');
-  } finally {
-    abortSignal.cleanup();
-  }
+  );
 
-  if (response.status === 429) {
-    throw new PhotoVisionError('Photo label limit reached for today.', 'rate-limited');
-  }
-
-  if (response.status === 503) {
-    throw new PhotoVisionError('Photo labels are temporarily unavailable.', 'offline');
-  }
-
-  if (!response.ok) {
-    throw new PhotoVisionError('Photo labels are unavailable.', 'server');
-  }
-
-  const result = await response.json();
   return normalizePhotoVisionResponse(result, {
     bytes: imageBytes,
     height: analysisImage.height,
     mimeType: 'image/jpeg',
     width: analysisImage.width,
   });
-}
-
-function getAnalyzePhotoHeaders() {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (SUPABASE_ANON_KEY) {
-    headers.apikey = SUPABASE_ANON_KEY;
-    headers.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
-  }
-
-  return headers;
 }
 
 async function createAnalysisImage(photoUri: string) {
@@ -150,28 +96,4 @@ async function getImageSize(uri: string) {
 function getBase64ByteSize(base64: string) {
   const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
   return Math.floor((base64.length * 3) / 4) - padding;
-}
-
-function createTimeoutSignal(parentSignal: AbortSignal | undefined, timeoutMs: number) {
-  const controller = new AbortController();
-  let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, timeoutMs);
-  const abort = () => controller.abort();
-
-  parentSignal?.addEventListener('abort', abort);
-  if (parentSignal?.aborted) {
-    controller.abort();
-  }
-
-  return {
-    cleanup: () => {
-      clearTimeout(timeout);
-      parentSignal?.removeEventListener('abort', abort);
-    },
-    didTimeout: () => timedOut,
-    signal: controller.signal,
-  };
 }

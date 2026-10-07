@@ -16,6 +16,7 @@ import { formatAnswer, isOptionSelected, toggleMultiAnswer } from '@/lib/answers
 import { getSuggestedAnswerOptions } from '@/lib/issueSuggestions';
 import type {
   CategoryQuestion,
+  EmailSource,
   IssueCategory,
   PhotoIssueCandidate,
   PhotoVisionResult,
@@ -23,7 +24,12 @@ import type {
   ReportAnswers,
 } from '@/lib/types';
 
-import { type PhotoVisionStatus, type ReportWizardStep } from './reportWizardState';
+import {
+  type EmailPolishStatus,
+  type LastHandoff,
+  type PhotoVisionStatus,
+  type ReportWizardStep,
+} from './reportWizardState';
 import { styles } from './reportWizardStyles';
 import { RACCOON_SWEEPER_FRAMES } from './raccoonFrames';
 
@@ -351,6 +357,7 @@ export function DetailsStep({
 export function PreviewStep({
   dismissedContactPrompt,
   emailBody,
+  emailOutOfDate,
   emailRecipient,
   emailSubject,
   onBack,
@@ -358,11 +365,15 @@ export function PreviewStep({
   onEmailBodyChange,
   onEmailSubjectChange,
   onExitToStart,
+  onRebuildEmail,
   photoUri,
+  polish,
   profile,
+  usesShareSheet,
 }: {
   dismissedContactPrompt: boolean;
   emailBody: string;
+  emailOutOfDate: boolean;
   emailRecipient: string;
   emailSubject: string;
   onBack: () => void;
@@ -370,17 +381,57 @@ export function PreviewStep({
   onEmailBodyChange: (value: string) => void;
   onEmailSubjectChange: (value: string) => void;
   onExitToStart: () => void;
+  onRebuildEmail: () => void;
   photoUri: string | null;
+  polish: EmailPolishPanelProps;
   profile: { name: string; phone: string };
+  usesShareSheet: boolean;
 }) {
+  const missingName = !profile.name.trim();
+  const missingPhone = !profile.phone.trim();
+
   return (
     <View style={styles.stack}>
       <Header title="Email preview" onBack={onBack} onExitToStart={onExitToStart} />
-      <Notice text="This draft is saved locally as Draft. You still send it from your own email." />
-      {(!profile.name.trim() || !profile.phone.trim()) && !dismissedContactPrompt ? (
+      {emailOutOfDate ? (
+        <Card style={styles.warningCard} tone="warning">
+          <Text style={styles.muted}>
+            You changed the report after this email was written, so it may be missing those changes.
+          </Text>
+          <Button
+            onPress={onRebuildEmail}
+            style={styles.smallButton}
+            textStyle={styles.smallButtonText}
+            title="Rebuild email"
+            variant="secondary"
+          />
+        </Card>
+      ) : null}
+      <Card style={styles.emailBox}>
+        <View style={styles.emailToRow}>
+          <Text style={styles.emailToLabel}>To:</Text>
+          <Text numberOfLines={1} style={styles.emailTo}>{emailRecipient}</Text>
+        </View>
+        <Field
+          inputStyle={styles.subjectInput}
+          label="Subject"
+          multiline
+          onChangeText={onEmailSubjectChange}
+          value={emailSubject}
+        />
+        <Field label="Body" multiline onChangeText={onEmailBodyChange} value={emailBody} />
+      </Card>
+      <EmailPolishPanel {...polish} />
+      <View style={styles.attachmentRow}>
+        <FontAwesome color={colors.muted} name={photoUri ? 'paperclip' : 'image'} size={15} />
+        <Text style={styles.muted}>{photoUri ? 'Photo will be attached.' : 'No photo attached.'}</Text>
+      </View>
+      {missingPhone && !dismissedContactPrompt ? (
         <Card style={styles.warningCard} tone="warning">
           <View style={styles.warningCardHeader}>
-            <Text style={[styles.cardTitle, styles.warningCardTitle]}>Add contact info?</Text>
+            <Text style={[styles.cardTitle, styles.warningCardTitle]}>
+              {missingName ? 'Add your name and phone number?' : 'Add a phone number?'}
+            </Text>
             <Pressable
               accessibilityLabel="Dismiss contact info prompt"
               accessibilityRole="button"
@@ -390,7 +441,7 @@ export function PreviewStep({
               <FontAwesome name="times" size={16} color={colors.mutedStrong} />
             </Pressable>
           </View>
-          <Text style={styles.muted}>311 may use it to follow up. You can still send this report without it.</Text>
+          <Text style={styles.muted}>311 may call to follow up. You can still send without it.</Text>
           <Button
             onPress={() => router.push('/settings')}
             style={styles.smallButton}
@@ -399,39 +450,209 @@ export function PreviewStep({
           />
         </Card>
       ) : null}
-      <Card style={styles.emailBox}>
-        <View style={styles.emailToRow}>
-          <Text style={styles.emailToLabel}>To:</Text>
-          <Text numberOfLines={1} style={styles.emailTo}>{emailRecipient}</Text>
+      {usesShareSheet ? (
+        <Notice
+          text={`Apple Mail isn't set up on this phone, so you'll pick your email app next. ${emailRecipient} is copied for you to paste into the To field.`}
+        />
+      ) : null}
+      <Notice text="Saved as a draft. You send it from your own email app." />
+    </View>
+  );
+}
+
+export function DoneStep({
+  frameIndex,
+  handoff,
+  onConfirmSent,
+  onNewReport,
+  onViewReport,
+  recipient,
+}: {
+  frameIndex: number;
+  handoff: LastHandoff;
+  onConfirmSent: () => void;
+  onNewReport: () => void;
+  onViewReport: () => void;
+  recipient: string;
+}) {
+  const sent = handoff.status === 'sent';
+  const where = handoff.app ?? 'your email app';
+
+  return (
+    <View style={styles.stack}>
+      <View style={styles.doneHero}>
+        <View style={styles.doneRaccoon}>
+          <Image
+            accessibilityIgnoresInvertColors
+            resizeMode="contain"
+            source={RACCOON_SWEEPER_FRAMES[frameIndex]}
+            style={styles.raccoonSprite}
+          />
         </View>
-        <Field label="Subject" onChangeText={onEmailSubjectChange} value={emailSubject} />
-        <Field label="Body" multiline onChangeText={onEmailBodyChange} value={emailBody} />
+        <Text accessibilityRole="header" style={[styles.title, styles.centerText]}>
+          {sent ? 'Sent to 311' : `Ready in ${where}`}
+        </Text>
+        <Text style={[styles.subtitle, styles.centerText]}>
+          {sent
+            ? `Your report is on its way to ${recipient}.`
+            : `Send the email from ${where} if you haven't yet, then confirm it here.`}
+        </Text>
+      </View>
+
+      <Card style={styles.suggestionCard}>
+        <Text style={styles.cardTitle}>What happens next</Text>
+        <View style={styles.observationRow}>
+          <FontAwesome name="envelope-o" size={16} color={colors.primary} />
+          <Text style={styles.observationText}>
+            Replies from 311 go to the email address you sent from.
+          </Text>
+        </View>
+        <View style={styles.observationRow}>
+          <FontAwesome name="hashtag" size={16} color={colors.primary} />
+          <Text style={styles.observationText}>
+            If the reply includes a case number, add it to this report so you can follow up.
+          </Text>
+        </View>
+        <View style={styles.observationRow}>
+          <FontAwesome name="lock" size={16} color={colors.primary} />
+          <Text style={styles.observationText}>Your saved copy stays private on this phone.</Text>
+        </View>
       </Card>
-      <Text style={styles.muted}>{photoUri ? 'Photo will be attached.' : 'No photo attached.'}</Text>
+
+      {sent ? (
+        <>
+          <Button onPress={onNewReport} title="New report" />
+          <Button onPress={onViewReport} title="View report" variant="secondary" />
+        </>
+      ) : (
+        <>
+          <Button onPress={onConfirmSent} title="I've sent it" />
+          <Button onPress={onNewReport} title="New report" variant="secondary" />
+        </>
+      )}
     </View>
   );
 }
 
 export function FallbackStep({
   onBack,
+  onConfirmSent,
   onCopyEmail,
+  onCopyRecipient,
   onExitToStart,
   onOpenMailto,
+  recipient,
 }: {
   onBack: () => void;
+  onConfirmSent: () => void;
   onCopyEmail: () => void;
+  onCopyRecipient: () => void;
   onExitToStart: () => void;
   onOpenMailto: () => void;
+  recipient: string;
 }) {
   return (
     <View style={styles.stack}>
-      <Header title="Mail unavailable" onBack={onBack} onExitToStart={onExitToStart} />
+      <Header title="Send by email" onBack={onBack} onExitToStart={onExitToStart} />
       <Notice
-        text="The iOS mail composer is unavailable. Copy the draft, then attach the photo manually if needed."
+        text={`Open the email in your email app, or copy it and send it to ${recipient}. Attach your photo yourself if you took one.`}
         tone="warning"
       />
+      <Button onPress={onOpenMailto} title="Open in email app" variant="secondary" />
       <Button onPress={onCopyEmail} title="Copy email text" variant="secondary" />
-      <Button onPress={onOpenMailto} title="Open mailto link" variant="secondary" />
+      <Button onPress={onCopyRecipient} title={`Copy ${recipient}`} variant="secondary" />
+      <Button onPress={onConfirmSent} title="I've sent it" />
+    </View>
+  );
+}
+
+export type EmailPolishPanelProps = {
+  available: boolean;
+  hasPendingAi: boolean;
+  message: string | null;
+  onAcceptPendingAi: () => void;
+  onCancel: () => void;
+  onDismissPendingAi: () => void;
+  onPolish: () => void;
+  onUndoAi: () => void;
+  source: EmailSource;
+  status: EmailPolishStatus;
+};
+
+function EmailPolishPanel({
+  available,
+  hasPendingAi,
+  message,
+  onAcceptPendingAi,
+  onCancel,
+  onDismissPendingAi,
+  onPolish,
+  onUndoAi,
+  source,
+  status,
+}: EmailPolishPanelProps) {
+  if (!available) return null;
+
+  if (hasPendingAi) {
+    return (
+      <Card style={styles.suggestionCard}>
+        <Text style={styles.cardTitle}>AI version ready</Text>
+        <Text style={styles.muted}>
+          You edited the email, so the AI version wasn't applied. Use it instead?
+        </Text>
+        <View style={styles.buttonRow}>
+          <Button
+            onPress={onAcceptPendingAi}
+            style={styles.rowButton}
+            title="Use AI version"
+            variant="secondary"
+          />
+          <Button
+            onPress={onDismissPendingAi}
+            style={styles.rowButton}
+            title="Keep mine"
+            variant="secondary"
+          />
+        </View>
+      </Card>
+    );
+  }
+
+  if (status === 'loading') {
+    return (
+      <View style={styles.polishRow}>
+        <ActivityIndicator />
+        <Text style={[styles.muted, styles.polishRowText]}>Polishing your email…</Text>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onCancel}>
+          <Text style={styles.inlineActionText}>Cancel</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (source === 'ai') {
+    return (
+      <View style={styles.polishRow}>
+        <FontAwesome color={colors.primary} name="magic" size={16} />
+        <Text style={[styles.muted, styles.polishRowText]}>
+          AI-polished. Check the facts before you send it.
+        </Text>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={onUndoAi}>
+          <Text style={styles.inlineActionText}>Undo</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.stack}>
+      {status === 'error' && message ? <Text style={styles.muted}>{message}</Text> : null}
+      <Button
+        icon={<FontAwesome color={colors.text} name="magic" size={18} />}
+        onPress={onPolish}
+        title={status === 'error' ? 'Try AI polish again' : 'Polish with AI'}
+        variant="secondary"
+      />
     </View>
   );
 }

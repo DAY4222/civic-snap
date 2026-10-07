@@ -114,6 +114,26 @@ export const REPORT_MIGRATIONS: Migration[] = [
       await db.execAsync("ALTER TABLE reports ADD COLUMN location_note TEXT NOT NULL DEFAULT '';");
     },
   },
+  {
+    version: 5,
+    description: 'remember whether the email was generated, edited or AI-polished',
+    up: async (db) => {
+      await db.execAsync(
+        "ALTER TABLE reports ADD COLUMN email_source TEXT NOT NULL DEFAULT 'generated';"
+      );
+    },
+  },
+  {
+    version: 6,
+    description: 'record how and when the report was handed off for sending',
+    up: async (db) => {
+      await db.execAsync(`
+        ALTER TABLE reports ADD COLUMN handoff_method TEXT;
+        ALTER TABLE reports ADD COLUMN handoff_app TEXT;
+        ALTER TABLE reports ADD COLUMN handed_off_at TEXT;
+      `);
+    },
+  },
 ];
 
 export const LATEST_REPORTS_SCHEMA_VERSION = REPORT_MIGRATIONS[REPORT_MIGRATIONS.length - 1].version;

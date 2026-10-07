@@ -1,16 +1,15 @@
+import * as Clipboard from 'expo-clipboard';
 import * as Location from 'expo-location';
 import * as MailComposer from 'expo-mail-composer';
+import { Platform, Share } from 'react-native';
 
 import { GENERAL_CATEGORY } from '@/lib/categories';
 import { addLocalDetailsToRewrittenBody, buildEmail } from '@/lib/email';
-import {
-  canRewriteEmailDraft,
-  rewriteEmailDraft,
-  type EmailRewriteResult,
-} from '@/lib/emailRewriteClient';
+import { rewriteEmailDraft, type EmailRewriteResult } from '@/lib/emailRewriteClient';
 import { persistReportPhoto } from '@/lib/photos';
-import { updateReportEmail, updateReportStatus, type CreateReportInput } from '@/lib/reports';
-import type { EmailInput, IssueCategory, ReportDraft } from '@/lib/types';
+import { buildShareMessage, describeShareTarget } from '@/lib/handoff';
+import { markReportHandedOff, updateReportEmail, type CreateReportInput } from '@/lib/reports';
+import type { EmailInput, EmailSource, IssueCategory, ReportDraft } from '@/lib/types';
 
 export async function persistWizardPhoto(uri: string) {
   return persistReportPhoto(uri);
@@ -44,32 +43,40 @@ export async function reverseGeocodeReportAddress(latitude: number, longitude: n
   }
 }
 
-export async function buildPreviewEmail(
-  input: EmailInput,
-  rewriteDraft: (
-    input: EmailInput,
-    options: { defaultEmailBody: string }
-  ) => Promise<Pick<EmailRewriteResult, 'body'>> = rewriteEmailDraft,
-  buildLocalEmail: (input: EmailInput) => ReturnType<typeof buildEmail> = buildEmail
-) {
-  const email = buildLocalEmail(input);
-  if (rewriteDraft === rewriteEmailDraft && !canRewriteEmailDraft()) return email;
+/** Polish time includes a cold start on the shared backend; the function itself gives up at 20 s. */
+const EMAIL_POLISH_TIMEOUT_MS = 25_000;
 
-  try {
-    const rewritten = await rewriteDraft(input, {
-      defaultEmailBody: buildEmail(input, { includeContact: false, includeCoordinates: false })
-        .body,
-    });
-    return { ...email, body: addLocalDetailsToRewrittenBody(rewritten.body, input) };
-  } catch {
-    return email;
-  }
+type RewriteDraft = (
+  input: EmailInput,
+  options: { defaultEmailBody: string; signal?: AbortSignal; timeoutMs?: number }
+) => Promise<Pick<EmailRewriteResult, 'body'>>;
+
+/**
+ * Asks the AI for a polished body. The model only sees a privacy-safe draft (no name, email,
+ * phone or GPS); those are added back to its answer here, on the device.
+ */
+export async function requestPolishedEmail(
+  input: EmailInput,
+  { signal }: { signal?: AbortSignal } = {},
+  rewriteDraft: RewriteDraft = rewriteEmailDraft
+) {
+  const generated = buildEmail(input);
+  const rewritten = await rewriteDraft(input, {
+    defaultEmailBody: buildEmail(input, { includeContact: false, includeCoordinates: false }).body,
+    signal,
+    timeoutMs: EMAIL_POLISH_TIMEOUT_MS,
+  });
+
+  return {
+    subject: generated.subject,
+    body: addLocalDetailsToRewrittenBody(rewritten.body, input),
+  };
 }
 
 export function toCreateReportInput(
   draft: ReportDraft,
   category: IssueCategory,
-  email: Pick<ReturnType<typeof buildEmail>, 'subject' | 'body'>
+  email: { subject: string; body: string; source: EmailSource }
 ): CreateReportInput {
   return {
     ...draft,
@@ -77,10 +84,36 @@ export function toCreateReportInput(
     category: category.title,
     emailSubject: email.subject,
     emailBody: email.body,
+    emailSource: email.source,
   };
 }
 
-export async function openSavedReportMail({
+export type HandoffOutcome =
+  | { kind: 'sent'; app: string | null }
+  | { kind: 'handed-off'; app: string | null }
+  | { kind: 'cancelled' }
+  | { kind: 'unavailable' };
+
+/** Whether Apple Mail (or the platform mail composer) is set up on this device. */
+export async function isMailComposerAvailable() {
+  // On web the composer only opens a mailto: link and can't attach the photo or report back,
+  // so the web flow uses the fallback screen instead.
+  if (Platform.OS === 'web') return false;
+
+  try {
+    return await MailComposer.isAvailableAsync();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Hands the report to the user's email. Apple Mail opens prefilled with the photo attached when
+ * it's set up; otherwise the share sheet lets them pick Gmail, Outlook and so on (the recipient
+ * can't be prefilled there, so it is copied to the clipboard and named in the text). Web has
+ * neither, so the caller shows the copy and mailto fallback.
+ */
+export async function handOffReport({
   emailBody,
   emailRecipient,
   emailSubject,
@@ -92,19 +125,43 @@ export async function openSavedReportMail({
   emailSubject: string;
   photoUri: string | null;
   reportId: string;
-}) {
+}): Promise<HandoffOutcome> {
   await updateReportEmail(reportId, emailSubject, emailBody);
-  const available = await MailComposer.isAvailableAsync();
-  if (!available) return 'fallback' as const;
 
-  await MailComposer.composeAsync({
-    recipients: [emailRecipient],
-    subject: emailSubject,
-    body: emailBody,
-    attachments: photoUri ? [photoUri] : [],
-  });
-  await updateReportStatus(reportId, 'handed_off');
-  return 'opened' as const;
+  if (await isMailComposerAvailable()) {
+    const result = await MailComposer.composeAsync({
+      recipients: [emailRecipient],
+      subject: emailSubject,
+      body: emailBody,
+      attachments: photoUri ? [photoUri] : [],
+    });
+    if (result.status === MailComposer.MailComposerStatus.CANCELLED) return { kind: 'cancelled' };
+
+    const sent = result.status === MailComposer.MailComposerStatus.SENT;
+    await markReportHandedOff(reportId, {
+      status: sent ? 'sent' : 'handed_off',
+      method: 'mail-composer',
+      app: 'Mail',
+    });
+    return { kind: sent ? 'sent' : 'handed-off', app: 'Mail' };
+  }
+
+  if (Platform.OS === 'web') return { kind: 'unavailable' };
+
+  await Clipboard.setStringAsync(emailRecipient);
+  const result = await Share.share(
+    {
+      message: buildShareMessage({ recipient: emailRecipient, subject: emailSubject, body: emailBody }),
+      title: emailSubject,
+      url: photoUri ?? undefined,
+    },
+    { dialogTitle: 'Send your 311 report', subject: emailSubject }
+  );
+  if (result.action === Share.dismissedAction) return { kind: 'cancelled' };
+
+  const app = describeShareTarget(result.activityType);
+  await markReportHandedOff(reportId, { status: 'handed_off', method: 'share-sheet', app });
+  return { kind: 'handed-off', app };
 }
 
 function formatAddress(place: Location.LocationGeocodedAddress) {

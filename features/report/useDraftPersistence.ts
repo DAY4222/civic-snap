@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 
 import { isDraftEmpty } from '@/lib/reportDraft';
 import { createDraftReport, updateDraftReport } from '@/lib/reports';
-import type { IssueCategory, ReportDraft } from '@/lib/types';
+import type { EmailSource, IssueCategory, ReportDraft } from '@/lib/types';
 
 import { toCreateReportInput } from './reportWizardServices';
 
@@ -12,7 +12,7 @@ const AUTOSAVE_DELAY_MS = 600;
 type DraftPersistenceOptions = {
   category: IssueCategory;
   draft: ReportDraft;
-  email: { subject: string; body: string };
+  email: { subject: string; body: string; source: EmailSource };
   /** False when there is nothing to keep, e.g. on the start screen or after the handoff. */
   enabled: boolean;
   onCreated: (reportId: string) => void;
@@ -100,7 +100,7 @@ export function useDraftPersistence(options: DraftPersistenceOptions) {
     }, AUTOSAVE_DELAY_MS);
 
     return clearTimer;
-  }, [clearTimer, draft, email.body, email.subject, enabled, saveNow]);
+  }, [clearTimer, draft, email.body, email.source, email.subject, enabled, saveNow]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {

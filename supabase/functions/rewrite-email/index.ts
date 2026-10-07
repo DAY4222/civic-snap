@@ -23,7 +23,7 @@ const corsHeaders = {
 
 const MODEL = 'gemini-3.1-flash-lite';
 const PROVIDER = 'gemini';
-const PROMPT_VERSION = 'toronto-311-email-rewrite-v2';
+const PROMPT_VERSION = 'toronto-311-email-rewrite-v3';
 const GEMINI_TIMEOUT_MS = 20_000;
 const LIMIT_CONFIG = readRewriteLimitConfigFromEnv((name) => Deno.env.get(name));
 
@@ -183,14 +183,26 @@ async function countRuns(
   return { ok: true as const, count: count ?? 0 };
 }
 
+/** Gemini answers 500 or 503 when the model is briefly overloaded; one quick retry usually works. */
+const RETRYABLE_GEMINI_STATUSES = new Set([500, 503]);
+const GEMINI_RETRY_DELAY_MS = 800;
+
+async function sendWithOverloadRetry(send: () => Promise<Response>) {
+  const response = await send();
+  if (!RETRYABLE_GEMINI_STATUSES.has(response.status)) return response;
+
+  await response.body?.cancel();
+  await new Promise((resolve) => setTimeout(resolve, GEMINI_RETRY_DELAY_MS));
+  return send();
+}
+
 async function callGemini(apiKey: string, request: ValidEmailRewriteRequest) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-      {
+    const response = await sendWithOverloadRetry(() =>
+      fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +226,7 @@ async function callGemini(apiKey: string, request: ValidEmailRewriteRequest) {
             temperature: 0.2,
           },
         }),
-      }
+      })
     );
 
     if (!response.ok) {

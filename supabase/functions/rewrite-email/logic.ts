@@ -155,8 +155,11 @@ export function buildGeminiEmailRewritePrompt(input: ValidEmailRewriteRequest) {
     '- State the issue and exact location early.',
     '- Include relevant guided answers naturally, especially eligibility, size/severity, access, or exact-location details.',
     '- Mention impacts only when they are provided or directly stated by the user.',
+    '- Never add causes, consequences, hazards, injuries, severity, urgency, or risk that the inputs do not state. If the user did not say something is dangerous, do not say it is.',
+    '- Keep measurements, directions, counts, and place names exactly as written.',
+    "- In Details, stay close to the user's own wording from issueDescription; tidy grammar, but do not reinterpret what they saw.",
     '- Ask for the appropriate city action, such as inspection, repair, removal, clearing, or follow-up. If unclear, request inspection and follow-up.',
-    '- If contact details are provided, include them in the Contact section before a brief thank-you. If no contact details are provided, end with "Thank you."',
+    '- If contact details are provided, include them in the Contact section before a brief thank-you. If no contact details are provided, end with "Thank you." on its own line.',
     '- Keep the tone professional, courteous, and assertive.',
     '',
     `input: ${JSON.stringify({

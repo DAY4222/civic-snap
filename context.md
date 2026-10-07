@@ -4,22 +4,24 @@
 
 - Civic Snap is an Expo React Native app using Expo Router in `311-mobile/`.
 - The main surfaces are the Report, History, and Map tabs, plus onboarding, settings, and report detail screens.
-- The report flow supports photo or manual starts, issue search, location pin adjustment, details/checklist prompts, editable email preview, native Mail handoff, and copy/mailto fallback.
+- The report flow supports photo or manual starts, issue search, location pin adjustment, details/checklist prompts, editable email preview with optional AI polish, handoff through Apple Mail or the share sheet, and a copy/mailto fallback on web.
 - Deeper architecture diagrams live in `docs/diagrams.md`; photo-analysis setup details live in `docs/photo-labels-mvp.md`.
 
 ## Architecture Decisions
 
 - Keep saved reports, drafts, profile fields, saved report photos, and email handoff local-first.
 - Use SQLite for report history, SecureStore/device storage for profile/onboarding/settings, and local file storage for report photos.
-- Save a report as `Draft` when email preview opens so the user's work is not lost.
-- Treat `Mail opened` as the app's successful handoff state; the app does not claim Toronto received the report.
-- Make email preview editable before Mail handoff; user edits are saved back into the local draft.
+- Save drafts as the user goes: the row is created once the draft has content and autosaved after each change and when the app backgrounds.
+- Store report status as codes: `draft`, `handed_off` (Mail or share sheet opened, not confirmed), `sent` (user confirmed or Mail reported sent), `case_added`. The app never claims Toronto received the report.
+- Hand off through Apple Mail when it is set up (its result maps to sent/handed off/cancelled), otherwise the share sheet; web uses copy/mailto and "I've sent it".
+- Make email preview editable before handoff; the email is tracked as generated, user-edited, or AI-polished, and user edits are never overwritten.
+- Store report photo paths relative to the document directory, because iOS can move the app container.
 - Keep draft reports resumable from History and report detail.
 - Use a fixed center pin for report location adjustment; users move the map under the pin for better mobile precision.
 - Use `react-native-maps` for native map surfaces; reports without coordinates show in History but not on Map.
 - Keep report creation in `features/report/` with a reducer for pure draft state and a hook for async device/app side effects.
 - Share only small, repeated UI primitives in `components/ui/`; avoid a broad design system until the prototype stabilizes.
-- Evolve local SQLite with explicit `PRAGMA user_version` migrations/backfills and preserve existing drafts/reports during prototype schema changes.
+- Evolve local SQLite with ordered migrations in `lib/reportMigrations.ts`, run once per session inside transactions and tracked with `PRAGMA user_version`; never edit a shipped migration.
 - Use the generated Toronto 311 catalog as the source for 97 target issue types and 99 photo-label definitions.
 - Keep app and Edge Function photo-analysis contracts deploy-safe in their own runtimes, with contract tests proving response compatibility.
 - Verify refactors with typecheck, Jest, web export, and an iOS Expo Go/simulator smoke pass for native-only behavior.
@@ -29,10 +31,16 @@
 - Photo analysis is optional and assistive. It runs only when public Expo env config is present and the user enables Photo analysis in Settings or inline during a report.
 - When enabled, photo analysis starts in the background after a report photo is saved so location confirmation can continue while suggestions load.
 - The app sends a resized photo copy to the shared Supabase Edge Function for Gemini-backed photo labels and top issue candidates.
-- Address, GPS, location notes, user-written descriptions, profile fields, and email body stay out of Gemini requests.
+- Address, GPS, location notes, user-written descriptions, profile fields, and email body stay out of photo-analysis requests.
 - Saved report photos stay on-device; only the analysis copy is sent for photo analysis.
 - Public Expo env vars configure the demo backend. Gemini API keys and Supabase service-role keys stay in Edge Function secrets, never in the app.
 - Server-side analysis logs are used for rate limiting and diagnostics; retention policy is still an open operations decision.
+
+## AI Email Polish Boundary
+
+- AI email polish is opt-in: the first use shows a consent sheet, and Settings has a switch. It never runs automatically.
+- It sends the issue type, description, address and location note, and checklist answers. Name, email, phone, exact GPS, and the photo are never sent; the app adds contact details and GPS back to the polished email on the device.
+- Polished text is marked "AI-polished, check the facts" with Undo. The prompt forbids adding hazards, consequences, or severity the reporter didn't state.
 
 ## Placeholders And Out Of Scope
 

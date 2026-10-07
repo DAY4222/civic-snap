@@ -23,17 +23,15 @@ export function buildEmail(
     })
     .filter(Boolean);
 
-  const coordinateLine = includeCoordinates
-    ? formatCoordinateLine(input) ?? 'GPS: not available'
-    : null;
-  const categoryPath = input.category.categoryPath?.join(' > ') ?? '';
+  const coordinateLines = includeCoordinates
+    ? formatCoordinateLines(input) ?? ['GPS: not available']
+    : [];
 
   const body = [
     'Hello 311 Toronto,',
     '',
     'Issue:',
     input.category.title,
-    categoryPath ? `Category path: ${categoryPath}` : null,
     input.photoIssueTopic?.evidenceChips?.length
       ? `Photo evidence: ${input.photoIssueTopic.evidenceChips.join(', ')}`
       : null,
@@ -41,7 +39,7 @@ export function buildEmail(
     'Location:',
     input.address || 'Address not provided',
     input.locationNote ? `Location note: ${input.locationNote}` : null,
-    coordinateLine,
+    ...coordinateLines,
     '',
     'Description:',
     input.description.trim(),
@@ -70,25 +68,36 @@ export function buildEmail(
  * body locally, before the closing thank-you when there is one.
  */
 export function addLocalDetailsToRewrittenBody(body: string, input: EmailInput) {
-  const coordinateLine = formatCoordinateLine(input);
+  const coordinateLines = formatCoordinateLines(input);
   const contactLines = formatContactLines(input.profile);
   const blocks = [
-    coordinateLine,
+    coordinateLines?.join('\n') ?? null,
     contactLines.length ? ['Contact:', ...contactLines].join('\n') : null,
   ].filter((block): block is string => block != null);
   if (blocks.length === 0) return body;
 
   const localDetails = blocks.join('\n\n');
-  const signOff = body.match(/\n+(thank you[^\n]*)\s*$/i);
-  if (!signOff || signOff.index == null) return `${body.trimEnd()}\n\n${localDetails}`;
+  const ownLine = body.match(/\n+(thank you[^\n]*)\s*$/i);
+  if (ownLine?.index != null) {
+    return `${body.slice(0, ownLine.index)}\n\n${localDetails}\n\n${ownLine[1]}`;
+  }
 
-  return `${body.slice(0, signOff.index)}\n\n${localDetails}\n\n${signOff[1]}`;
+  // "...for public use. Thank you." on one line: move the thank-you below the local details.
+  const sameLine = body.match(/([.!?])[ \t]+(thank you[^\n]*)\s*$/i);
+  if (sameLine?.index != null) {
+    return `${body.slice(0, sameLine.index + 1)}\n\n${localDetails}\n\n${sameLine[2]}`;
+  }
+
+  return `${body.trimEnd()}\n\n${localDetails}`;
 }
 
-function formatCoordinateLine(input: Pick<EmailInput, 'latitude' | 'longitude'>) {
-  return input.latitude != null && input.longitude != null
-    ? `GPS: ${input.latitude.toFixed(6)}, ${input.longitude.toFixed(6)}`
-    : null;
+/** GPS plus a map link, so 311 staff can open the exact spot from any desktop. */
+function formatCoordinateLines(input: Pick<EmailInput, 'latitude' | 'longitude'>) {
+  if (input.latitude == null || input.longitude == null) return null;
+
+  const latitude = input.latitude.toFixed(6);
+  const longitude = input.longitude.toFixed(6);
+  return [`GPS: ${latitude}, ${longitude}`, `Map: https://maps.google.com/?q=${latitude},${longitude}`];
 }
 
 function formatContactLines(profile: Profile) {

@@ -1,6 +1,13 @@
 import { CATEGORY_TITLE_IDS } from './generated/categoryTitleIds';
 import { parseStoredPhotoVisionResult } from './photoAnalysisContract';
-import { PhotoIssueCandidate, Report, ReportAnswers, ReportStatus } from './types';
+import {
+  EmailSource,
+  HandoffMethod,
+  PhotoIssueCandidate,
+  Report,
+  ReportAnswers,
+  ReportStatus,
+} from './types';
 
 export type ReportRow = {
   id: string;
@@ -18,8 +25,12 @@ export type ReportRow = {
   photo_issue_topic_json: string | null;
   email_subject: string;
   email_body: string;
+  email_source: string | null;
   status: string;
   case_number: string;
+  handoff_method: string | null;
+  handoff_app: string | null;
+  handed_off_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -27,7 +38,14 @@ export type ReportRow = {
 /** A report as saved from the wizard: the draft plus its issue title and current email. */
 export type CreateReportInput = Omit<
   Report,
-  'id' | 'status' | 'caseNumber' | 'createdAt' | 'updatedAt'
+  | 'id'
+  | 'status'
+  | 'caseNumber'
+  | 'handoffMethod'
+  | 'handoffApp'
+  | 'handedOffAt'
+  | 'createdAt'
+  | 'updatedAt'
 >;
 
 export function createReportId() {
@@ -86,8 +104,12 @@ export function rowToReport(row: ReportRow, photoDirectory: string | null = null
     photoIssueTopic: parsePhotoIssueTopic(row.photo_issue_topic_json),
     emailSubject: stringValue(row.email_subject),
     emailBody: stringValue(row.email_body),
+    emailSource: parseEmailSource(row.email_source),
     status: parseReportStatus(row.status),
     caseNumber: stringValue(row.case_number),
+    handoffMethod: parseHandoffMethod(row.handoff_method),
+    handoffApp: row.handoff_app || null,
+    handedOffAt: row.handed_off_at || null,
     createdAt: stringValue(row.created_at),
     updatedAt: stringValue(row.updated_at),
   };
@@ -140,6 +162,16 @@ export const LEGACY_STATUSES: Record<string, ReportStatus> = {
   'Mail opened': 'handed_off',
   'Case added': 'case_added',
 };
+
+export function parseHandoffMethod(raw: string | null): HandoffMethod | null {
+  return raw === 'mail-composer' || raw === 'share-sheet' || raw === 'mailto' || raw === 'copy'
+    ? raw
+    : null;
+}
+
+export function parseEmailSource(raw: string | null): EmailSource {
+  return raw === 'user' || raw === 'ai' ? raw : 'generated';
+}
 
 export function parseReportStatus(raw: string): ReportStatus {
   if (raw === 'draft' || raw === 'handed_off' || raw === 'sent' || raw === 'case_added') return raw;

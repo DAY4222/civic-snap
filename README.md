@@ -9,9 +9,9 @@ npm install
 cp .env.example .env.local
 ```
 
-The tracked `.env` and `.env.example` configure photo-label analysis and email rewriting against the shared demo backend. Users still need to enable Photo analysis in Settings before the app sends a resized photo for topic suggestions. Email drafts are rewritten automatically when the rewrite function is configured. Use `.env.local` for local overrides.
+The tracked `.env` and `.env.example` configure photo-label analysis and email rewriting against the shared demo backend. Users still need to enable Photo analysis in Settings before the app sends a resized photo for topic suggestions. AI email polish is opt-in per device: users tap "Polish with AI" on the email preview and agree once (or switch it on in Settings). Use `.env.local` for local overrides.
 
-`EXPO_PUBLIC_SUPABASE_REWRITE_EMAIL_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are public client configuration. Gemini API keys and Supabase service-role keys must stay in Supabase Edge Function secrets only.
+`EXPO_PUBLIC_SUPABASE_REWRITE_EMAIL_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are public client configuration. `EXPO_PUBLIC_PHOTO_LABELS_ENABLED` and `EXPO_PUBLIC_EMAIL_REWRITE_ENABLED` switch the two AI features on or off for a build. Gemini API keys and Supabase service-role keys must stay in Supabase Edge Function secrets only.
 
 ## Run
 

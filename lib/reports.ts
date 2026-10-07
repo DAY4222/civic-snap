@@ -12,7 +12,7 @@ import {
   toStoredPhotoPath,
 } from './reportPersistence';
 import type { CreateReportInput, ReportRow } from './reportPersistence';
-import type { ReportStatus } from './types';
+import type { HandoffMethod, ReportStatus } from './types';
 
 export type { CreateReportInput } from './reportPersistence';
 
@@ -24,9 +24,9 @@ export async function createDraftReport(input: CreateReportInput) {
   await db.runAsync(
     `INSERT INTO reports (
       id, category_id, category, description, answers_json, address, location_note, latitude, longitude,
-      photo_uri, thumbnail_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, status, case_number,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      photo_uri, thumbnail_uri, photo_vision_result_json, photo_issue_topic_json, email_subject, email_body, email_source,
+      status, case_number, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.categoryId,
     input.category,
@@ -42,6 +42,7 @@ export async function createDraftReport(input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
+    input.emailSource,
     'draft',
     '',
     now,
@@ -73,6 +74,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
       photo_issue_topic_json = ?,
       email_subject = ?,
       email_body = ?,
+      email_source = ?,
       updated_at = ?
     WHERE id = ? AND status = 'draft'`,
     input.categoryId,
@@ -89,6 +91,7 @@ export async function updateDraftReport(id: string, input: CreateReportInput) {
     serializeNullableJson(input.photoIssueTopic),
     input.emailSubject,
     input.emailBody,
+    input.emailSource,
     new Date().toISOString(),
     id
   );
@@ -118,11 +121,29 @@ export async function getReport(id: string) {
   return rows[0] ? rowToReport(rows[0], getReportPhotoBaseDirectory()) : null;
 }
 
-export async function updateReportStatus(id: string, status: ReportStatus) {
+export async function markReportHandedOff(
+  id: string,
+  handoff: { status: Extract<ReportStatus, 'handed_off' | 'sent'>; method: HandoffMethod; app: string | null }
+) {
+  const db = await openDatabase();
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `UPDATE reports SET status = ?, handoff_method = ?, handoff_app = ?, handed_off_at = ?, updated_at = ?
+    WHERE id = ?`,
+    handoff.status,
+    handoff.method,
+    handoff.app,
+    now,
+    now,
+    id
+  );
+}
+
+/** The user confirmed the email went out. Reports with a case number stay as they are. */
+export async function markReportSent(id: string) {
   const db = await openDatabase();
   await db.runAsync(
-    'UPDATE reports SET status = ?, updated_at = ? WHERE id = ?',
-    status,
+    "UPDATE reports SET status = 'sent', updated_at = ? WHERE id = ? AND status IN ('draft', 'handed_off')",
     new Date().toISOString(),
     id
   );

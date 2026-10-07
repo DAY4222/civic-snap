@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Image, StyleSheet, Text, View } from 'react-n
 
 import { Button, Card, Field, Screen, colors } from '@/components/ui';
 import { getReportTrackingLabel } from '@/lib/reportTracking';
-import { deleteReport, getReport, updateCaseNumber } from '@/lib/reports';
+import { deleteReport, getReport, markReportSent, updateCaseNumber } from '@/lib/reports';
 import { Report } from '@/lib/types';
 
 export default function ReportDetailScreen() {
@@ -51,6 +51,20 @@ export default function ReportDetailScreen() {
       await updateCaseNumber(id, caseNumber.trim());
       const refreshed = await getReport(id);
       setReport(refreshed);
+    } catch {
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmSent() {
+    if (!id || saving) return;
+    setSaving(true);
+    setError(false);
+    try {
+      await markReportSent(id);
+      setReport(await getReport(id));
     } catch {
       setError(true);
     } finally {
@@ -133,6 +147,21 @@ export default function ReportDetailScreen() {
           />
         ) : null}
       </Card>
+      {report.status === 'handed_off' ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Confirm when it's sent</Text>
+          <Text style={styles.subtitle}>
+            {describeHandoff(report.handoffApp, report.handedOffAt)} Once the email is on its way to
+            311, confirm here so you can track the case.
+          </Text>
+          <Button
+            disabled={saving}
+            loading={saving}
+            onPress={confirmSent}
+            title="Yes, it's sent"
+          />
+        </Card>
+      ) : null}
       {report.photoIssueTopic ? (
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Selected photo evidence</Text>
@@ -150,7 +179,7 @@ export default function ReportDetailScreen() {
           ) : null}
         </Card>
       ) : null}
-      {report.status !== 'draft' ? (
+      {report.status === 'sent' || report.status === 'case_added' ? (
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Local tracking</Text>
           <View style={styles.statusPill}>
@@ -294,4 +323,14 @@ function confidenceTierText(tier: string) {
   if (tier === 'strong') return 'Strong match';
   if (tier === 'likely') return 'Likely match';
   return 'Possible match';
+}
+
+function describeHandoff(app: string | null, handedOffAt: string | null) {
+  const where = app ? `You opened it in ${app}` : 'You opened it in your email app';
+  if (!handedOffAt) return `${where}.`;
+
+  const date = new Date(handedOffAt);
+  return Number.isNaN(date.getTime())
+    ? `${where}.`
+    : `${where} on ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.`;
 }
