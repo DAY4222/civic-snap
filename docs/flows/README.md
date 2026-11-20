@@ -8,7 +8,7 @@ A map of every screen and path in the app as it works today, for the redesign. I
 
 ## 1. Run it in the iOS Simulator (on your Mac)
 
-You need a Mac with **Xcode** installed from the App Store. Open Xcode once so it installs the simulator, and install **Node.js 20.19 or newer** (Expo SDK 54 needs it). Then:
+You need a Mac with **Xcode 14.1 or newer** from the App Store. Open Xcode once so it finishes installing and adds an iOS simulator, and install **Node.js 20.19.4 or newer** (React Native 0.81 needs it). Then:
 
 ```bash
 git clone https://github.com/DAY4222/civic-snap.git
@@ -17,7 +17,13 @@ npm install
 npm run ios
 ```
 
-`npm run ios` starts Expo and opens the app in the simulator through **Expo Go**, which installs itself the first time. Press `i` in the terminal to reopen it, and `r` to reload after code changes.
+`npm run ios` starts Expo, boots the simulator and opens the app in **Expo Go**. Expo downloads the Expo Go version that matches this project (SDK 54). If the simulator already has a different version, Expo asks "Install the recommended Expo Go version?": answer **Y**. Press `i` in the terminal to reopen the app, and `r` to reload after code changes.
+
+If Expo says the Simulator or `xcrun` can't be found, point the command-line tools at Xcode once, then run `npm run ios` again:
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+```
 
 Simulator tips for testing:
 - **Location:** Simulator menu → Features → Location → Custom Location. Use `43.6526, -79.3839` (Toronto City Hall). A spot outside Toronto shows the "outside the city" warning.
